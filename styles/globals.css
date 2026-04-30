@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@400;600;700;800&display=swap");
+
+/* ── CSS Custom Properties (mirrors Tailwind theme for use in chart JS) ───── */
+:root {
+  /* Backgrounds */
+  --dm-bg: #0d1526;
+  --dm-panel: #1a2540;
+  --dm-accent: #D4A017;
+
+  /* Text */
+  --dm-text: #ffffff;
+  --dm-text-secondary: #94a3b8;
+
+  /* Tiers */
+  --tier-great: #B45309;
+  --tier-good: #0E7490;
+  --tier-solid: #475DA7;
+  --tier-role: #6B7280;
+
+  /* Round dot colors */
+  --rd-1: #34d399;
+  --rd-2: #a3e635;
+  --rd-3: #facc15;
+  --rd-4: #fb923c;
+  --rd-5: #f87171;
+  --rd-6: #c084fc;
+  --rd-7: #94a3b8;
+}
+
+/* ── Base resets ──────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background-color: var(--dm-bg);
+  color: var(--dm-text);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
