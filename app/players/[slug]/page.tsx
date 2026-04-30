@@ -7,10 +7,17 @@ interface Props {
   params: { slug: string };
 }
 
-// Generate static pages for all players at build time (SEO surface)
+// Generate static pages for all players at build time (SEO surface).
+// Falls back to [] if Airtable is unreachable (e.g. env vars not yet set in CI).
+// With dynamicParams = true (the default), pages not in this list are still
+// rendered on-demand at request time rather than 404ing.
 export async function generateStaticParams() {
-  const players = await fetchPlayers(2026);
-  return players.map((p) => ({ slug: toSlug(p.name) }));
+  try {
+    const players = await fetchPlayers(2026);
+    return players.map((p) => ({ slug: toSlug(p.name) }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
