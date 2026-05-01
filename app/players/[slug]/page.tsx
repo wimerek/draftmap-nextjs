@@ -7,10 +7,6 @@ interface Props {
   params: { slug: string };
 }
 
-// Generate static pages for all players at build time (SEO surface).
-// Falls back to [] if Airtable is unreachable (e.g. env vars not yet set in CI).
-// With dynamicParams = true (the default), pages not in this list are still
-// rendered on-demand at request time rather than 404ing.
 export async function generateStaticParams() {
   try {
     const players = await fetchPlayers(2026);
@@ -71,7 +67,7 @@ export default async function PlayerPage({ params }: Props) {
           </p>
         </div>
 
-        {/* Measurables — scaffold placeholder */}
+        {/* Measurables */}
         <div className="bg-dm-panel rounded-xl p-5">
           <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold mb-3">
             Measurables

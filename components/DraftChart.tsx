@@ -3,20 +3,31 @@
 /**
  * components/DraftChart.tsx
  *
- * Stage 1: useRef wrapper that will host the existing vanilla JS chart.
+ * Stage 1: mounts the existing vanilla JS chart inside a React component.
  *
- * The existing chart (~3,400 lines of JS in draftmap-mockup-v2.html) takes
- * full control of the DOM node. React renders the container; the JS runs inside it.
- *
- * Scaffold only — chart logic is wired in the Stage 1 build session.
- * When this is filled in, it will:
+ * Strategy (Option A — innerHTML + dynamic script):
  *   1. Fetch player data from /api/draft?year={year}
- *   2. Inject the player array into the chart JS (replacing the static `const players = [...]`)
- *   3. Initialize the chart inside containerRef.current
+ *   2. Set window.__draftMapPlayers so chart-engine.js can read them
+ *   3. Inject the HTML structure (styles + DOM) from lib/chartTemplate.ts into
+ *      containerRef.current via innerHTML — style tags process correctly this way
+ *   4. Load /chart-engine.js once via a <script> element; on re-mount call
+ *      window.initDraftMap() instead of reloading
+ *
+ * Stage 2 will replace the innerHTML approach with proper D3 + React rendering.
  */
 
 import { useRef, useEffect, useState } from "react";
 import type { Player } from "@/lib/airtable";
+import { CHART_HTML_TEMPLATE } from "@/lib/chartTemplate";
+
+// Extend Window so TypeScript knows about the globals the chart JS sets
+declare global {
+  interface Window {
+    __draftMapPlayers: Player[];
+    initDraftMap?: () => void;
+    __draftMapScriptLoaded?: boolean;
+  }
+}
 
 interface DraftChartProps {
   year?: number;
@@ -29,10 +40,9 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch player data from the Route Handler
+  // Step 1: fetch player data
   useEffect(() => {
     const url = `/api/draft?year=${year}${liveMode ? "&live=1" : ""}`;
-
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -48,18 +58,38 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
       });
   }, [year, liveMode]);
 
-  // TODO (Stage 1): once players are loaded, initialize the chart JS here
-  // The existing JS chart init call goes in this effect.
+  // Step 2: mount the chart once players are loaded
   useEffect(() => {
     if (!containerRef.current || players.length === 0) return;
-    // Chart initialization will go here in Stage 1.
-    // The JS will receive `players` as a prop injected before init.
+
+    // Make players available globally before the script reads them
+    window.__draftMapPlayers = players;
+
+    // Inject HTML structure (styles + DOM) into the container
+    containerRef.current.innerHTML = CHART_HTML_TEMPLATE;
+
+    // Re-mount case: script already loaded, just reinitialize
+    if (window.__draftMapScriptLoaded && typeof window.initDraftMap === "function") {
+      window.initDraftMap();
+      return;
+    }
+
+    // First load: dynamically append the chart engine script
+    const script = document.createElement("script");
+    script.src = "/chart-engine.js";
+    script.onload = () => {
+      window.__draftMapScriptLoaded = true;
+    };
+    script.onerror = () => {
+      console.error("[DraftChart] Failed to load /chart-engine.js");
+    };
+    document.body.appendChild(script);
   }, [players]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-dm-bg">
-        <p className="text-dm-text-secondary text-sm">Loading draft data…</p>
+        <p className="text-dm-text-secondary text-sm">Loading draft data...</p>
       </div>
     );
   }
@@ -75,20 +105,9 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
   return (
     <div
       ref={containerRef}
-      className="w-full bg-dm-bg"
-      style={{ minHeight: "100vh" }}
+      className="w-full"
       data-year={year}
       data-player-count={players.length}
-    >
-      {/* Scaffold placeholder — replaced with chart canvas in Stage 1 */}
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-dm-text font-condensed text-2xl font-bold">
-          DraftMap {year}
-        </p>
-        <p className="text-dm-text-secondary text-sm">
-          {players.length} prospects loaded · chart renders in Stage 1
-        </p>
-      </div>
-    </div>
+    />
   );
 }

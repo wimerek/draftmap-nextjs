@@ -85,7 +85,7 @@ export default function PlayerCard({ player, onClose }: PlayerCardProps) {
             ["40 Yard", player.forty ? `${player.forty}` : "—"],
             ["Vertical", player.vertical ? `${player.vertical}"` : "—"],
             ["Broad",   player.broad ? `${player.broad}"` : "—"],
-            ["3-Cone",  player.three_cone ? `${player.three_cone}` : "—"],
+            ["3-Cone",  player.cone3 ? `${player.cone3}` : "—"],
           ].map(([label, val]) => (
             <div key={label}>
               <p className="text-dm-text-secondary">{label}</p>

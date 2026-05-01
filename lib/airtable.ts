@@ -28,13 +28,13 @@ export interface Player {
   arm: number | null;    // inches
 
   // Combine times / athleticism
-  forty: number | null;      // 40-yard dash, seconds
-  ten_split: number | null;  // 10-yard split, seconds
-  vertical: number | null;   // vertical jump, inches
-  broad: number | null;      // broad jump, inches
-  three_cone: number | null; // 3-cone drill, seconds
-  shuttle: number | null;    // 20-yard shuttle, seconds
-  bench: number | null;      // bench press, reps
+  forty: number | null;    // 40-yard dash, seconds
+  split10: number | null;  // 10-yard split, seconds
+  vertical: number | null; // vertical jump, inches
+  broad: number | null;    // broad jump, inches
+  cone3: number | null;    // 3-cone drill, seconds
+  shuttle: number | null;  // 20-yard shuttle, seconds
+  bench: number | null;    // bench press, reps
 
   // Scouting
   notes: string | null;
@@ -80,15 +80,15 @@ const FIELD_MAP: Record<string, keyof Player> = {
   "School":               "school",
   "Draft Round":          "rd",
   "Rank":                 "rank",
-  "Height (NFL Format)":  "height",
+  "Height (NFL format)":  "height",
   "Weight (lbs)":         "weight",
   "Hand Size (inches)":   "hand",
   "Arm Length (inches)":  "arm",
   "40-yard dash (s)":     "forty",
-  "10-yard split (s)":    "ten_split",
+  "10-yard split (s)":    "split10",
   "Vertical Jump (inches)": "vertical",
   "Broad Jump (inches)":  "broad",
-  "3-Cone Drill (s)":     "three_cone",
+  "3-Cone Drill (s)":     "cone3",
   "Shuttle (s)":          "shuttle",
   "Bench Press (reps)":   "bench",
   "Scouting Notes":       "notes",
@@ -141,7 +141,7 @@ function toStr(value: unknown): string | null {
 
 const FLOAT_FIELDS = new Set<keyof Player>([
   "rd", "rank", "weight", "hand", "arm",
-  "forty", "ten_split", "vertical", "broad", "three_cone", "shuttle", "bench",
+  "forty", "split10", "vertical", "broad", "cone3", "shuttle", "bench",
   "yards", "tds", "tackles", "ints", "pbus",
   "rd_drafted", "pick_drafted",
 ]);
