@@ -62,6 +62,27 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
   useEffect(() => {
     if (!containerRef.current || players.length === 0) return;
 
+    // Inject Google Fonts into document.head (links are inert when set via innerHTML)
+    if (!document.getElementById("dm-fonts")) {
+      const preconnect1 = document.createElement("link");
+      preconnect1.rel = "preconnect";
+      preconnect1.href = "https://fonts.googleapis.com";
+      document.head.appendChild(preconnect1);
+
+      const preconnect2 = document.createElement("link");
+      preconnect2.rel = "preconnect";
+      preconnect2.href = "https://fonts.gstatic.com";
+      preconnect2.crossOrigin = "anonymous";
+      document.head.appendChild(preconnect2);
+
+      const fontLink = document.createElement("link");
+      fontLink.id = "dm-fonts";
+      fontLink.rel = "stylesheet";
+      fontLink.href =
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&family=Oswald:wght@400;500;600;700&display=swap";
+      document.head.appendChild(fontLink);
+    }
+
     // Make players available globally before the script reads them
     window.__draftMapPlayers = players;
 
