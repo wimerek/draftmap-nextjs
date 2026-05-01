@@ -3,27 +3,30 @@
 /**
  * components/DraftChart.tsx
  *
- * Stage 1: mounts the existing vanilla JS chart inside a React component.
+ * Stage 1 → Stage 2 bridge:
+ *   - Fetches player data from /api/draft
+ *   - Injects HTML structure + CSS from lib/chartTemplate.ts via innerHTML
+ *   - Loads /chart-engine.js once; calls window.initDraftMap() on re-mount
+ *   - Sets window.__openPlayerCard so chart-engine.js dot clicks open the
+ *     React PlayerCard component instead of manipulating the DOM directly.
  *
- * Strategy (Option A — innerHTML + dynamic script):
- *   1. Fetch player data from /api/draft?year={year}
- *   2. Set window.__draftMapPlayers so chart-engine.js can read them
- *   3. Inject the HTML structure (styles + DOM) from lib/chartTemplate.ts into
- *      containerRef.current via innerHTML — style tags process correctly this way
- *   4. Load /chart-engine.js once via a <script> element; on re-mount call
- *      window.initDraftMap() instead of reloading
- *
- * Stage 2 will replace the innerHTML approach with proper D3 + React rendering.
+ * Stage 2c/2d will replace the innerHTML approach with a full D3 + React SVG
+ * render — at that point this file gets heavily refactored and chart-engine.js
+ * is deleted. For now this is the minimal bridge.
  */
+
+"use client";
 
 import { useRef, useEffect, useState } from "react";
 import type { Player } from "@/lib/airtable";
 import { CHART_HTML_TEMPLATE } from "@/lib/chartTemplate";
+import PlayerCard from "@/components/PlayerCard";
 
 // Extend Window so TypeScript knows about the globals the chart JS sets
 declare global {
   interface Window {
     __draftMapPlayers: Player[];
+    __openPlayerCard?: (player: Player) => void;
     initDraftMap?: () => void;
     __draftMapScriptLoaded?: boolean;
   }
@@ -39,6 +42,7 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
 
   // Step 1: fetch player data
   useEffect(() => {
@@ -86,6 +90,10 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
     // Make players available globally before the script reads them
     window.__draftMapPlayers = players;
 
+    // Bridge: chart-engine.js calls this instead of openPlayerCard() directly.
+    // Set it before initDraftMap() runs so it's available on the first draw.
+    window.__openPlayerCard = (player: Player) => setOpenPlayer(player);
+
     // Inject HTML structure (styles + DOM) into the container
     containerRef.current.innerHTML = CHART_HTML_TEMPLATE;
 
@@ -124,11 +132,18 @@ export default function DraftChart({ year = 2026, liveMode = false }: DraftChart
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full"
-      data-year={year}
-      data-player-count={players.length}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="w-full"
+        data-year={year}
+        data-player-count={players.length}
+      />
+      <PlayerCard
+        player={openPlayer}
+        players={players}
+        onClose={() => setOpenPlayer(null)}
+      />
+    </>
   );
 }

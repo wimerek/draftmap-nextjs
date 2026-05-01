@@ -1377,7 +1377,7 @@ const players = window.__draftMapPlayers ?? [];
             // Double-tap → open full card
             _pcmLastTapMs = 0;
             _pcmLastTapPlayer = null;
-            openPlayerCard(player);
+            if (typeof window.__openPlayerCard === 'function') window.__openPlayerCard(player);
           } else {
             // Single tap → tooltip preview
             _pcmLastTapMs = now;
@@ -1385,8 +1385,8 @@ const players = window.__draftMapPlayers ?? [];
             showTooltip(e, player);
           }
         } else {
-          // Desktop click → open full card
-          openPlayerCard(player);
+          // Desktop click → open full card via React bridge
+          if (typeof window.__openPlayerCard === 'function') window.__openPlayerCard(player);
         }
       });
       svg.appendChild(circle);
@@ -1713,21 +1713,6 @@ const players = window.__draftMapPlayers ?? [];
 
     // Dismiss tooltip on any click outside a dot (dots use stopPropagation to prevent this)
     document.addEventListener('click', hideTooltip);
-
-    // ── Player card modal close handlers ─────────────────────────────────
-    // Clicking the backdrop (but not the card) closes the modal
-    document.getElementById('pcm-bd').addEventListener('click', e => {
-      if (e.target === document.getElementById('pcm-bd')) closePlayerCard();
-    });
-    // X button closes the modal
-    document.getElementById('pcm-close').addEventListener('click', e => {
-      e.stopPropagation();
-      closePlayerCard();
-    });
-    // Clicks inside the card don't bubble up to the backdrop
-    document.getElementById('pcm-wrap').addEventListener('click', e => {
-      e.stopPropagation();
-    });
 
     drawChart();
     updateZoomControl();
