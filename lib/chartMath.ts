@@ -247,3 +247,193 @@ export function inchesToHeightDisplay(totalInches: number | null | undefined): s
   };
   return `${feet}'${inches} ${fracs[eighths] ?? ''}${INCH}`;
 }
+
+
+// ── Chart layout types + computation ─────────────────────────────────────────
+// Added Phase 2c/2d (Session C) — used by DraftChart.tsx and sub-components.
+
+import { POSITIONS, POSITION_ORDER, TIER_DEFS, R1_SPLIT } from './chartConstants';
+
+export type ChartView = 'all' | 'offense' | 'defense';
+
+export interface TierBandDef {
+  y1: number;
+  y2: number;
+  name: string;
+  color: string;
+  bg: string;
+}
+
+export interface ChartLayout {
+  svgW: number;
+  svgH: number;
+  chartW: number;
+  totalChartH: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+  colW: number;
+  subColW: number;
+  sepW: number;
+  colXMap: Record<string, number>;
+  rdY: Record<number, number>;
+  rdH: Record<number, number>;
+  greatH: number;
+  goodH: number;
+  tierBandDefs: TierBandDef[];
+  tierBoundaryYs: number[]; // Y positions where tier colors transition (for hash marks on arrows)
+  visiblePositions: string[];
+  hasDefense: boolean;
+  hasOffense: boolean;
+  pillX: number;
+  pillW: number;
+}
+
+export function computeChartLayout(
+  players: Player[],
+  isOverview: boolean,
+  view: ChartView = 'all',
+): ChartLayout {
+  // Filter positions by view
+  const allWithData = POSITION_ORDER.filter(p => players.some(pl => pl.pos === p));
+  const visiblePositions = allWithData.filter(p => {
+    if (view === 'defense') return (POSITIONS.defense as readonly string[]).includes(p);
+    if (view === 'offense') return (POSITIONS.offense as readonly string[]).includes(p);
+    return true;
+  });
+
+  const hasDefense = visiblePositions.some(p => (POSITIONS.defense as readonly string[]).includes(p));
+  const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
+
+  const colW = 190;
+  const subColW = Math.floor(colW / 3);
+  const sepW = hasDefense && hasOffense ? 28 : 0;
+  const margin = { top: 108, right: 100, bottom: 20, left: 240 };
+
+  const BASE_ROW_HEIGHT = 160;
+  const BASE_ROW_HEIGHTS: Record<number, number> = {
+    1: Math.round(BASE_ROW_HEIGHT * 1.40),
+    2: Math.round(BASE_ROW_HEIGHT * 1.32),
+    3: Math.round(BASE_ROW_HEIGHT * 1.24),
+    4: Math.round(BASE_ROW_HEIGHT * 1.12),
+    5: Math.round(BASE_ROW_HEIGHT * 1.06),
+    6: BASE_ROW_HEIGHT,
+    7: 240,
+  };
+
+  const rdH: Record<number, number> = {};
+  for (let rd = 1; rd <= 7; rd++) {
+    let maxCount = 0;
+    visiblePositions.forEach(pos => {
+      if (isOverview) {
+        maxCount = Math.max(maxCount, getByPosRound(players, pos, rd).length);
+      } else {
+        (['top', 'mid', 'bot'] as Band[]).forEach(band => {
+          maxCount = Math.max(maxCount, getInBand(players, pos, rd, band).length);
+        });
+      }
+    });
+    const dynamicH = maxCount * 20 + 40;
+    rdH[rd] = Math.max(BASE_ROW_HEIGHTS[rd], dynamicH);
+  }
+
+  const greatH = Math.round(rdH[1] * R1_SPLIT);
+  const goodH = rdH[1] - greatH;
+
+  // Column X positions
+  const colXMap: Record<string, number> = {};
+  let curX = margin.left;
+  let sepInserted = false;
+  visiblePositions.forEach(pos => {
+    if ((POSITIONS.offense as readonly string[]).includes(pos) && !sepInserted && hasDefense && hasOffense) {
+      curX += sepW;
+      sepInserted = true;
+    }
+    colXMap[pos] = curX;
+    curX += colW;
+  });
+
+  // Round row Y positions
+  const rdY: Record<number, number> = {};
+  let curY = margin.top;
+  for (let rd = 1; rd <= 7; rd++) {
+    rdY[rd] = curY;
+    curY += rdH[rd];
+  }
+  const totalChartH = curY - margin.top;
+
+  const chartW = visiblePositions.length * colW + sepW;
+  const svgW = Math.max(margin.left + chartW + margin.right, 600);
+  const svgH = margin.top + totalChartH + margin.bottom;
+
+  // Pill / arrow layout
+  const pillW = 76;
+  const pillGapFromRounds = 28;
+  const pillX = margin.left - 12 - pillGapFromRounds - pillW;
+
+  // Tier band definitions (for background fills + arrows)
+  const tierBandDefs: TierBandDef[] = [
+    { y1: rdY[1],             y2: rdY[1] + greatH,      ...TIER_DEFS[0] },
+    { y1: rdY[1] + greatH,    y2: rdY[2] + rdH[2],      ...TIER_DEFS[1] },
+    { y1: rdY[3],             y2: rdY[3] + rdH[3],       ...TIER_DEFS[2] },
+    { y1: rdY[4],             y2: rdY[7] + rdH[7],       ...TIER_DEFS[3] },
+  ];
+
+  // Y positions where tier colors transition (used for hash marks on direction arrows)
+  const tierBoundaryYs = [
+    rdY[1] + greatH,  // Great → Good
+    rdY[3],           // Good → Solid
+    rdY[4],           // Solid → Role Player
+  ];
+
+  return {
+    svgW, svgH, chartW, totalChartH,
+    margin, colW, subColW, sepW,
+    colXMap, rdY, rdH, greatH, goodH,
+    tierBandDefs, tierBoundaryYs,
+    visiblePositions, hasDefense, hasOffense,
+    pillX, pillW,
+  };
+}
+
+// ── All-positions dot position computation ────────────────────────────────────
+
+export interface DotPosition {
+  player: Player;
+  x: number;
+  y: number;
+}
+
+export function computeAllDotPositions(
+  players: Player[],
+  layout: ChartLayout,
+  isOverview: boolean,
+): DotPosition[] {
+  const { visiblePositions, colXMap, colW, subColW, rdY, rdH } = layout;
+  const rdRankRange = buildRdRankRange(players);
+  const result: DotPosition[] = [];
+
+  visiblePositions.forEach(pos => {
+    const colX = colXMap[pos];
+
+    for (let rd = 1; rd <= 7; rd++) {
+      const ry = rdY[rd];
+      const rh = rdH[rd];
+
+      if (isOverview) {
+        const allRd = getByPosRound(players, pos, rd);
+        spreadDots(allRd, ry, rh, rdRankRange).forEach(({ y, player }) => {
+          result.push({ player, x: colX + colW / 2, y });
+        });
+      } else {
+        (['top', 'mid', 'bot'] as Band[]).forEach((key, bi) => {
+          const bp = getInBand(players, pos, rd, key);
+          const scX = colX + bi * subColW + subColW / 2;
+          spreadDots(bp, ry, rh, rdRankRange).forEach(({ y, player }) => {
+            result.push({ player, x: scX, y });
+          });
+        });
+      }
+    }
+  });
+
+  return result;
+}

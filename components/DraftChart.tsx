@@ -1,144 +1,323 @@
 "use client";
-
 /**
  * components/DraftChart.tsx
  *
- * Stage 1 → Stage 2 bridge:
- *   - Fetches player data from /api/draft
- *   - Injects HTML structure + CSS from lib/chartTemplate.ts via innerHTML
- *   - Loads /chart-engine.js once; calls window.initDraftMap() on re-mount
- *   - Sets window.__openPlayerCard so chart-engine.js dot clicks open the
- *     React PlayerCard component instead of manipulating the DOM directly.
+ * Stage 2c/2d — full D3/React SVG render. chart-engine.js eliminated.
  *
- * Stage 2c/2d will replace the innerHTML approach with a full D3 + React SVG
- * render — at that point this file gets heavily refactored and chart-engine.js
- * is deleted. For now this is the minimal bridge.
+ * Ownership:
+ *   - Fetches player data from /api/draft
+ *   - Computes chart layout (column positions, row heights) via useMemo
+ *   - Computes all dot positions via useMemo (spreadDots from chartMath.ts)
+ *   - Delegates camera/pan/zoom to usePanZoom hook
+ *   - Composes SVG sub-components; owns openPlayer + tooltip state
  */
 
-"use client";
-
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { Player } from "@/lib/airtable";
-import { CHART_HTML_TEMPLATE } from "@/lib/chartTemplate";
+import {
+  computeChartLayout,
+  computeAllDotPositions,
+  type ChartLayout,
+  type DotPosition,
+  type ChartView,
+} from "@/lib/chartMath";
+import { usePanZoom } from "@/hooks/usePanZoom";
 import PlayerCard from "@/components/PlayerCard";
+import TierBands from "@/components/chart/TierBands";
+import TierArrows from "@/components/chart/TierArrows";
+import PositionColumns from "@/components/chart/PositionColumns";
+import RoundZones from "@/components/chart/RoundZones";
+import RoleLanes from "@/components/chart/RoleLanes";
+import PlayerDots from "@/components/chart/PlayerDots";
+import PlayerLabels from "@/components/chart/PlayerLabels";
 
-// Extend Window so TypeScript knows about the globals the chart JS sets
-declare global {
-  interface Window {
-    __draftMapPlayers: Player[];
-    __openPlayerCard?: (player: Player) => void;
-    initDraftMap?: () => void;
-    __draftMapScriptLoaded?: boolean;
-  }
-}
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface DraftChartProps {
   year?: number;
-  liveMode?: boolean;
 }
 
-export default function DraftChart({ year = 2026, liveMode = false }: DraftChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
+// ── Tooltip ───────────────────────────────────────────────────────────────────
 
-  // Step 1: fetch player data
-  useEffect(() => {
-    const url = `/api/draft?year=${year}${liveMode ? "&live=1" : ""}`;
-    fetch(url)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        setPlayers(data.players ?? []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [year, liveMode]);
+interface TooltipState {
+  player: Player;
+  x: number;
+  y: number;
+}
 
-  // Step 2: mount the chart once players are loaded
-  useEffect(() => {
-    if (!containerRef.current || players.length === 0) return;
-
-    // Inject Google Fonts into document.head (links are inert when set via innerHTML)
-    if (!document.getElementById("dm-fonts")) {
-      const preconnect1 = document.createElement("link");
-      preconnect1.rel = "preconnect";
-      preconnect1.href = "https://fonts.googleapis.com";
-      document.head.appendChild(preconnect1);
-
-      const preconnect2 = document.createElement("link");
-      preconnect2.rel = "preconnect";
-      preconnect2.href = "https://fonts.gstatic.com";
-      preconnect2.crossOrigin = "anonymous";
-      document.head.appendChild(preconnect2);
-
-      const fontLink = document.createElement("link");
-      fontLink.id = "dm-fonts";
-      fontLink.rel = "stylesheet";
-      fontLink.href =
-        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&family=Oswald:wght@400;500;600;700&display=swap";
-      document.head.appendChild(fontLink);
-    }
-
-    // Make players available globally before the script reads them
-    window.__draftMapPlayers = players;
-
-    // Bridge: chart-engine.js calls this instead of openPlayerCard() directly.
-    // Set it before initDraftMap() runs so it's available on the first draw.
-    window.__openPlayerCard = (player: Player) => setOpenPlayer(player);
-
-    // Inject HTML structure (styles + DOM) into the container
-    containerRef.current.innerHTML = CHART_HTML_TEMPLATE;
-
-    // Re-mount case: script already loaded, just reinitialize
-    if (window.__draftMapScriptLoaded && typeof window.initDraftMap === "function") {
-      window.initDraftMap();
-      return;
-    }
-
-    // First load: dynamically append the chart engine script
-    const script = document.createElement("script");
-    script.src = "/chart-engine.js";
-    script.onload = () => {
-      window.__draftMapScriptLoaded = true;
-    };
-    script.onerror = () => {
-      console.error("[DraftChart] Failed to load /chart-engine.js");
-    };
-    document.body.appendChild(script);
-  }, [players]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-dm-bg">
-        <p className="text-dm-text-secondary text-sm">Loading draft data...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-dm-bg">
-        <p className="text-red-400 text-sm">Failed to load chart: {error}</p>
-      </div>
-    );
-  }
+function ChartTooltip({ player, x, y }: TooltipState) {
+  const strengths = [player.s1, player.s2, player.s3].filter((s): s is string => !!s && s !== "N/A");
+  const strengthColors = ["#B8D4C4", "#9ABFAD", "#7EA896"];
+  const strengthWeights = ["700", "600", "500"];
 
   return (
+    <div
+      className="dm-tooltip"
+      style={{ left: x, top: y }}
+    >
+      <div className="dm-tooltip-line"><strong>{player.name}</strong> — {player.pos}</div>
+      <div className="dm-tooltip-line"><span className="dm-tooltip-label">School:</span> {player.school || "N/A"}</div>
+      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Role:</span> {player.role}</div>
+      <div className="dm-tooltip-line"><span className="dm-tooltip-label">R{player.rd}, Pick #{player.rank}</span></div>
+      {strengths.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          {strengths.map((s, i) => (
+            <div key={i} style={{ color: strengthColors[i], fontWeight: strengthWeights[i], fontSize: 11 }}>
+              • {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Zoom widget ───────────────────────────────────────────────────────────────
+
+interface ZoomWidgetProps {
+  zoomLevel: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}
+
+function ZoomWidget({ zoomLevel, onZoomIn, onZoomOut }: ZoomWidgetProps) {
+  return (
+    <div className="dm-zoom-control">
+      <button className="dm-zoom-btn" onClick={onZoomIn} aria-label="Zoom in">+</button>
+      <div className="dm-zoom-track">
+        {[4, 3, 2, 1, 0].map(lvl => (
+          <div
+            key={lvl}
+            className={`dm-zoom-seg${zoomLevel === lvl ? " active" : ""}`}
+          />
+        ))}
+      </div>
+      <button className="dm-zoom-btn" onClick={onZoomOut} aria-label="Zoom out">−</button>
+    </div>
+  );
+}
+
+// ── Players legend ────────────────────────────────────────────────────────────
+
+function PlayersLegend() {
+  return (
+    <div className="dm-players-legend">
+      <div className="dm-players-legend-title">Player Legend</div>
+      <div className="dm-players-legend-row">
+        <div className="dm-legend-dot" />
+        <div className="dm-legend-lines">
+          <div className="dm-legend-line-1">Player Name</div>
+          <div className="dm-legend-line-2">Round · Pick</div>
+          <div className="dm-legend-line-2">Height · Weight</div>
+          <div className="dm-legend-line-3">• Primary Strength</div>
+          <div className="dm-legend-line-3">• Secondary Strength</div>
+          <div className="dm-legend-line-3">• Supporting Strength</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Chart borders (rendered inside SVG, on top of everything) ─────────────────
+
+function ChartBorders({ layout }: { layout: ChartLayout }) {
+  const { margin, chartW, totalChartH } = layout;
+  return (
+    <g>
+      {/* Dark top accent bar */}
+      <rect x={margin.left} y={0} width={chartW} height={6} fill="#0B2239" opacity={0.55} />
+      {/* Left outer border */}
+      <line x1={margin.left} y1={0} x2={margin.left} y2={margin.top + totalChartH}
+        stroke="#AEB8C2" strokeWidth={1.4} />
+      {/* Right outer border */}
+      <line x1={margin.left + chartW} y1={0} x2={margin.left + chartW} y2={margin.top + totalChartH}
+        stroke="#AEB8C2" strokeWidth={1.4} />
+      {/* Bottom border */}
+      <line x1={margin.left} y1={margin.top + totalChartH} x2={margin.left + chartW} y2={margin.top + totalChartH}
+        stroke="#AEB8C2" strokeWidth={1.4} />
+    </g>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function DraftChart({ year = 2026 }: DraftChartProps) {
+  const [players, setPlayers]     = useState<Player[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [liveMode, setLiveMode]   = useState(false);
+  const [view, setView]           = useState<ChartView>("all");
+  const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
+  const [tooltip, setTooltip]     = useState<TooltipState | null>(null);
+
+  // Touch detection (ref — stable across renders)
+  const isTouch = useRef(
+    typeof window !== "undefined"
+      ? window.matchMedia("(hover: none) and (pointer: coarse)").matches
+      : false,
+  );
+  const lastTapMs     = useRef(0);
+  const lastTapPlayer = useRef<Player | null>(null);
+
+  // Pan/zoom hook
+  const { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut } = usePanZoom();
+
+  // ── Data fetch ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    setLoading(true);
+    const url = `/api/draft?year=${year}${liveMode ? "&live=1" : ""}`;
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => { setPlayers(d.players ?? []); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, [year, liveMode]);
+
+  // ── Layout computation (pure, recomputes only when players/view/isOverview change) ──
+  const layout = useMemo<ChartLayout>(
+    () => computeChartLayout(players, isOverview, view),
+    [players, isOverview, view],
+  );
+
+  // ── Dot positions (pure, recomputes only when layout/isOverview change) ────
+  const dotPositions = useMemo<DotPosition[]>(
+    () => computeAllDotPositions(players, layout, isOverview),
+    [players, layout, isOverview],
+  );
+
+  // ── Event handlers ──────────────────────────────────────────────────────────
+  const handleDotClick = useCallback(
+    (player: Player, clientX: number, clientY: number) => {
+      if (isTouch.current) {
+        const now = Date.now();
+        if (now - lastTapMs.current < 350 && lastTapPlayer.current === player) {
+          lastTapMs.current = 0;
+          lastTapPlayer.current = null;
+          setTooltip(null);
+          setOpenPlayer(player);
+        } else {
+          lastTapMs.current = now;
+          lastTapPlayer.current = player;
+          setTooltip({ player, x: clientX + 14, y: clientY + 12 });
+        }
+      } else {
+        setOpenPlayer(player);
+      }
+    },
+    [],
+  );
+
+  const handleDotHover = useCallback(
+    (player: Player, clientX: number, clientY: number) => {
+      if (!isTouch.current) {
+        setTooltip({ player, x: clientX + 14, y: clientY + 12 });
+      }
+    },
+    [],
+  );
+
+  const handleDotLeave = useCallback(() => {
+    if (!isTouch.current) setTooltip(null);
+  }, []);
+
+  const dismissTooltip = useCallback(() => setTooltip(null), []);
+
+  // ── Loading / error states ──────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fff" }}>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading draft data…</p>
+    </div>
+  );
+  if (error) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fff" }}>
+      <p style={{ color: "#f87171", fontSize: 14 }}>Failed to load chart: {error}</p>
+    </div>
+  );
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  return (
     <>
-      <div
-        ref={containerRef}
-        className="w-full"
-        data-year={year}
-        data-player-count={players.length}
-      />
+      {/* Page wrapper */}
+      <div className="dm-page">
+
+        {/* Controls bar */}
+        <div className="dm-controls">
+          {/* View toggle */}
+          <div className="dm-btn-group">
+            {(["all", "offense", "defense"] as ChartView[]).map(v => (
+              <button
+                key={v}
+                className={`dm-btn${view === v ? " active" : ""}`}
+                onClick={() => setView(v)}
+              >
+                {v === "all" ? "All Positions" : v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <span className="dm-year-label">{year} Draft Class</span>
+
+          {/* Live Draft toggle */}
+          <button
+            className={`dm-live-btn${liveMode ? " active" : ""}`}
+            onClick={() => setLiveMode(l => !l)}
+            title="Grey out drafted players"
+          >
+            <span className="dm-live-dot" />
+            Live Draft
+          </button>
+
+          <span className="dm-hint">
+            Scroll or pinch to zoom · drag to pan · click a dot to open player details (double-tap on mobile)
+          </span>
+        </div>
+
+        {/* Chart frame */}
+        <div className="dm-chart-wrapper">
+
+          {/* Zoom viewport — handles pan/zoom events */}
+          <div
+            ref={viewportRef}
+            className="dm-zoom-viewport"
+            onClick={dismissTooltip}
+          >
+            {/* Stage — CSS transform applied directly by usePanZoom hook */}
+            <div ref={stageRef} className="dm-zoom-stage">
+              <svg
+                width={layout.svgW}
+                height={layout.svgH}
+                style={{ display: "block" }}
+              >
+                <TierBands layout={layout} />
+                <TierArrows layout={layout} />
+                <PositionColumns layout={layout} zoomLevel={zoomLevel} isOverview={isOverview} />
+                <RoundZones layout={layout} />
+                <RoleLanes />
+                <PlayerDots
+                  dotPositions={dotPositions}
+                  zoomLevel={zoomLevel}
+                  liveMode={liveMode}
+                  onDotClick={handleDotClick}
+                  onDotHover={handleDotHover}
+                  onDotLeave={handleDotLeave}
+                />
+                <PlayerLabels dotPositions={dotPositions} zoomLevel={zoomLevel} liveMode={liveMode} />
+                <ChartBorders layout={layout} />
+              </svg>
+            </div>
+          </div>
+
+          {/* Zoom control widget */}
+          <ZoomWidget zoomLevel={zoomLevel} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+
+          {/* Players legend — visible at highest zoom */}
+          {zoomLevel >= 4 && <PlayersLegend />}
+        </div>
+      </div>
+
+      {/* Floating tooltip (fixed positioning) */}
+      {tooltip && <ChartTooltip {...tooltip} />}
+
+      {/* Player card modal */}
       <PlayerCard
         player={openPlayer}
         players={players}
