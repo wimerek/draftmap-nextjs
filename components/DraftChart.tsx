@@ -160,7 +160,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const lastTapPlayer = useRef<Player | null>(null);
 
   // Pan/zoom hook
-  const { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut } = usePanZoom();
+  const { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut, fitToView } = usePanZoom();
 
   // ── Data fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -183,6 +183,25 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     () => computeAllDotPositions(players, layout, isOverview),
     [players, layout, isOverview],
   );
+
+  // ── Fit-to-view effects ────────────────────────────────────────────────────
+  // Fire once after initial data load (players go from 0 → populated).
+  const didFitRef = useRef(false);
+  useEffect(() => {
+    if (!loading && players.length > 0 && !didFitRef.current) {
+      didFitRef.current = true;
+      // Small rAF delay so the SVG has been committed to the DOM
+      requestAnimationFrame(() => fitToView());
+    }
+  }, [loading, players.length, fitToView]);
+
+  // Re-fit whenever the view filter changes (SVG resizes to fewer columns).
+  const prevViewRef = useRef<ChartView>("all");
+  useEffect(() => {
+    if (prevViewRef.current === view) return;
+    prevViewRef.current = view;
+    requestAnimationFrame(() => fitToView());
+  }, [view, fitToView]);
 
   // ── Event handlers ──────────────────────────────────────────────────────────
   const handleDotClick = useCallback(

@@ -42,11 +42,11 @@ export type PositionalRangeData = Partial<Record<Position, Record<string, Measur
 
 export const POSITIONS: { defense: Position[]; offense: Position[] } = {
   defense: ['EDGE', 'DT', 'LB', 'CB', 'S'],
-  offense: ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'],
+  offense: ['QB', 'RB', 'WR', 'TE', 'OT', 'IOL'],
 };
 
 export const POSITION_ORDER: Position[] = [
-  'EDGE', 'DT', 'LB', 'CB', 'S', 'RB', 'WR', 'TE', 'OT', 'IOL', 'QB',
+  'QB', 'RB', 'WR', 'TE', 'OT', 'IOL', 'EDGE', 'DT', 'LB', 'CB', 'S',
 ];
 
 // ── Band / role assignments per position ─────────────────────────────────────

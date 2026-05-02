@@ -37,6 +37,8 @@ export interface UsePanZoomResult {
   isOverview: boolean;
   zoomIn: () => void;
   zoomOut: () => void;
+  /** Fit the current SVG to fill the viewport width. Call after data loads or view changes. */
+  fitToView: () => void;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -175,6 +177,35 @@ export function usePanZoom(): UsePanZoomResult {
     zoomAtPoint(cameraRef.current.scale * 0.8, r.left + r.width / 2, r.top + r.height / 2);
   }, [zoomAtPoint]);
 
+
+  // ── Fit chart to viewport width ───────────────────────────────────────────
+
+  const fitToView = useCallback(() => {
+    const viewport = viewportRef.current;
+    const stage    = stageRef.current;
+    if (!viewport || !stage) return;
+
+    const svgEl = stage.querySelector("svg");
+    if (!svgEl) return;
+
+    const svgW   = parseFloat(svgEl.getAttribute("width")  || "0");
+    const vRect  = viewport.getBoundingClientRect();
+    if (!svgW || !vRect.width) return;
+
+    const camera     = cameraRef.current;
+    const sidePad    = 48; // px of breathing room on each side
+    const targetScale = (vRect.width - sidePad * 2) / svgW;
+    const scale      = Math.min(Math.max(camera.minScale, targetScale), camera.maxScale);
+
+    // Center horizontally; start 30px from the top
+    camera.scale = scale;
+    camera.x     = (vRect.width - svgW * scale) / 2;
+    camera.y     = 30;
+
+    applyTransformDirect();
+    scheduleZoomStateUpdate();
+  }, [applyTransformDirect, scheduleZoomStateUpdate]);
+
   // ── Event listener registration ───────────────────────────────────────────
 
   useEffect(() => {
@@ -278,5 +309,5 @@ export function usePanZoom(): UsePanZoomResult {
     };
   }, [clampAndApply, zoomAtPoint]);
 
-  return { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut };
+  return { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut, fitToView };
 }

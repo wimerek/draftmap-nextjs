@@ -343,7 +343,8 @@ export function computeChartLayout(
   let curX = margin.left;
   let sepInserted = false;
   visiblePositions.forEach(pos => {
-    if ((POSITIONS.offense as readonly string[]).includes(pos) && !sepInserted && hasDefense && hasOffense) {
+    // With offense-first ordering, insert separator gap before the first defense column
+    if ((POSITIONS.defense as readonly string[]).includes(pos) && !sepInserted && hasDefense && hasOffense) {
       curX += sepW;
       sepInserted = true;
     }

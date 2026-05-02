@@ -143,11 +143,11 @@ export default function PositionColumns({ layout, zoomLevel, isOverview }: Props
         ) : null;
       })()}
 
-      {/* D/O vertical separator */}
+      {/* D/O vertical separator — sits before the first defense column (offense-first ordering) */}
       {hasDefense && hasOffense && (() => {
-        const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
-        if (!firstOffPos) return null;
-        const sepX = colXMap[firstOffPos] - sepW / 2;
+        const firstDefPos = visiblePositions.find(p => (POSITIONS.defense as readonly string[]).includes(p));
+        if (!firstDefPos) return null;
+        const sepX = colXMap[firstDefPos] - sepW / 2;
         return (
           <line x1={sepX} y1={18} x2={sepX} y2={margin.top + totalChartH}
             stroke="#C4D0CC" strokeWidth={1.5} strokeDasharray="6,4" />
