@@ -221,96 +221,101 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   const dismissTooltip = useCallback(() => setTooltip(null), []);
 
-  // ── Loading / error states ──────────────────────────────────────────────────
-  if (loading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fff" }}>
-      <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading draft data…</p>
-    </div>
-  );
-  if (error) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fff" }}>
-      <p style={{ color: "#f87171", fontSize: 14 }}>Failed to load chart: {error}</p>
-    </div>
-  );
-
   // ── Render ──────────────────────────────────────────────────────────────────
+  // IMPORTANT: viewport div must always render so usePanZoom can attach
+  // event listeners on mount. Loading/error states live inside the viewport.
   return (
     <>
       {/* Page wrapper */}
       <div className="dm-page">
 
-        {/* Controls bar */}
-        <div className="dm-controls">
-          {/* View toggle */}
-          <div className="dm-btn-group">
-            {(["all", "offense", "defense"] as ChartView[]).map(v => (
-              <button
-                key={v}
-                className={`dm-btn${view === v ? " active" : ""}`}
-                onClick={() => setView(v)}
-              >
-                {v === "all" ? "All Positions" : v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
-            ))}
+        {/* Controls bar — only shown when data is ready */}
+        {!loading && !error && (
+          <div className="dm-controls">
+            <div className="dm-btn-group">
+              {(["all", "offense", "defense"] as ChartView[]).map(v => (
+                <button
+                  key={v}
+                  className={`dm-btn${view === v ? " active" : ""}`}
+                  onClick={() => setView(v)}
+                >
+                  {v === "all" ? "All Positions" : v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
+            <span className="dm-year-label">{year} Draft Class</span>
+            <button
+              className={`dm-live-btn${liveMode ? " active" : ""}`}
+              onClick={() => setLiveMode(l => !l)}
+              title="Grey out drafted players"
+            >
+              <span className="dm-live-dot" />
+              Live Draft
+            </button>
+            <span className="dm-hint">
+              Scroll or pinch to zoom · drag to pan · click a dot to open player details (double-tap on mobile)
+            </span>
           </div>
-
-          <span className="dm-year-label">{year} Draft Class</span>
-
-          {/* Live Draft toggle */}
-          <button
-            className={`dm-live-btn${liveMode ? " active" : ""}`}
-            onClick={() => setLiveMode(l => !l)}
-            title="Grey out drafted players"
-          >
-            <span className="dm-live-dot" />
-            Live Draft
-          </button>
-
-          <span className="dm-hint">
-            Scroll or pinch to zoom · drag to pan · click a dot to open player details (double-tap on mobile)
-          </span>
-        </div>
+        )}
 
         {/* Chart frame */}
         <div className="dm-chart-wrapper">
 
-          {/* Zoom viewport — handles pan/zoom events */}
+          {/* Zoom viewport — ALWAYS rendered so usePanZoom listeners attach on mount */}
           <div
             ref={viewportRef}
             className="dm-zoom-viewport"
             onClick={dismissTooltip}
           >
+            {/* Loading state */}
+            {loading && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading draft data…</p>
+              </div>
+            )}
+
+            {/* Error state */}
+            {error && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                <p style={{ color: "#f87171", fontSize: 14 }}>Failed to load chart: {error}</p>
+              </div>
+            )}
+
             {/* Stage — CSS transform applied directly by usePanZoom hook */}
-            <div ref={stageRef} className="dm-zoom-stage">
-              <svg
-                width={layout.svgW}
-                height={layout.svgH}
-                style={{ display: "block" }}
-              >
-                <TierBands layout={layout} />
-                <TierArrows layout={layout} />
-                <PositionColumns layout={layout} zoomLevel={zoomLevel} isOverview={isOverview} />
-                <RoundZones layout={layout} />
-                <RoleLanes />
-                <PlayerDots
-                  dotPositions={dotPositions}
-                  zoomLevel={zoomLevel}
-                  liveMode={liveMode}
-                  onDotClick={handleDotClick}
-                  onDotHover={handleDotHover}
-                  onDotLeave={handleDotLeave}
-                />
-                <PlayerLabels dotPositions={dotPositions} zoomLevel={zoomLevel} liveMode={liveMode} />
-                <ChartBorders layout={layout} />
-              </svg>
-            </div>
+            {!loading && !error && (
+              <div ref={stageRef} className="dm-zoom-stage">
+                <svg
+                  width={layout.svgW}
+                  height={layout.svgH}
+                  style={{ display: "block" }}
+                >
+                  <TierBands layout={layout} />
+                  <TierArrows layout={layout} />
+                  <PositionColumns layout={layout} zoomLevel={zoomLevel} isOverview={isOverview} />
+                  <RoundZones layout={layout} />
+                  <RoleLanes />
+                  <PlayerDots
+                    dotPositions={dotPositions}
+                    zoomLevel={zoomLevel}
+                    liveMode={liveMode}
+                    onDotClick={handleDotClick}
+                    onDotHover={handleDotHover}
+                    onDotLeave={handleDotLeave}
+                  />
+                  <PlayerLabels dotPositions={dotPositions} zoomLevel={zoomLevel} liveMode={liveMode} />
+                  <ChartBorders layout={layout} />
+                </svg>
+              </div>
+            )}
           </div>
 
           {/* Zoom control widget */}
-          <ZoomWidget zoomLevel={zoomLevel} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+          {!loading && !error && (
+            <ZoomWidget zoomLevel={zoomLevel} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+          )}
 
           {/* Players legend — visible at highest zoom */}
-          {zoomLevel >= 4 && <PlayersLegend />}
+          {!loading && !error && zoomLevel >= 4 && <PlayersLegend />}
         </div>
       </div>
 
