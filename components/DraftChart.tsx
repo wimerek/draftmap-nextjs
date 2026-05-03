@@ -72,20 +72,11 @@ function ChartTooltip({ player, x, y }: TooltipState) {
 // ── Chart borders ─────────────────────────────────────────────────────────────
 
 function ChartBorders({ layout }: { layout: ChartLayout }) {
-  const { margin, chartW, totalChartH } = layout;
+  const { margin, chartW } = layout;
   return (
     <g>
-      {/* Top accent bar */}
-      <rect x={margin.left} y={0} width={chartW} height={5} fill="#0B2239" opacity={0.45} />
-      {/* Left outer border */}
-      <line x1={margin.left} y1={0} x2={margin.left} y2={margin.top + totalChartH}
-        stroke="#C4C0B8" strokeWidth={1.2} />
-      {/* Right outer border */}
-      <line x1={margin.left + chartW} y1={0} x2={margin.left + chartW} y2={margin.top + totalChartH}
-        stroke="#C4C0B8" strokeWidth={1.2} />
-      {/* Bottom border */}
-      <line x1={margin.left} y1={margin.top + totalChartH} x2={margin.left + chartW} y2={margin.top + totalChartH}
-        stroke="#C4C0B8" strokeWidth={1.2} />
+      {/* Subtle top accent bar — anchors column headers, very low opacity */}
+      <rect x={margin.left} y={0} width={chartW} height={4} fill="#0B2239" opacity={0.12} />
     </g>
   );
 }
@@ -199,6 +190,18 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               height={layout.svgH}
               style={{ display: "block", maxWidth: "100%" }}
             >
+              {/* Gold gradient: spans full chart height; Great (top) = solid, Role Player (bottom) = pale */}
+              <defs>
+                <linearGradient
+                  id="tierPillGradient"
+                  x1="0" y1={layout.tierBandDefs[0].y1}
+                  x2="0" y2={layout.margin.top + layout.totalChartH}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.95} />
+                  <stop offset="100%" stopColor="#D4A017" stopOpacity={0.18} />
+                </linearGradient>
+              </defs>
               <TierBands layout={layout} />
               <TierArrows layout={layout} />
               <PositionColumns layout={layout} />

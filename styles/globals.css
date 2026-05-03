@@ -136,13 +136,10 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* Chart frame — full-page width, height determined by SVG content */
+/* Chart frame — no border/shadow so chart blends into page; native page scroll */
 .dm-chart-frame {
   position: relative;
-  overflow-x: auto;
-  border-radius: 10px;
-  background: #F5F0E8;
-  border: 1px solid #DDD8CE;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  background: transparent;
 }
 
 /* Loading / error states */

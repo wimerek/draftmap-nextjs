@@ -287,7 +287,7 @@ export function computeChartLayout(
   const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
 
   const sepW = hasDefense && hasOffense ? 24 : 0;
-  const margin = { top: 80, right: 80, bottom: 48, left: 180 };
+  const margin = { top: 80, right: 80, bottom: 48, left: 220 };
 
   // ── Y-axis: continuous pick scale ────────────────────────────────────────
   const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px
@@ -418,17 +418,29 @@ export function computeAllDotPositions(
     players
       .filter(p => p.pos === pos && (p.rank ?? 0) > 0)
       .forEach(player => {
-        // Deterministic horizontal jitter: spreads dots across column width
-        // so each position reads as a scatter plot, not a single vertical strip.
-        // Hash is based on rank — stable across renders, no React state needed.
+        // Deterministic horizontal jitter: center-weighted (triangular) distribution
+        // so most dots cluster near the column centre with fewer at the edges.
+        // Two independent multiplicative hashes of rank → average → 0..1 triangular.
+        // Span capped at 60 % of usable column width to prevent inter-column bleed.
         const JITTER_PAD = 10; // px from column edge
-        const jitterSpan = Math.max(0, cW - 2 * JITTER_PAD);
-        const t = ((player.rank! * 2654435761) >>> 0) / 4294967295; // 0..1
+        const jitterSpan = Math.max(0, (cW - 2 * JITTER_PAD) * 0.60);
+        const h1 = ((player.rank! * 2654435761) >>> 0) / 4294967295;
+        const h2 = ((player.rank! * 40503 + 987654321) >>> 0) / 4294967295;
+        const t  = (h1 + h2) / 2; // triangular distribution, centred on 0.5
         const jitter = t * jitterSpan - jitterSpan / 2;
+
+        // Clamp Y so dots with 6 px radius never bleed outside chart top/bottom.
+        const DOT_R = 6;
+        const rawY  = pickToY(player.rank!);
+        const clampedY = Math.max(
+          layout.margin.top + DOT_R,
+          Math.min(layout.margin.top + layout.totalChartH - DOT_R, rawY),
+        );
+
         result.push({
           player,
           x: colX + cW / 2 + jitter,
-          y: pickToY(player.rank!),
+          y: clampedY,
         });
       });
   });

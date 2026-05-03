@@ -2,6 +2,8 @@
 /**
  * components/chart/TierBands.tsx
  * Renders the horizontal tier background fills and the pill labels in the left margin.
+ * Pills use the shared tierPillGradient defined in DraftChart.tsx <defs>.
+ * Tier band background tints are retained for interior spatial cues.
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -28,19 +30,19 @@ export default function TierBands({ layout }: Props) {
 
         return (
           <g key={i}>
-            {/* Tier background fill */}
+            {/* Tier background fill — subtle tint, retained for spatial cuing */}
             <rect
               x={margin.left} y={t.y1}
               width={chartW} height={t.y2 - t.y1}
               fill={t.bg}
             />
-            {/* Pill label */}
+            {/* Pill — filled by the continuous gold gradient defined in <defs> */}
             <rect
               x={pillX} y={py}
               width={pillW} height={pH}
               rx={8}
-              fill={t.color} fillOpacity={0.65}
-              stroke={t.color} strokeWidth={1.2}
+              fill="url(#tierPillGradient)"
+              stroke="rgba(212,160,23,0.30)" strokeWidth={1}
             />
             {labelLines.map((line, li) => (
               <text
@@ -49,7 +51,7 @@ export default function TierBands({ layout }: Props) {
                 textAnchor="middle"
                 fontSize={10} fontWeight={800}
                 fill="#FFFFFF"
-                stroke="rgba(0,0,0,0.25)" strokeWidth={0.5}
+                stroke="rgba(0,0,0,0.30)" strokeWidth={0.5}
                 paintOrder="stroke fill"
               >
                 {line}

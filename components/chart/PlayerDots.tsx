@@ -32,7 +32,7 @@ export default function PlayerDots({
         const sc       = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
         const isDrafted = liveMode && player.drafted;
         const fill     = isDrafted ? "rgba(210,200,185,0.35)" : sc.fill;
-        const stroke   = isDrafted ? "rgba(160,150,135,0.45)" : "#4A4A4A";
+        const stroke   = isDrafted ? "rgba(160,150,135,0.45)" : "#333333";
 
         return (
           <circle
