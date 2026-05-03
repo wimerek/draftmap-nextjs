@@ -10,13 +10,13 @@ const config: Config = {
     extend: {
       colors: {
         // ── Brand backgrounds ──────────────────────────────────────────────
-        "dm-bg": "#0d1526",          // page background (dark primary)
-        "dm-panel": "#1a2540",       // panels, cards, modals
+        "dm-bg": "#F5F0E8",          // warm parchment — light mode primary
+        "dm-panel": "#EDE8DC",       // slightly darker parchment for panels/cards
         "dm-accent": "#D4A017",      // gold — buttons, hover, interactive
 
         // ── Text ───────────────────────────────────────────────────────────
-        "dm-text": "#ffffff",
-        "dm-text-secondary": "#94a3b8",
+        "dm-text": "#0B2239",        // dark navy — primary text
+        "dm-text-secondary": "#4A6274",  // muted navy — secondary text
 
         // ── Tier colors (locked 2026-04-15) ────────────────────────────────
         "tier-great": "#B45309",     // rich amber — premium, trophy feel

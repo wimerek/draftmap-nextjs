@@ -241,6 +241,9 @@ const SVG_REFERENCE_WIDTH = 1600;
 /** Minimum column width in pixels (prevents tiny columns for sparse positions). */
 const MIN_COL_W = 90;
 
+/** Maximum column width in pixels — caps the ratio between wide (WR) and narrow (S) columns. */
+const MAX_COL_W = 220;
+
 /**
  * Tier thresholds in pick-number terms (matches locked design spec):
  *   Great            = picks  1–15
@@ -306,7 +309,7 @@ export function computeChartLayout(
   const colWidths: Record<string, number> = {};
   visiblePositions.forEach(pos => {
     const fraction = posCounts[pos] / Math.max(totalPlayers, 1);
-    colWidths[pos] = Math.max(MIN_COL_W, Math.round(fraction * availableW));
+    colWidths[pos] = Math.min(MAX_COL_W, Math.max(MIN_COL_W, Math.round(fraction * availableW)));
   });
 
   // ── Column X positions ────────────────────────────────────────────────────
@@ -415,9 +418,16 @@ export function computeAllDotPositions(
     players
       .filter(p => p.pos === pos && (p.rank ?? 0) > 0)
       .forEach(player => {
+        // Deterministic horizontal jitter: spreads dots across column width
+        // so each position reads as a scatter plot, not a single vertical strip.
+        // Hash is based on rank — stable across renders, no React state needed.
+        const JITTER_PAD = 10; // px from column edge
+        const jitterSpan = Math.max(0, cW - 2 * JITTER_PAD);
+        const t = ((player.rank! * 2654435761) >>> 0) / 4294967295; // 0..1
+        const jitter = t * jitterSpan - jitterSpan / 2;
         result.push({
           player,
-          x: colX + cW / 2,
+          x: colX + cW / 2 + jitter,
           y: pickToY(player.rank!),
         });
       });
