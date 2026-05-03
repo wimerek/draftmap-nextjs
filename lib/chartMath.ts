@@ -2,21 +2,21 @@
  * lib/chartMath.ts
  *
  * Pure layout math functions for the DraftMap chart.
- * All functions are deterministic given the same inputs — no DOM, no globals,
- * no Math.random(). Safe to call on the server or in tests.
  *
- * Key design decisions:
- * - Players array is passed as a parameter (not read from a global).
- * - RdRankRange is pre-computed once and passed into rankToY / spreadDots
- *   so callers can cache it across re-renders.
- * - Curve parameters (exponent + strength per round) are preserved exactly
- *   from chart-engine.js — do not flatten or simplify these.
+ * Session E changes (2026-05-02):
+ *   - Continuous Y-axis: pick 1 at top, pick 256 at bottom.
+ *     Y position = pickToY(rank) — a linear scale. Round bands eliminated.
+ *   - Variable position column widths proportional to player count at each position.
+ *   - isOverview parameter removed (single overview mode only — no zoom states).
+ *   - computeAllDotPositions simplified: Y = pickToY(rank), X = column center.
+ *     Unranked players (rank 0/null) are excluded from chart rendering.
  *
- * Used by: PlayerCard.tsx (Phase 2b), full D3 refactor (Phase 2c/2d).
+ * Utility functions (getBandForRole, rankToY, spreadDots, etc.) are preserved
+ * for PlayerCard.tsx and future features (force simulation, results view).
  */
 
 import type { Player } from './airtable';
-import { BAND_ASSIGNMENTS } from './chartConstants';
+import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, TIER_DEFS } from './chartConstants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,10 +33,6 @@ export interface SpreadDot {
 
 // ── Band / role classification ────────────────────────────────────────────────
 
-/**
- * Map a player's role string to their column band within a position.
- * Returns 'top' | 'mid' | 'bot' based on BAND_ASSIGNMENTS config.
- */
 export function getBandForRole(role: string | null | undefined, pos: string): Band {
   const b = BAND_ASSIGNMENTS[pos as keyof typeof BAND_ASSIGNMENTS];
   if (!b) return 'mid';
@@ -47,19 +43,12 @@ export function getBandForRole(role: string | null | undefined, pos: string): Ba
 
 // ── Player filtering helpers ──────────────────────────────────────────────────
 
-/**
- * Return all players at a given position + round, sorted by rank ascending.
- * Unranked players (rank null or 0) sort to the end.
- */
 export function getByPosRound(players: Player[], pos: string, rd: number): Player[] {
   return players
     .filter(p => p.pos === pos && p.rd === rd)
     .sort((a, b) => (a.rank || 9999) - (b.rank || 9999));
 }
 
-/**
- * Return players at a position/round that belong to a specific role band.
- */
 export function getInBand(
   players: Player[],
   pos: string,
@@ -71,16 +60,8 @@ export function getInBand(
   );
 }
 
-// ── Rank range pre-computation ────────────────────────────────────────────────
+// ── Rank range pre-computation (used by PlayerCard) ──────────────────────────
 
-/**
- * Pre-compute the min/max rank for each round.
- * Excludes unranked players (rank === 0 or null) so they don't compress the
- * ranked player distribution into a sliver at the bottom of the zone.
- * Unranked players use the fallback index distribution in rankToY instead.
- *
- * Call once per player array, then pass the result into rankToY / spreadDots.
- */
 export function buildRdRankRange(players: Player[]): RdRankRange {
   const ranges: RdRankRange = {};
   for (let rd = 1; rd <= 7; rd++) {
@@ -90,31 +71,14 @@ export function buildRdRankRange(players: Player[]): RdRankRange {
       const ranks = ranked.map(p => p.rank as number);
       ranges[rd] = { min: Math.min(...ranks), max: Math.max(...ranks) };
     } else {
-      // Sentinel: all unranked — rankToY fallback handles distribution
       ranges[rd] = { min: 0, max: 0 };
     }
   }
   return ranges;
 }
 
-// ── Rank-to-Y layout math ─────────────────────────────────────────────────────
+// ── Rank-to-Y within a round zone (used by PlayerCard zone tracks) ────────────
 
-/**
- * Map a player's rank to a Y coordinate within a round zone.
- *
- * Uses a mild top-weighted curve so the top prospects have slightly more
- * vertical separation than lower-ranked players in the same round.
- * Curve parameters (strength + exponent) are tuned per round and must not
- * be flattened — they're a key part of the visual language.
- *
- * @param rank          Player's overall rank (0 = unranked)
- * @param rd            Draft round (1–7)
- * @param ry            Top Y of the round zone in SVG coordinates
- * @param rh            Height of the round zone in SVG pixels
- * @param rdRankRange   Pre-computed from buildRdRankRange()
- * @param fallbackIndex For unranked players: index within the unranked group
- * @param fallbackTotal For unranked players: total count in the group
- */
 export function rankToY(
   rank: number,
   rd: number,
@@ -127,7 +91,6 @@ export function rankToY(
   const { min, max } = rdRankRange[rd] ?? { min: 0, max: 0 };
   const pad = 24;
 
-  // Unranked player: distribute evenly across the zone
   if (rank === 0) {
     if (fallbackTotal != null && fallbackTotal > 1) {
       const t = (fallbackIndex ?? 0) / (fallbackTotal - 1);
@@ -140,7 +103,6 @@ export function rankToY(
 
   const t = (rank - min) / (max - min);
 
-  // Per-round curve tuning — preserve exactly from chart-engine.js
   const curveStrengthByRound: Record<number, number> = {
     1: 0.18, 2: 0.20, 3: 0.22, 4: 0.24, 5: 0.22, 6: 0.20, 7: 0.16,
   };
@@ -157,21 +119,8 @@ export function rankToY(
   return ry + pad + displayT * (rh - 2 * pad);
 }
 
-// ── Dot spreading ─────────────────────────────────────────────────────────────
+// ── Dot spreading within a round zone (preserved for future force-sim upgrade) ─
 
-/**
- * Spread dots vertically within a round zone so none overlap.
- *
- * Uses an iterative push-apart algorithm (up to 30 passes) rather than a
- * force simulation — fast, deterministic, no async ticks needed.
- * Phase 2c/2d will replace this with d3.forceSimulation + d3.forceCollide
- * to support animated settle transitions.
- *
- * @param dotData     Players to position (may be a full round or a role band)
- * @param ry          Top Y of the round zone
- * @param rh          Height of the round zone
- * @param rdRankRange Pre-computed from buildRdRankRange()
- */
 export function spreadDots(
   dotData: Player[],
   ry: number,
@@ -179,8 +128,8 @@ export function spreadDots(
   rdRankRange: RdRankRange,
 ): SpreadDot[] {
   const DOT_R = 5;
-  const MIN_GAP = DOT_R * 2 + 1; // 11px clearance between dot edges
-  const PAD = DOT_R + 2;         // keep dots off row top/bottom edges
+  const MIN_GAP = DOT_R * 2 + 1;
+  const PAD = DOT_R + 2;
 
   const total = dotData.length;
 
@@ -189,7 +138,6 @@ export function spreadDots(
     player: p,
   }));
 
-  // Iteratively push adjacent dots apart until no overlaps remain
   for (let iter = 0; iter < 30; iter++) {
     pts.sort((a, b) => a.y - b.y);
     let changed = false;
@@ -205,7 +153,6 @@ export function spreadDots(
     if (!changed) break;
   }
 
-  // Clamp within row bounds
   pts.forEach(p => {
     p.y = Math.max(ry + PAD, Math.min(ry + rh - PAD, p.y));
   });
@@ -213,14 +160,8 @@ export function spreadDots(
   return pts;
 }
 
-// ── Height conversion helpers ─────────────────────────────────────────────────
-// These are used by PlayerCard.tsx to convert NFL scout height format
-// (e.g. 6020 = 6'2") to real inches for linear zone-track math.
+// ── Height conversion helpers (used by PlayerCard.tsx) ────────────────────────
 
-/**
- * Convert NFL scout height code (e.g. 6020 → 6'2") to real inches.
- * Returns null if the code is invalid or missing.
- */
 export function scoutToInches(code: number | string | null | undefined): number | null {
   if (code == null) return null;
   const n = typeof code === 'string' ? parseFloat(code) : code;
@@ -232,9 +173,6 @@ export function scoutToInches(code: number | string | null | undefined): number 
   return feet * 12 + inches + eighths / 8;
 }
 
-/**
- * Format real inches as a display string (e.g. 74.5 → "6'2½"").
- */
 export function inchesToHeightDisplay(totalInches: number | null | undefined): string {
   if (totalInches == null || isNaN(totalInches)) return 'N/A';
   const feet    = Math.floor(totalInches / 12);
@@ -243,16 +181,15 @@ export function inchesToHeightDisplay(totalInches: number | null | undefined): s
   const INCH = '"';
   if (!eighths) return `${feet}'${inches}${INCH}`;
   const fracs: Record<number, string> = {
-    1: '⅛', 2: '¼', 3: '⅜', 4: '½', 5: '⅝', 6: '¾', 7: '⅞',
+    1: '\u215B', 2: '\u00BC', 3: '\u215C', 4: '\u00BD', 5: '\u215D', 6: '\u00BE', 7: '\u215E',
   };
   return `${feet}'${inches} ${fracs[eighths] ?? ''}${INCH}`;
 }
 
 
-// ── Chart layout types + computation ─────────────────────────────────────────
-// Added Phase 2c/2d (Session C) — used by DraftChart.tsx and sub-components.
+// ── Chart layout types (Session E: continuous Y-axis, variable column widths) ──
 
-import { POSITIONS, POSITION_ORDER, TIER_DEFS, R1_SPLIT } from './chartConstants';
+import { R1_SPLIT } from './chartConstants';
 
 export type ChartView = 'all' | 'offense' | 'defense';
 
@@ -270,16 +207,19 @@ export interface ChartLayout {
   chartW: number;
   totalChartH: number;
   margin: { top: number; right: number; bottom: number; left: number };
-  colW: number;
-  subColW: number;
-  sepW: number;
+  /** Per-position column widths (proportional to player count). */
+  colWidths: Record<string, number>;
   colXMap: Record<string, number>;
-  rdY: Record<number, number>;
-  rdH: Record<number, number>;
-  greatH: number;
-  goodH: number;
+  sepW: number;
   tierBandDefs: TierBandDef[];
-  tierBoundaryYs: number[]; // Y positions where tier colors transition (for hash marks on arrows)
+  /** Y coordinates of tier-color transitions (Great→Good, Good→Solid, Solid→Role). */
+  tierBoundaryYs: number[];
+  /** Y coordinates of round boundary lines (after R1, R2, ..., R6). */
+  roundBoundaryYs: number[];
+  /** Y center of each round label (midpoint of its range on the pick axis). */
+  roundLabelYs: Record<number, number>;
+  /** Linear scale: rank (1–MAX_PICK) → SVG Y coordinate. */
+  pickToY: (rank: number) => number;
   visiblePositions: string[];
   hasDefense: boolean;
   hasOffense: boolean;
@@ -287,12 +227,52 @@ export interface ChartLayout {
   pillW: number;
 }
 
+// ── Y-axis constants ──────────────────────────────────────────────────────────
+
+/** Total number of NFL draft picks (domain of the Y axis). */
+const MAX_PICK = 256;
+
+/** Pixels per pick on the continuous Y axis. */
+const PX_PER_PICK = 5;
+
+/** Reference SVG width — chart is designed for this width. */
+const SVG_REFERENCE_WIDTH = 1600;
+
+/** Minimum column width in pixels (prevents tiny columns for sparse positions). */
+const MIN_COL_W = 90;
+
+/**
+ * Tier thresholds in pick-number terms (matches locked design spec):
+ *   Great            = picks  1–15
+ *   Good             = picks 16–64  (rest of R1 + all R2)
+ *   Solid            = picks 65–96  (R3)
+ *   Role Player/Proj = picks 97–256 (R4–R7)
+ *
+ * Boundary values sit halfway between rounds/tiers for clean visual separation.
+ */
+const TIER_PICK_BOUNDARIES = [15.5, 64.5, 96.5] as const;
+
+/** Round boundary pick numbers (end of each round 1–6). */
+const ROUND_BOUNDARY_PICKS = [32, 64, 96, 128, 160, 192] as const;
+
+/** Midpoint pick of each round (for round label placement). */
+const ROUND_MIDPOINT_PICKS: Record<number, number> = {
+  1: 16,
+  2: 48,
+  3: 80,
+  4: 112,
+  5: 144,
+  6: 176,
+  7: 224,
+};
+
+// ── Main layout computation ───────────────────────────────────────────────────
+
 export function computeChartLayout(
   players: Player[],
-  isOverview: boolean,
   view: ChartView = 'all',
 ): ChartLayout {
-  // Filter positions by view
+  // ── Visible positions ────────────────────────────────────────────────────
   const allWithData = POSITION_ORDER.filter(p => players.some(pl => pl.pos === p));
   const visiblePositions = allWithData.filter(p => {
     if (view === 'defense') return (POSITIONS.defense as readonly string[]).includes(p);
@@ -303,99 +283,107 @@ export function computeChartLayout(
   const hasDefense = visiblePositions.some(p => (POSITIONS.defense as readonly string[]).includes(p));
   const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
 
-  const colW = 190;
-  const subColW = Math.floor(colW / 3);
-  const sepW = hasDefense && hasOffense ? 28 : 0;
-  const margin = { top: 108, right: 100, bottom: 20, left: 240 };
+  const sepW = hasDefense && hasOffense ? 24 : 0;
+  const margin = { top: 80, right: 80, bottom: 48, left: 180 };
 
-  const BASE_ROW_HEIGHT = 160;
-  const BASE_ROW_HEIGHTS: Record<number, number> = {
-    1: Math.round(BASE_ROW_HEIGHT * 1.40),
-    2: Math.round(BASE_ROW_HEIGHT * 1.32),
-    3: Math.round(BASE_ROW_HEIGHT * 1.24),
-    4: Math.round(BASE_ROW_HEIGHT * 1.12),
-    5: Math.round(BASE_ROW_HEIGHT * 1.06),
-    6: BASE_ROW_HEIGHT,
-    7: 240,
-  };
+  // ── Y-axis: continuous pick scale ────────────────────────────────────────
+  const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px
 
-  const rdH: Record<number, number> = {};
-  for (let rd = 1; rd <= 7; rd++) {
-    let maxCount = 0;
-    visiblePositions.forEach(pos => {
-      if (isOverview) {
-        maxCount = Math.max(maxCount, getByPosRound(players, pos, rd).length);
-      } else {
-        (['top', 'mid', 'bot'] as Band[]).forEach(band => {
-          maxCount = Math.max(maxCount, getInBand(players, pos, rd, band).length);
-        });
-      }
-    });
-    const dynamicH = maxCount * 20 + 40;
-    rdH[rd] = Math.max(BASE_ROW_HEIGHTS[rd], dynamicH);
-  }
+  const pickToY = (rank: number): number =>
+    margin.top + ((rank - 1) / (MAX_PICK - 1)) * totalChartH;
 
-  const greatH = Math.round(rdH[1] * R1_SPLIT);
-  const goodH = rdH[1] - greatH;
+  // ── Variable column widths (proportional to player count) ─────────────────
+  const availableW = SVG_REFERENCE_WIDTH - margin.left - margin.right - sepW;
 
-  // Column X positions
+  const posCounts: Record<string, number> = {};
+  let totalPlayers = 0;
+  visiblePositions.forEach(pos => {
+    const n = players.filter(p => p.pos === pos && (p.rank ?? 0) > 0).length;
+    posCounts[pos] = Math.max(n, 1); // at least 1 to avoid zero-width columns
+    totalPlayers += posCounts[pos];
+  });
+
+  const colWidths: Record<string, number> = {};
+  visiblePositions.forEach(pos => {
+    const fraction = posCounts[pos] / Math.max(totalPlayers, 1);
+    colWidths[pos] = Math.max(MIN_COL_W, Math.round(fraction * availableW));
+  });
+
+  // ── Column X positions ────────────────────────────────────────────────────
   const colXMap: Record<string, number> = {};
   let curX = margin.left;
   let sepInserted = false;
   visiblePositions.forEach(pos => {
-    // With offense-first ordering, insert separator gap before the first defense column
-    if ((POSITIONS.defense as readonly string[]).includes(pos) && !sepInserted && hasDefense && hasOffense) {
+    if (
+      (POSITIONS.defense as readonly string[]).includes(pos) &&
+      !sepInserted &&
+      hasDefense &&
+      hasOffense
+    ) {
       curX += sepW;
       sepInserted = true;
     }
     colXMap[pos] = curX;
-    curX += colW;
+    curX += colWidths[pos];
   });
 
-  // Round row Y positions
-  const rdY: Record<number, number> = {};
-  let curY = margin.top;
-  for (let rd = 1; rd <= 7; rd++) {
-    rdY[rd] = curY;
-    curY += rdH[rd];
-  }
-  const totalChartH = curY - margin.top;
+  // ── Chart dimensions ──────────────────────────────────────────────────────
+  const chartW = visiblePositions.reduce((sum, p) => sum + colWidths[p], 0) + sepW;
+  const svgW   = margin.left + chartW + margin.right;
+  const svgH   = margin.top + totalChartH + margin.bottom;
 
-  const chartW = visiblePositions.length * colW + sepW;
-  const svgW = Math.max(margin.left + chartW + margin.right, 600);
-  const svgH = margin.top + totalChartH + margin.bottom;
+  // ── Pill / arrow layout ───────────────────────────────────────────────────
+  const pillW            = 76;
+  const pillGapFromChart = 24;
+  const pillX            = margin.left - pillGapFromChart - pillW;
 
-  // Pill / arrow layout
-  const pillW = 76;
-  const pillGapFromRounds = 28;
-  const pillX = margin.left - 12 - pillGapFromRounds - pillW;
-
-  // Tier band definitions (for background fills + arrows)
+  // ── Tier band definitions ─────────────────────────────────────────────────
   const tierBandDefs: TierBandDef[] = [
-    { y1: rdY[1],             y2: rdY[1] + greatH,      ...TIER_DEFS[0] },
-    { y1: rdY[1] + greatH,    y2: rdY[2] + rdH[2],      ...TIER_DEFS[1] },
-    { y1: rdY[3],             y2: rdY[3] + rdH[3],       ...TIER_DEFS[2] },
-    { y1: rdY[4],             y2: rdY[7] + rdH[7],       ...TIER_DEFS[3] },
+    {
+      y1: pickToY(1),
+      y2: pickToY(TIER_PICK_BOUNDARIES[0]),
+      ...TIER_DEFS[0],
+    },
+    {
+      y1: pickToY(TIER_PICK_BOUNDARIES[0]),
+      y2: pickToY(TIER_PICK_BOUNDARIES[1]),
+      ...TIER_DEFS[1],
+    },
+    {
+      y1: pickToY(TIER_PICK_BOUNDARIES[1]),
+      y2: pickToY(TIER_PICK_BOUNDARIES[2]),
+      ...TIER_DEFS[2],
+    },
+    {
+      y1: pickToY(TIER_PICK_BOUNDARIES[2]),
+      y2: margin.top + totalChartH,
+      ...TIER_DEFS[3],
+    },
   ];
 
-  // Y positions where tier colors transition (used for hash marks on direction arrows)
-  const tierBoundaryYs = [
-    rdY[1] + greatH,  // Great → Good
-    rdY[3],           // Good → Solid
-    rdY[4],           // Solid → Role Player
-  ];
+  const tierBoundaryYs = TIER_PICK_BOUNDARIES.map(p => pickToY(p));
+
+  // ── Round boundary Y positions (reference lines) ──────────────────────────
+  const roundBoundaryYs = ROUND_BOUNDARY_PICKS.map(p => pickToY(p));
+
+  // ── Round label Y positions (centered in each round's pick range) ─────────
+  const roundLabelYs: Record<number, number> = {};
+  for (let rd = 1; rd <= 7; rd++) {
+    roundLabelYs[rd] = pickToY(ROUND_MIDPOINT_PICKS[rd]);
+  }
 
   return {
     svgW, svgH, chartW, totalChartH,
-    margin, colW, subColW, sepW,
-    colXMap, rdY, rdH, greatH, goodH,
+    margin, colWidths, colXMap, sepW,
     tierBandDefs, tierBoundaryYs,
+    roundBoundaryYs, roundLabelYs,
+    pickToY,
     visiblePositions, hasDefense, hasOffense,
     pillX, pillW,
   };
 }
 
-// ── All-positions dot position computation ────────────────────────────────────
+// ── Dot position computation ──────────────────────────────────────────────────
 
 export interface DotPosition {
   player: Player;
@@ -403,37 +391,36 @@ export interface DotPosition {
   y: number;
 }
 
+/**
+ * Compute SVG (x, y) for every ranked player visible in the current view.
+ *
+ * Session E: Y = pickToY(player.rank) — players sit at their absolute rank
+ * position on the continuous Y axis. X = center of their position column.
+ * Unranked players (rank 0 or null) are excluded — no meaningful Y position.
+ *
+ * Dots may overlap when two players at the same position have adjacent ranks.
+ * This is intentional: dense clusters signal talent concentration; gaps are cliffs.
+ */
 export function computeAllDotPositions(
   players: Player[],
   layout: ChartLayout,
-  isOverview: boolean,
 ): DotPosition[] {
-  const { visiblePositions, colXMap, colW, subColW, rdY, rdH } = layout;
-  const rdRankRange = buildRdRankRange(players);
+  const { visiblePositions, colXMap, colWidths, pickToY } = layout;
   const result: DotPosition[] = [];
 
   visiblePositions.forEach(pos => {
     const colX = colXMap[pos];
+    const cW   = colWidths[pos];
 
-    for (let rd = 1; rd <= 7; rd++) {
-      const ry = rdY[rd];
-      const rh = rdH[rd];
-
-      if (isOverview) {
-        const allRd = getByPosRound(players, pos, rd);
-        spreadDots(allRd, ry, rh, rdRankRange).forEach(({ y, player }) => {
-          result.push({ player, x: colX + colW / 2, y });
+    players
+      .filter(p => p.pos === pos && (p.rank ?? 0) > 0)
+      .forEach(player => {
+        result.push({
+          player,
+          x: colX + cW / 2,
+          y: pickToY(player.rank!),
         });
-      } else {
-        (['top', 'mid', 'bot'] as Band[]).forEach((key, bi) => {
-          const bp = getInBand(players, pos, rd, key);
-          const scX = colX + bi * subColW + subColW / 2;
-          spreadDots(bp, ry, rh, rdRankRange).forEach(({ y, player }) => {
-            result.push({ player, x: scX, y });
-          });
-        });
-      }
-    }
+      });
   });
 
   return result;

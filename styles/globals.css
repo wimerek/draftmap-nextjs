@@ -6,18 +6,26 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
 
 /* ── CSS Custom Properties ────────────────────────────────────────────────── */
+/*
+ * Session E (2026-05-02): Light mode is now primary.
+ * Dark mode will be a .dark class toggle added in a future session.
+ *
+ * Round colors (--rd-*) removed as a standalone system per design decision.
+ * Tier colors handle quality encoding. School colors on dots. Gold on interaction.
+ */
 :root {
-  --dm-bg: #0d1526;
-  --dm-panel: #1a2540;
-  --dm-accent: #D4A017;
-  --dm-text: #ffffff;
-  --dm-text-secondary: #94a3b8;
+  /* Page */
+  --dm-bg:            #F5F0E8;   /* warm parchment — light mode primary */
+  --dm-panel:         #EDE8DF;
+  --dm-accent:        #D4A017;   /* gold — buttons and interactive elements only */
+  --dm-text:          #0B2239;   /* dark navy — primary text */
+  --dm-text-secondary:#4A6274;   /* muted blue-grey */
+
+  /* Tier colors — only color system that encodes quality */
   --tier-great: #B45309;
-  --tier-good: #0E7490;
+  --tier-good:  #0E7490;
   --tier-solid: #475DA7;
-  --tier-role: #6B7280;
-  --rd-1: #34d399; --rd-2: #a3e635; --rd-3: #facc15;
-  --rd-4: #fb923c; --rd-5: #f87171; --rd-6: #c084fc; --rd-7: #94a3b8;
+  --tier-role:  #6B7280;
 }
 
 /* ── Base resets ──────────────────────────────────────────────────────────── */
@@ -32,68 +40,37 @@ html, body {
 }
 a { color: inherit; text-decoration: none; }
 
-/* ── DraftChart frame CSS (Phase 2c/2d) ──────────────────────────────────── */
+/* ── DraftChart page frame ────────────────────────────────────────────────── */
 
 .dm-page {
-  max-width: 1600px;
+  max-width: 1680px;
   margin: 0 auto;
-  padding: 0 24px 40px;
+  padding: 24px 24px 60px;
   font-family: "Inter", system-ui, sans-serif;
 }
 
 /* Controls bar */
 .dm-controls {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
 }
 
 .dm-btn-group {
   display: flex;
-  gap: 6px;
-  background: #DDE2E6;
+  gap: 4px;
+  background: #DDE3E8;
   padding: 4px;
   border-radius: 8px;
 }
 
 .dm-btn {
-  padding: 8px 16px;
+  padding: 7px 15px;
   border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
-  color: #4A6274;
-  font-family: "Inter", sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  transition: all 0.2s ease;
-}
-.dm-btn.active {
-  background: #0B2239;
-  color: #FFFFFF;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-.dm-btn:hover:not(.active) {
-  color: #0B2239;
-  background: rgba(11,34,57,0.05);
-}
-
-.dm-year-label {
-  font-size: 13px;
-  color: #4A6274;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.dm-live-btn {
-  padding: 6px 13px;
-  border: 1.5px solid rgba(74,98,116,0.35);
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: 5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   background: transparent;
@@ -101,7 +78,39 @@ a { color: inherit; text-decoration: none; }
   font-family: "Inter", sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+}
+.dm-btn.active {
+  background: #0B2239;
+  color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+}
+.dm-btn:hover:not(.active) {
+  color: #0B2239;
+  background: rgba(11,34,57,0.07);
+}
+
+.dm-year-label {
+  font-size: 12px;
+  color: #4A6274;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dm-live-btn {
+  padding: 6px 12px;
+  border: 1.5px solid rgba(74,98,116,0.30);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: #4A6274;
+  font-family: "Inter", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -112,8 +121,8 @@ a { color: inherit; text-decoration: none; }
 .dm-live-dot {
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: #6B7280;
-  transition: background 0.2s ease;
+  background: #9CA3AF;
+  transition: background 0.15s ease;
 }
 .dm-live-btn.active .dm-live-dot { background: #34d399; }
 
@@ -121,137 +130,48 @@ a { color: inherit; text-decoration: none; }
   margin-left: auto;
   font-size: 11px;
   font-weight: 500;
-  color: #7A8E9A;
-  letter-spacing: 0.2px;
+  color: #8A9BAA;
+  letter-spacing: 0.1px;
   font-style: italic;
 }
 
-/* Chart wrapper */
-.dm-chart-wrapper {
-  background: #FFFFFF;
-  border-radius: 8px;
-  overflow: hidden;
+/* Chart frame — full-page width, height determined by SVG content */
+.dm-chart-frame {
   position: relative;
-  border: 1px solid #DDE2E6;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-  height: 78vh;
-  min-height: 640px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: #F5F0E8;
+  border: 1px solid #DDD8CE;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 
-/* Zoom viewport */
-.dm-zoom-viewport {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  cursor: grab;
-  touch-action: none;
-  border-radius: 8px;
-  background:
-    linear-gradient(rgba(11,34,57,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(11,34,57,0.03) 1px, transparent 1px),
-    #F7F3EC;
-  background-size: 28px 28px, 28px 28px, auto;
+/* Loading / error states */
+.dm-state-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  color: var(--dm-text-secondary);
+  font-size: 14px;
 }
-.dm-zoom-viewport.dragging { cursor: grabbing; }
+.dm-state-error { color: #C0392B; }
 
-/* Stage — CSS transform target */
-.dm-zoom-stage {
-  position: absolute;
-  top: 0; left: 0;
-  transform-origin: 0 0;
-  will-change: transform;
-  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.08));
-}
-
-/* Floating tooltip */
+/* Floating tooltip (dark — needs contrast on any background) */
 .dm-tooltip {
   position: fixed;
   background: #101820;
-  border: 1px solid #4A6274;
-  border-radius: 4px;
-  padding: 12px;
+  border: 1px solid #3A5068;
+  border-radius: 5px;
+  padding: 11px 13px;
   font-size: 12px;
   z-index: 1000;
   pointer-events: none;
-  max-width: 200px;
+  max-width: 210px;
   color: #FFFFFF;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
 }
 .dm-tooltip-line { margin: 4px 0; color: #FFFFFF; }
-.dm-tooltip-label { color: #AAB8C2; font-size: 11px; text-transform: uppercase; font-weight: 600; }
-
-/* Zoom control widget */
-.dm-zoom-control {
-  position: absolute;
-  bottom: 20px; right: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  background: rgba(255,255,255,0.95);
-  border: 1px solid #C8D0D8;
-  border-radius: 8px;
-  padding: 8px 6px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-  z-index: 30;
-  user-select: none;
-}
-.dm-zoom-btn {
-  width: 28px; height: 28px;
-  border: 1px solid #C8D0D8;
-  background: #FFFFFF;
-  border-radius: 5px;
-  font-size: 18px;
-  font-weight: 400;
-  cursor: pointer;
-  color: #0B2239;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, color 0.15s;
-}
-.dm-zoom-btn:hover:not(:disabled) { background: #0B2239; color: #FFFFFF; border-color: #0B2239; }
-.dm-zoom-btn:disabled { opacity: 0.25; cursor: default; }
-.dm-zoom-track {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0;
-}
-.dm-zoom-seg {
-  width: 16px; height: 8px; border-radius: 2px;
-  background: #DDE2E6;
-  transition: background 0.2s, transform 0.15s, opacity 0.2s;
-  opacity: 0.7;
-}
-.dm-zoom-seg.active { background: #0B2239; transform: scaleX(1.2); opacity: 1; }
-
-/* Players legend (highest zoom) */
-.dm-players-legend {
-  position: absolute;
-  right: 18px; bottom: 18px;
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 14px 18px;
-  background: rgba(255,255,255,0.96);
-  border: 1px solid #D7DEE5;
-  border-left: 5px solid #FF4D00;
-  border-radius: 8px;
-  font-size: 12px;
-  min-width: 280px; max-width: 320px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
-  z-index: 25;
-}
-.dm-players-legend-title {
-  color: #FF4D00; font-weight: 800; font-size: 12px;
-  letter-spacing: 1.4px; text-transform: uppercase;
-  margin-bottom: 8px; border-bottom: 1px solid #ECEFF2; padding-bottom: 8px;
-}
-.dm-players-legend-row { display: flex; align-items: flex-start; gap: 8px; }
-.dm-legend-dot { width: 10px; height: 10px; border-radius: 2px; background: #0B2239; border: 1px solid #FFFFFF; flex-shrink: 0; }
-.dm-legend-lines { display: flex; flex-direction: column; gap: 1px; }
-.dm-legend-line-1 { color: #101820; font-weight: 700; font-size: 11px; line-height: 1.35; }
-.dm-legend-line-2 { color: #4A6274; font-size: 10px; font-weight: 600; line-height: 1.35; }
-.dm-legend-line-3 { color: #5F7467; font-size: 10px; line-height: 1.4; }
-
-@media (max-width: 900px) {
-  .dm-players-legend { right: 14px; bottom: 14px; min-width: 240px; max-width: 270px; padding: 12px 14px; }
-}
+.dm-tooltip-label { color: #8AABB8; font-size: 10.5px; text-transform: uppercase; font-weight: 700; }
 
 
 /* ── Player Card Modal (PCM) CSS ──────────────────────────────────────────── */
@@ -267,7 +187,7 @@ a { color: inherit; text-decoration: none; }
   padding: 16px;
 }
 
-/* Card wrapper — scrollable container */
+/* Card wrapper */
 #pcm-wrap {
   position: relative;
   width: min(1060px, 94vw);
@@ -280,7 +200,6 @@ a { color: inherit; text-decoration: none; }
   outline-offset: -12px;
   padding: 22px 24px 52px;
 
-  /* CSS vars for the card — defaults; overridden per-player by JS */
   --pcm-bg: #ece7dc;
   --pcm-surface: #f7f1e4;
   --pcm-ink: #171411;
@@ -306,15 +225,11 @@ a { color: inherit; text-decoration: none; }
   --pcm-zone-great-bg: rgba(212, 160, 23, 0.46);
   --pcm-zone-great-div: rgba(212, 160, 23, 0.68);
 
-  /* Team colors — overridden per-player */
   --pcm-team-primary: #4A4A4A;
   --pcm-team-secondary: #6B7280;
   --pcm-team-primary-wash: rgba(74, 74, 74, 0.20);
 }
 
-/* Inset border frame — handled via outline on #pcm-wrap (paints above section bands) */
-
-/* Close button */
 #pcm-close {
   position: absolute;
   top: 14px;
@@ -335,7 +250,6 @@ a { color: inherit; text-decoration: none; }
 }
 #pcm-close:hover { background: rgba(20, 16, 12, 0.14); }
 
-/* Draft result badge — upper right of card header, visible only when player is picked */
 #pcmDraftResult {
   position: absolute;
   top: 4px;
@@ -354,9 +268,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--pcm-text-muted);
   margin-bottom: 4px;
 }
-.pcm-draft-table {
-  border-collapse: collapse;
-}
+.pcm-draft-table { border-collapse: collapse; }
 .pcm-draft-table td {
   padding: 1.5px 0;
   font-size: 10px;
@@ -371,11 +283,8 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.3px;
   padding-right: 8px;
 }
-.pcm-draft-table td:last-child {
-  font-weight: 700;
-}
+.pcm-draft-table td:last-child { font-weight: 700; }
 
-/* Card ID */
 .pcm-card-id {
   font-family: 'Oswald', sans-serif;
   font-size: 22px;
@@ -384,8 +293,6 @@ a { color: inherit; text-decoration: none; }
   color: var(--pcm-ink);
   margin-bottom: 4px;
 }
-
-/* Player name */
 .pcm-player-name {
   font-family: 'Oswald', sans-serif;
   font-size: clamp(32px, 5vw, 50px);
@@ -397,8 +304,6 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
   margin: 4px 60px 10px;
 }
-
-/* Identity line */
 .pcm-identity-line {
   display: flex;
   justify-content: center;
@@ -420,8 +325,6 @@ a { color: inherit; text-decoration: none; }
   opacity: 0.75;
   flex-shrink: 0;
 }
-
-/* Section bands */
 .pcm-section-band {
   position: relative;
   margin: 20px -14px 14px;
@@ -445,14 +348,11 @@ a { color: inherit; text-decoration: none; }
   background: var(--pcm-team-secondary);
   border-top: 1px solid rgba(23, 20, 17, 0.12);
 }
-
 .pcm-section-block {
   padding: 0 0 12px;
   border-bottom: 1px solid var(--pcm-border);
 }
 .pcm-section-block:last-of-type { border-bottom: none; padding-bottom: 0; }
-
-/* Profile rail */
 .pcm-profile-rail {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -482,10 +382,7 @@ a { color: inherit; text-decoration: none; }
   clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%);
   white-space: nowrap;
 }
-.pcm-strengths-panel {
-  min-width: 0;
-  padding-left: 20%;
-}
+.pcm-strengths-panel { min-width: 0; padding-left: 20%; }
 .pcm-strength-stack { display: flex; flex-direction: column; gap: 6px; }
 .pcm-strength-row   { display: flex; align-items: stretch; width: 72%; }
 .pcm-strength-row.pcm-s-secondary  { width: 58%; }
@@ -517,8 +414,6 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.03em; text-transform: uppercase;
   color: var(--pcm-ink); line-height: 1.05; white-space: nowrap;
 }
-
-/* Metric table */
 .pcm-metric-table { display: grid; row-gap: 0; }
 .pcm-metric-head,
 .pcm-metric-item {
@@ -585,7 +480,7 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid rgba(212,160,23,0.42);
   cursor: help; flex: 0 0 auto;
 }
-.pcm-key-marker::before { content: "★"; }
+.pcm-key-marker::before { content: "\2605"; }
 .pcm-key-marker::after {
   content: "Key metric for this position";
   position: absolute;
@@ -622,8 +517,6 @@ a { color: inherit; text-decoration: none; }
   font-size: 11.5px; font-weight: 500;
   color: var(--pcm-text-secondary); line-height: 1.35; padding-left: 8px;
 }
-
-/* Zone track */
 .pcm-zone-track-wrap {
   position: relative; width: 100%; height: 70px;
   display: flex; align-items: flex-start;

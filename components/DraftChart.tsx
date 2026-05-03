@@ -2,17 +2,17 @@
 /**
  * components/DraftChart.tsx
  *
- * Stage 2c/2d — full D3/React SVG render. chart-engine.js eliminated.
- *
- * Ownership:
- *   - Fetches player data from /api/draft
- *   - Computes chart layout (column positions, row heights) via useMemo
- *   - Computes all dot positions via useMemo (spreadDots from chartMath.ts)
- *   - Delegates camera/pan/zoom to usePanZoom hook
- *   - Composes SVG sub-components; owns openPlayer + tooltip state
+ * Session E (2026-05-02): Core chart redesign pass.
+ *   - Pan/zoom eliminated. usePanZoom hook deleted.
+ *   - Full-page rendering: SVG is page content, no inner viewport.
+ *   - Continuous Y-axis: pickToY(rank) positions dots at their actual pick value.
+ *   - Variable position column widths: proportional to class size.
+ *   - Light mode primary.
+ *   - Role sub-bands removed (visible in player card instead).
+ *   - Single-click opens player card (no double-tap).
  */
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import type { Player } from "@/lib/airtable";
 import {
   computeChartLayout,
@@ -21,15 +21,12 @@ import {
   type DotPosition,
   type ChartView,
 } from "@/lib/chartMath";
-import { usePanZoom } from "@/hooks/usePanZoom";
 import PlayerCard from "@/components/PlayerCard";
 import TierBands from "@/components/chart/TierBands";
 import TierArrows from "@/components/chart/TierArrows";
 import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
-import RoleLanes from "@/components/chart/RoleLanes";
 import PlayerDots from "@/components/chart/PlayerDots";
-import PlayerLabels from "@/components/chart/PlayerLabels";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -57,8 +54,8 @@ function ChartTooltip({ player, x, y }: TooltipState) {
     >
       <div className="dm-tooltip-line"><strong>{player.name}</strong> — {player.pos}</div>
       <div className="dm-tooltip-line"><span className="dm-tooltip-label">School:</span> {player.school || "N/A"}</div>
-      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Role:</span> {player.role}</div>
-      <div className="dm-tooltip-line"><span className="dm-tooltip-label">R{player.rd}, Pick #{player.rank}</span></div>
+      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Role:</span> {player.role || "—"}</div>
+      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Proj. Pick</span> #{player.rank}</div>
       {strengths.length > 0 && (
         <div style={{ marginTop: 6 }}>
           {strengths.map((s, i) => (
@@ -72,69 +69,23 @@ function ChartTooltip({ player, x, y }: TooltipState) {
   );
 }
 
-// ── Zoom widget ───────────────────────────────────────────────────────────────
-
-interface ZoomWidgetProps {
-  zoomLevel: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-}
-
-function ZoomWidget({ zoomLevel, onZoomIn, onZoomOut }: ZoomWidgetProps) {
-  return (
-    <div className="dm-zoom-control">
-      <button className="dm-zoom-btn" onClick={onZoomIn} aria-label="Zoom in">+</button>
-      <div className="dm-zoom-track">
-        {[4, 3, 2, 1, 0].map(lvl => (
-          <div
-            key={lvl}
-            className={`dm-zoom-seg${zoomLevel === lvl ? " active" : ""}`}
-          />
-        ))}
-      </div>
-      <button className="dm-zoom-btn" onClick={onZoomOut} aria-label="Zoom out">−</button>
-    </div>
-  );
-}
-
-// ── Players legend ────────────────────────────────────────────────────────────
-
-function PlayersLegend() {
-  return (
-    <div className="dm-players-legend">
-      <div className="dm-players-legend-title">Player Legend</div>
-      <div className="dm-players-legend-row">
-        <div className="dm-legend-dot" />
-        <div className="dm-legend-lines">
-          <div className="dm-legend-line-1">Player Name</div>
-          <div className="dm-legend-line-2">Round · Pick</div>
-          <div className="dm-legend-line-2">Height · Weight</div>
-          <div className="dm-legend-line-3">• Primary Strength</div>
-          <div className="dm-legend-line-3">• Secondary Strength</div>
-          <div className="dm-legend-line-3">• Supporting Strength</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Chart borders (rendered inside SVG, on top of everything) ─────────────────
+// ── Chart borders ─────────────────────────────────────────────────────────────
 
 function ChartBorders({ layout }: { layout: ChartLayout }) {
   const { margin, chartW, totalChartH } = layout;
   return (
     <g>
-      {/* Dark top accent bar */}
-      <rect x={margin.left} y={0} width={chartW} height={6} fill="#0B2239" opacity={0.55} />
+      {/* Top accent bar */}
+      <rect x={margin.left} y={0} width={chartW} height={5} fill="#0B2239" opacity={0.45} />
       {/* Left outer border */}
       <line x1={margin.left} y1={0} x2={margin.left} y2={margin.top + totalChartH}
-        stroke="#AEB8C2" strokeWidth={1.4} />
+        stroke="#C4C0B8" strokeWidth={1.2} />
       {/* Right outer border */}
       <line x1={margin.left + chartW} y1={0} x2={margin.left + chartW} y2={margin.top + totalChartH}
-        stroke="#AEB8C2" strokeWidth={1.4} />
+        stroke="#C4C0B8" strokeWidth={1.2} />
       {/* Bottom border */}
       <line x1={margin.left} y1={margin.top + totalChartH} x2={margin.left + chartW} y2={margin.top + totalChartH}
-        stroke="#AEB8C2" strokeWidth={1.4} />
+        stroke="#C4C0B8" strokeWidth={1.2} />
     </g>
   );
 }
@@ -142,25 +93,13 @@ function ChartBorders({ layout }: { layout: ChartLayout }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DraftChart({ year = 2026 }: DraftChartProps) {
-  const [players, setPlayers]     = useState<Player[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [liveMode, setLiveMode]   = useState(false);
-  const [view, setView]           = useState<ChartView>("all");
+  const [players, setPlayers]       = useState<Player[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [liveMode, setLiveMode]     = useState(false);
+  const [view, setView]             = useState<ChartView>("all");
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
-  const [tooltip, setTooltip]     = useState<TooltipState | null>(null);
-
-  // Touch detection (ref — stable across renders)
-  const isTouch = useRef(
-    typeof window !== "undefined"
-      ? window.matchMedia("(hover: none) and (pointer: coarse)").matches
-      : false,
-  );
-  const lastTapMs     = useRef(0);
-  const lastTapPlayer = useRef<Player | null>(null);
-
-  // Pan/zoom hook
-  const { viewportRef, stageRef, zoomLevel, isOverview, zoomIn, zoomOut, fitToView } = usePanZoom();
+  const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
 
   // ── Data fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -172,83 +111,45 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       .catch(e => { setError(e.message); setLoading(false); });
   }, [year, liveMode]);
 
-  // ── Layout computation (pure, recomputes only when players/view/isOverview change) ──
+  // ── Layout (pure, recomputes only when players/view change) ─────────────────
   const layout = useMemo<ChartLayout>(
-    () => computeChartLayout(players, isOverview, view),
-    [players, isOverview, view],
+    () => computeChartLayout(players, view),
+    [players, view],
   );
 
-  // ── Dot positions (pure, recomputes only when layout/isOverview change) ────
+  // ── Dot positions (pure) ─────────────────────────────────────────────────
   const dotPositions = useMemo<DotPosition[]>(
-    () => computeAllDotPositions(players, layout, isOverview),
-    [players, layout, isOverview],
+    () => computeAllDotPositions(players, layout),
+    [players, layout],
   );
-
-  // ── Fit-to-view effects ────────────────────────────────────────────────────
-  // Fire once after initial data load (players go from 0 → populated).
-  const didFitRef = useRef(false);
-  useEffect(() => {
-    if (!loading && players.length > 0 && !didFitRef.current) {
-      didFitRef.current = true;
-      // Small rAF delay so the SVG has been committed to the DOM
-      requestAnimationFrame(() => fitToView());
-    }
-  }, [loading, players.length, fitToView]);
-
-  // Re-fit whenever the view filter changes (SVG resizes to fewer columns).
-  const prevViewRef = useRef<ChartView>("all");
-  useEffect(() => {
-    if (prevViewRef.current === view) return;
-    prevViewRef.current = view;
-    requestAnimationFrame(() => fitToView());
-  }, [view, fitToView]);
 
   // ── Event handlers ──────────────────────────────────────────────────────────
+
+  // Single click opens the player card directly (no double-tap needed).
   const handleDotClick = useCallback(
-    (player: Player, clientX: number, clientY: number) => {
-      if (isTouch.current) {
-        const now = Date.now();
-        if (now - lastTapMs.current < 350 && lastTapPlayer.current === player) {
-          lastTapMs.current = 0;
-          lastTapPlayer.current = null;
-          setTooltip(null);
-          setOpenPlayer(player);
-        } else {
-          lastTapMs.current = now;
-          lastTapPlayer.current = player;
-          setTooltip({ player, x: clientX + 14, y: clientY + 12 });
-        }
-      } else {
-        setOpenPlayer(player);
-      }
+    (player: Player) => {
+      setTooltip(null);
+      setOpenPlayer(player);
     },
     [],
   );
 
   const handleDotHover = useCallback(
     (player: Player, clientX: number, clientY: number) => {
-      if (!isTouch.current) {
-        setTooltip({ player, x: clientX + 14, y: clientY + 12 });
-      }
+      setTooltip({ player, x: clientX + 14, y: clientY + 12 });
     },
     [],
   );
 
-  const handleDotLeave = useCallback(() => {
-    if (!isTouch.current) setTooltip(null);
-  }, []);
-
+  const handleDotLeave = useCallback(() => setTooltip(null), []);
   const dismissTooltip = useCallback(() => setTooltip(null), []);
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  // IMPORTANT: viewport div must always render so usePanZoom can attach
-  // event listeners on mount. Loading/error states live inside the viewport.
   return (
     <>
-      {/* Page wrapper */}
       <div className="dm-page">
 
-        {/* Controls bar — only shown when data is ready */}
+        {/* Controls bar */}
         {!loading && !error && (
           <div className="dm-controls">
             <div className="dm-btn-group">
@@ -272,69 +173,46 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               Live Draft
             </button>
             <span className="dm-hint">
-              Scroll or pinch to zoom · drag to pan · click a dot to open player details (double-tap on mobile)
+              Hover a dot to preview · click for full player profile
             </span>
           </div>
         )}
 
-        {/* Chart frame */}
-        <div className="dm-chart-wrapper">
+        {/* Chart frame — full-page width, height from SVG content */}
+        <div className="dm-chart-frame" onClick={dismissTooltip}>
 
-          {/* Zoom viewport — ALWAYS rendered so usePanZoom listeners attach on mount */}
-          <div
-            ref={viewportRef}
-            className="dm-zoom-viewport"
-            onClick={dismissTooltip}
-          >
-            {/* Loading state */}
-            {loading && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading draft data…</p>
-              </div>
-            )}
-
-            {/* Error state */}
-            {error && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                <p style={{ color: "#f87171", fontSize: 14 }}>Failed to load chart: {error}</p>
-              </div>
-            )}
-
-            {/* Stage — CSS transform applied directly by usePanZoom hook */}
-            {!loading && !error && (
-              <div ref={stageRef} className="dm-zoom-stage">
-                <svg
-                  width={layout.svgW}
-                  height={layout.svgH}
-                  style={{ display: "block" }}
-                >
-                  <TierBands layout={layout} />
-                  <TierArrows layout={layout} />
-                  <PositionColumns layout={layout} zoomLevel={zoomLevel} isOverview={isOverview} />
-                  <RoundZones layout={layout} />
-                  <RoleLanes />
-                  <PlayerDots
-                    dotPositions={dotPositions}
-                    zoomLevel={zoomLevel}
-                    liveMode={liveMode}
-                    onDotClick={handleDotClick}
-                    onDotHover={handleDotHover}
-                    onDotLeave={handleDotLeave}
-                  />
-                  <PlayerLabels dotPositions={dotPositions} zoomLevel={zoomLevel} liveMode={liveMode} />
-                  <ChartBorders layout={layout} />
-                </svg>
-              </div>
-            )}
-          </div>
-
-          {/* Zoom control widget */}
-          {!loading && !error && (
-            <ZoomWidget zoomLevel={zoomLevel} onZoomIn={zoomIn} onZoomOut={zoomOut} />
+          {loading && (
+            <div className="dm-state-msg">
+              <p>Loading draft data…</p>
+            </div>
           )}
 
-          {/* Players legend — visible at highest zoom */}
-          {!loading && !error && zoomLevel >= 4 && <PlayersLegend />}
+          {error && (
+            <div className="dm-state-msg dm-state-error">
+              <p>Failed to load chart: {error}</p>
+            </div>
+          )}
+
+          {!loading && !error && (
+            <svg
+              width={layout.svgW}
+              height={layout.svgH}
+              style={{ display: "block", maxWidth: "100%" }}
+            >
+              <TierBands layout={layout} />
+              <TierArrows layout={layout} />
+              <PositionColumns layout={layout} />
+              <RoundZones layout={layout} />
+              <PlayerDots
+                dotPositions={dotPositions}
+                liveMode={liveMode}
+                onDotClick={handleDotClick}
+                onDotHover={handleDotHover}
+                onDotLeave={handleDotLeave}
+              />
+              <ChartBorders layout={layout} />
+            </svg>
+          )}
         </div>
       </div>
 
