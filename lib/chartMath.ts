@@ -613,7 +613,6 @@ export function computeAllDotPositions(
           pickValueDelta = projTierValue;
         }
         // Unranked + undrafted: delta stays 0 (not a tracked projection).
-        }
 
         result.push({
           player,
