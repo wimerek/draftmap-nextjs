@@ -2,14 +2,13 @@
 /**
  * components/chart/PlayerDots.tsx
  *
- * Session G upgrades:
- *   - viewMode: "projected" | "drafted"
- *     cy transitions between projectedY and actualY via CSS transition.
- *   - Staggered transition delay (25ms per dot index) so dots ripple outward.
- *   - fill transitions from school color to NFL team color as dots move.
- *   - Dot radius encodes pick-value delta: larger = bigger projection surprise.
- *     r = BASE_R + min(MAX_R_ADD, sqrt(pickValueDelta) * R_SCALE)
- *   - Reduced motion: skip travel, snap to final with 100ms fade.
+ * Session H fixes:
+ *   - fill moved from SVG attribute to style.fill so CSS transition fires.
+ *   - isAnimating prop: transition only applied during Play animation (0ms otherwise).
+ *   - liveMode grey-out only applies in Projected view (not Drafted view).
+ *   - Dot radius formula: sqrt(raw pick delta) * 1.4, range 6-16px.
+ *     Raw pick delta = |pick_drafted - rank| for drafted players,
+ *                     (257 - rank) for undrafted (treated as "fell off the board").
  */
 import { useMemo } from "react";
 import type { Player } from "@/lib/airtable";
@@ -22,6 +21,7 @@ interface Props {
   dotPositions: DotPosition[];
   liveMode: boolean;
   viewMode: ViewMode;
+  isAnimating: boolean;
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
@@ -29,32 +29,25 @@ interface Props {
 
 /** Base dot radius in projected view. */
 const BASE_R = 6;
-/** Maximum additional radius added by pick-value delta. */
+/** Maximum additional radius from pick delta. sqrt(256)*1.4 = 22.4, capped at 10. */
 const MAX_R_ADD = 10;
-/** Scales sqrt(delta) → additional radius pixels. sqrt(100) = 10 → * 1 = 10 = MAX_R_ADD. */
-const R_SCALE = 1.0;
+/** Scales sqrt(rawPickDelta) -> additional radius pixels. */
+const R_SCALE = 1.4;
 
-/** Pick-value delta (0–100) → dot radius (6–16 px). */
+/**
+ * Raw pick delta -> dot radius.
+ * delta = |pick_drafted - rank| for drafted players.
+ * delta = (257 - rank) for undrafted (treated as max possible fall).
+ * r = 6 + min(10, sqrt(delta) * 1.4)
+ *   pick 1 -> undrafted: sqrt(256)*1.4 = 22.4 -> capped -> r = 16
+ *   2-pick miss:         sqrt(2)*1.4 = 2.0     -> r = 8
+ */
 function deltaToRadius(delta: number): number {
   return BASE_R + Math.min(MAX_R_ADD, Math.sqrt(delta) * R_SCALE);
 }
 
-/** Interpolate two hex colors by factor t (0=a, 1=b). Used for color transition. */
-function lerpHex(a: string, b: string, t: number): string {
-  const pr = parseInt(a.slice(1, 3), 16);
-  const pg = parseInt(a.slice(3, 5), 16);
-  const pb = parseInt(a.slice(5, 7), 16);
-  const dr = parseInt(b.slice(1, 3), 16);
-  const dg = parseInt(b.slice(3, 5), 16);
-  const db = parseInt(b.slice(5, 7), 16);
-  const r  = Math.round(pr + (dr - pr) * t).toString(16).padStart(2, "0");
-  const g  = Math.round(pg + (dg - pg) * t).toString(16).padStart(2, "0");
-  const bv = Math.round(pb + (db - pb) * t).toString(16).padStart(2, "0");
-  return `#${r}${g}${bv}`;
-}
-
 export default function PlayerDots({
-  dotPositions, liveMode, viewMode,
+  dotPositions, liveMode, viewMode, isAnimating,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
   const inDraftedView = viewMode === "drafted";
@@ -69,7 +62,9 @@ export default function PlayerDots({
       {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
         const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
 
-        const isDrafted = liveMode && player.drafted;
+        // Live Draft Mode grey-out only applies in Projected view.
+        // In Drafted view we always show full team colors / results.
+        const isDrafted = liveMode && player.drafted && !inDraftedView;
 
         // ── Color ────────────────────────────────────────────────────────────
         let fill: string;
@@ -83,6 +78,7 @@ export default function PlayerDots({
             fill   = tc.fill;
             stroke = teamStrokeFromFill(tc.fill);
           } else {
+            // Team not found in lookup — fall back to school color
             fill   = sc.fill;
             stroke = "#333333";
           }
@@ -98,13 +94,17 @@ export default function PlayerDots({
         const r = inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R;
 
         // ── Transition ──────────────────────────────────────────────────────
-        const tDuration = prefersReducedMotion ? 100 : 550;
-        const tDelay    = prefersReducedMotion ? 0   : i * 22;
-        const transition = [
-          `cy ${tDuration}ms ease-out ${tDelay}ms`,
-          `r ${tDuration}ms ease-out ${tDelay}ms`,
-          `fill ${tDuration}ms ease-out ${tDelay}ms`,
-        ].join(", ");
+        // isAnimating=true (Play button)  -> 550ms staggered ease-out
+        // isAnimating=false (seg control) -> 0ms instant snap
+        const tDuration = isAnimating ? (prefersReducedMotion ? 100 : 550) : 0;
+        const tDelay    = isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0;
+        const transition = tDuration > 0
+          ? [
+              `cy ${tDuration}ms ease-out ${tDelay}ms`,
+              `r ${tDuration}ms ease-out ${tDelay}ms`,
+              `fill ${tDuration}ms ease-out ${tDelay}ms`,
+            ].join(", ")
+          : "none";
 
         return (
           <circle
@@ -112,10 +112,10 @@ export default function PlayerDots({
             cx={x}
             cy={cy}
             r={r}
-            fill={fill}
             stroke={stroke}
             strokeWidth="1.5"
-            style={{ cursor: "pointer", transition }}
+            // fill in style (not as SVG attribute) so CSS transition works.
+            style={{ fill, cursor: "pointer", transition }}
             onClick={e => { e.stopPropagation(); onDotClick(player); }}
             onMouseEnter={e => onDotHover(player, e.clientX, e.clientY)}
             onMouseLeave={onDotLeave}

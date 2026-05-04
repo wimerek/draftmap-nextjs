@@ -2,20 +2,20 @@
 /**
  * components/DraftChart.tsx
  *
- * Session G: Projection View animation.
- *   - Sidebar replaces top controls bar for most settings.
- *   - viewMode: "projected" | "drafted" — drives dot Y positions + colors.
- *   - Animation player: Play flips to Drafted, Reset snaps back to Projected.
- *   - pick_value_curve.json loaded client-side for dot-size delta computation.
- *   - UDFA zone visible in Drafted view.
- *   - Pills moved to SVG right margin (layout change in chartMath).
- *   - Flex-push layout: sidebar on left, chart main on right.
+ * Session H fixes:
+ *   - isAnimating state: CSS transitions only fire during Play (0ms for seg toggle).
+ *   - Live Draft Mode grey-out fixed: only applies in Projected view.
+ *   - Gradient opacity reduced: 0.65 top -> 0.08 bottom (softer fade).
+ *   - UDFAZone always visible (passes viewMode instead of visible bool).
+ *   - Left chart border: thin line at margin.left.
+ *   - Drag-to-scroll on chart frame.
  *
- * Session F: Visual polish (tier pill gradient, soft borders, crisper strokes).
+ * Session G: Sidebar, viewMode animation, UDFA zone, pills right, team colors.
+ * Session F: Visual polish (tier pill gradient, soft borders).
  * Session E: Continuous Y-axis, variable column widths, no zoom states.
  */
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import type { Player } from "@/lib/airtable";
 import {
   computeChartLayout,
@@ -98,16 +98,24 @@ function ChartTooltip({ player, x, y }: TooltipState) {
   );
 }
 
-// ── Chart borders ─────────────────────────────────────────────────────────────
+// ── Chart borders (top shadow + left separator) ───────────────────────────────
 
 function ChartBorders({ layout }: { layout: ChartLayout }) {
-  const { margin, chartW } = layout;
+  const { margin, chartW, totalChartH } = layout;
   return (
     <g>
+      {/* Top shadow strip */}
       <rect
         x={margin.left} y={0}
         width={chartW} height={4}
         fill="#0B2239" opacity={0.12}
+      />
+      {/* Left border — separates round labels from chart data area */}
+      <line
+        x1={margin.left} y1={margin.top - 8}
+        x2={margin.left} y2={margin.top + totalChartH + 8}
+        stroke="rgba(11,34,57,0.12)"
+        strokeWidth={1}
       />
     </g>
   );
@@ -125,20 +133,12 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
   // ── Projection view state ────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>("projected");
-  const [animState, setAnimState] = useState<AnimationState>({
+  const [viewMode,     setViewMode]     = useState<ViewMode>("projected");
+  const [isAnimating,  setIsAnimating]  = useState(false);
+  const [animState,    setAnimState]    = useState<AnimationState>({
     playing: false,
     step: 0,
   });
-
-  // ── Pick-value curve (for dot delta sizing) ──────────────────────────────
-  const [pickValueCurve, setPickValueCurve] = useState<PickValueEntry[]>([]);
-  useEffect(() => {
-    fetch("/pick_value_curve.json")
-      .then(r => r.json())
-      .then(data => setPickValueCurve(data))
-      .catch(() => { /* graceful degradation — dots use uniform size */ });
-  }, []);
 
   // ── Data fetch ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -158,44 +158,57 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   // ── Dot positions ────────────────────────────────────────────────────────
   const dotPositions = useMemo<DotPosition[]>(
-    () => computeAllDotPositions(players, layout, pickValueCurve),
-    [players, layout, pickValueCurve],
+    () => computeAllDotPositions(players, layout),
+    [players, layout],
   );
 
   // ── Animation controls ───────────────────────────────────────────────────
+  // Play: animated (550ms staggered). Segmented control: instant snap (0ms).
+
   const handlePlay = useCallback(() => {
+    setIsAnimating(true);
     setViewMode("drafted");
     setAnimState({ playing: true, step: 1 });
-    // Animation is CSS-driven; mark as not-playing after longest stagger window.
+    // Clear playing flag after all dots finish transitioning.
     const longestDelay = dotPositions.length * 22 + 550;
-    setTimeout(() => setAnimState(s => ({ ...s, playing: false })), longestDelay);
+    setTimeout(() => {
+      setAnimState(s => ({ ...s, playing: false }));
+      setIsAnimating(false);
+    }, longestDelay);
   }, [dotPositions.length]);
 
   const handlePause = useCallback(() => {
     setAnimState(s => ({ ...s, playing: false }));
+    setIsAnimating(false);
   }, []);
 
   const handleReset = useCallback(() => {
+    setIsAnimating(false);
     setViewMode("projected");
     setAnimState({ playing: false, step: 0 });
   }, []);
 
   const handleStepForward = useCallback(() => {
+    setIsAnimating(false);
     setViewMode("drafted");
     setAnimState({ playing: false, step: 1 });
   }, []);
 
   const handleStepBack = useCallback(() => {
+    setIsAnimating(false);
     setViewMode("projected");
     setAnimState({ playing: false, step: 0 });
   }, []);
 
   const handleJumpEnd = useCallback(() => {
+    setIsAnimating(false);
     setViewMode("drafted");
     setAnimState({ playing: false, step: 1 });
   }, []);
 
+  // Segmented control toggle -> instant snap, no animation.
   const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setIsAnimating(false);
     setViewMode(mode);
     setAnimState(s => ({
       ...s,
@@ -220,6 +233,33 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const handleDotLeave   = useCallback(() => setTooltip(null), []);
   const dismissTooltip   = useCallback(() => setTooltip(null), []);
   const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
+
+  // ── Drag-to-scroll on chart frame ────────────────────────────────────────
+  const chartFrameRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ active: boolean; startX: number; scrollLeft: number }>({
+    active: false, startX: 0, scrollLeft: 0,
+  });
+
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const frame = chartFrameRef.current;
+    if (!frame) return;
+    dragRef.current = { active: true, startX: e.pageX, scrollLeft: frame.scrollLeft };
+    frame.style.cursor = "grabbing";
+    e.preventDefault();
+  }, []);
+
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d.active) return;
+    const frame = chartFrameRef.current;
+    if (!frame) return;
+    frame.scrollLeft = d.scrollLeft - (e.pageX - d.startX);
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    dragRef.current.active = false;
+    if (chartFrameRef.current) chartFrameRef.current.style.cursor = "grab";
+  }, []);
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -253,11 +293,18 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           </div>
         )}
         {!loading && !error && (
-          <div className="dm-chart-frame">
+          <div
+            className="dm-chart-frame"
+            ref={chartFrameRef}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+          >
             <svg
               width={layout.svgW}
               height={layout.svgH}
-              style={{ display: "block", maxWidth: "100%" }}
+              style={{ display: "block", maxWidth: "none" }}
             >
               <defs>
                 <linearGradient
@@ -266,19 +313,21 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                   x2="0" y2={layout.margin.top + layout.totalChartH}
                   gradientUnits="userSpaceOnUse"
                 >
-                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.95} />
-                  <stop offset="100%" stopColor="#D4A017" stopOpacity={0.18} />
+                  {/* Reduced opacity: 0.65 top -> 0.08 bottom (softer, less dominant) */}
+                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.65} />
+                  <stop offset="100%" stopColor="#D4A017" stopOpacity={0.08} />
                 </linearGradient>
               </defs>
               <TierBands layout={layout} />
               <TierArrows layout={layout} />
               <PositionColumns layout={layout} />
               <RoundZones layout={layout} />
-              <UDFAZone layout={layout} visible={viewMode === "drafted"} />
+              <UDFAZone layout={layout} viewMode={viewMode} />
               <PlayerDots
                 dotPositions={dotPositions}
                 liveMode={liveMode}
                 viewMode={viewMode}
+                isAnimating={isAnimating}
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}

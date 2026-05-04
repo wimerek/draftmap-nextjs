@@ -291,9 +291,9 @@ export function computeChartLayout(
   const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
 
   const sepW = hasDefense && hasOffense ? 24 : 0;
-  // margin.left is now slim (round labels only) — sidebar is HTML, outside the SVG.
-  // margin.right accommodates tier pills + arrows (moved from left to right).
-  const margin = { top: 80, right: 160, bottom: 48, left: 64 };
+  // margin.left: 80px — accommodates round labels + the left-side quality arrow.
+  // margin.right: 160px — accommodates tier pills on the right.
+  const margin = { top: 80, right: 160, bottom: 48, left: 80 };
 
   // ── Y-axis: continuous pick scale ────────────────────────────────────────
   const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px
@@ -425,84 +425,96 @@ export interface DotPosition {
 }
 
 
+/** Stable integer hash from an arbitrary string (e.g., Airtable record ID). */
+function hashStr(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
 /**
- * Compute SVG (x, y) for every ranked player visible in the current view.
+ * Compute SVG (x, y) for every player visible in the current view.
  *
- * Session E: Y = pickToY(player.rank) -- players sit at their absolute rank
- * position on the continuous Y axis. X = center of their position column.
- * Unranked players (rank 0 or null) are excluded -- no meaningful Y position.
- *
- * Session G: Extended with projectedY, actualY, and pickValueDelta for the
- * Projected->Drafted animation. Pass pickValueCurve (from public/pick_value_curve.json)
- * to enable delta computation; omit for Projected-only rendering.
- *
- * Dots may overlap when two players at the same position have adjacent ranks.
- * This is intentional: dense clusters signal talent concentration; gaps are cliffs.
+ * Session E: Y = pickToY(rank). X = column center.
+ * Session G: Extended with projectedY, actualY, pickValueDelta for animation.
+ * Session H:
+ *   - Unranked players (rank 0/null) NOW INCLUDED. They sit in the UDFA zone
+ *     in Projected view and animate to their actual pick slot (or stay in UDFA)
+ *     in Drafted view.
+ *   - pickValueDelta is now raw pick delta |pick_drafted - rank| (not curve-weighted).
+ *     Undrafted = (257 - rank) for ranked players; 32 for unranked-but-drafted.
+ *   - pick_value_curve param retained for future Results view; not used for sizing.
  */
 export function computeAllDotPositions(
   players: Player[],
   layout: ChartLayout,
-  pickValueCurve?: PickValueEntry[],
+  _pickValueCurve?: PickValueEntry[],
 ): DotPosition[] {
   const { visiblePositions, colXMap, colWidths, pickToY, udfaZoneY, udfaZoneH } = layout;
 
-  // Build O(1) pick->normalizedValue lookup if curve is supplied.
-  const pvMap: Record<number, number> = {};
-  if (pickValueCurve) {
-    for (const entry of pickValueCurve) pvMap[entry.pick] = entry.normalized;
-  }
-
   const udfaCenterY = udfaZoneY + udfaZoneH / 2;
   const result: DotPosition[] = [];
+  const DOT_R = 6;
 
   visiblePositions.forEach(pos => {
     const colX = colXMap[pos];
     const cW   = colWidths[pos];
 
+    // Include ALL players for this position (ranked and unranked).
     players
-      .filter(p => p.pos === pos && (p.rank ?? 0) > 0)
+      .filter(p => p.pos === pos)
       .forEach(player => {
-        // Deterministic horizontal jitter: center-weighted (triangular) distribution
-        // so most dots cluster near the column centre with fewer at the edges.
-        // Two independent multiplicative hashes of rank -> average -> 0..1 triangular.
-        // Span capped at 60% of usable column width to prevent inter-column bleed.
+        const isRanked = (player.rank ?? 0) > 0;
+
+        // Stable hash seed: ranked -> rank integer, unranked -> hash of Airtable ID.
+        const hashSeed = isRanked ? player.rank! : hashStr(player.id);
+
+        // Deterministic horizontal jitter (triangular, centre-weighted).
         const JITTER_PAD = 10;
         const jitterSpan = Math.max(0, (cW - 2 * JITTER_PAD) * 0.60);
-        const h1 = ((player.rank! * 2654435761) >>> 0) / 4294967295;
-        const h2 = ((player.rank! * 40503 + 987654321) >>> 0) / 4294967295;
-        const t  = (h1 + h2) / 2;
-        const jitter = t * jitterSpan - jitterSpan / 2;
+        const h1 = ((hashSeed * 2654435761) >>> 0) / 4294967295;
+        const h2 = ((hashSeed * 40503 + 987654321) >>> 0) / 4294967295;
+        const jitter = ((h1 + h2) / 2) * jitterSpan - jitterSpan / 2;
 
-        // Clamp Y so dots with 6px radius never bleed outside chart top/bottom.
-        const DOT_R = 6;
-        const rawY  = pickToY(player.rank!);
-        const projectedY = Math.max(
-          layout.margin.top + DOT_R,
-          Math.min(layout.margin.top + layout.totalChartH - DOT_R, rawY),
-        );
+        // Vertical hash for UDFA zone placement.
+        const hV = ((hashSeed * 1234567891) >>> 0) / 4294967295;
 
-        // Actual pick Y.
-        // Drafted -> pickToY(pick_drafted). Undrafted -> UDFA zone with slight
-        // vertical jitter so stacked dots separate within the band.
-        let actualY: number;
-        if (player.pick_drafted != null && player.pick_drafted > 0) {
-          const rawActualY = pickToY(player.pick_drafted);
-          actualY = Math.max(
-            layout.margin.top + DOT_R,
-            Math.min(layout.margin.top + layout.totalChartH - DOT_R, rawActualY),
-          );
-        } else {
-          // Undrafted: place in UDFA zone with rank-based vertical jitter.
-          const hU = ((player.rank! * 1234567891) >>> 0) / 4294967295;
-          actualY = udfaCenterY + (hU - 0.5) * (udfaZoneH * 0.4);
-        }
+        // ── Projected Y ──────────────────────────────────────────────────
+        // Ranked: sits at rank position on continuous axis.
+        // Unranked: sits in UDFA zone (Derek didn't project them).
+        const projectedY = isRanked
+          ? Math.max(
+              layout.margin.top + DOT_R,
+              Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.rank!)),
+            )
+          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.4);
 
-        // Pick-value delta for dot size: uses pick-value curve if loaded.
+        // ── Actual Y ─────────────────────────────────────────────────────
+        // Drafted: animates to actual pick slot.
+        // Undrafted: stays in UDFA zone (same vertical hash -> stable position).
+        const actualY = (player.pick_drafted != null && player.pick_drafted > 0)
+          ? Math.max(
+              layout.margin.top + DOT_R,
+              Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.pick_drafted)),
+            )
+          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.4);
+
+        // ── Raw pick delta for dot-size encoding ──────────────────────────
+        // Larger delta = bigger surprise. Drives dot radius in Drafted view.
         let pickValueDelta = 0;
-        if (pickValueCurve && player.rank) {
-          const projVal   = pvMap[player.rank]  ?? 0;
-          const actualVal = player.pick_drafted ? (pvMap[player.pick_drafted] ?? 0) : 0;
-          pickValueDelta  = Math.abs(projVal - actualVal);
+        if (isRanked) {
+          if (player.pick_drafted != null && player.pick_drafted > 0) {
+            pickValueDelta = Math.abs(player.pick_drafted - player.rank!);
+          } else {
+            // Undrafted: treat as fell to "pick 257" (maximum possible fall).
+            pickValueDelta = 257 - player.rank!;
+          }
+        } else if (player.pick_drafted != null && player.pick_drafted > 0) {
+          // Unranked but drafted: moderate surprise (Derek didn't project them but they got picked).
+          pickValueDelta = 32;
         }
 
         result.push({

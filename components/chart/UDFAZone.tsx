@@ -2,31 +2,35 @@
 /**
  * components/chart/UDFAZone.tsx
  *
- * Session G: Band below pick-256 where undrafted players animate in Drafted view.
- * Visual treatment: lighter cream fill, dashed top border, "UDFA" label with
- * a tooltip on hover ("Undrafted Free Agent").
+ * Session H: UDFA zone now always visible (not just in Drafted view).
+ * - In Projected view: subtle/faded treatment so unranked players have a home.
+ * - In Drafted view: full opacity — undrafted players land here.
+ * Props: visible prop removed; always renders. Opacity driven by viewMode.
  */
 import { useState } from "react";
 import type { ChartLayout } from "@/lib/chartMath";
+import type { ViewMode } from "@/components/Sidebar";
 
 interface Props {
   layout: ChartLayout;
-  visible: boolean;  // only show in Drafted view
+  viewMode: ViewMode;
 }
 
-export default function UDFAZone({ layout, visible }: Props) {
+export default function UDFAZone({ layout, viewMode }: Props) {
   const [hover, setHover] = useState(false);
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
 
-  if (!visible) return null;
+  // Fade the zone in Projected view; full opacity in Drafted view.
+  const opacity = viewMode === "drafted" ? 1 : 0.45;
 
-  const bandX = margin.left;
-  const bandW = chartW;
+  const bandX  = margin.left;
+  const bandW  = chartW;
   const labelX = bandX + 12;
   const labelY = udfaZoneY + udfaZoneH / 2 + 4;
 
   return (
     <g
+      style={{ opacity, transition: "opacity 400ms ease" }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -36,7 +40,7 @@ export default function UDFAZone({ layout, visible }: Props) {
         width={bandW} height={udfaZoneH}
         fill="rgba(180,170,155,0.10)"
       />
-      {/* Dashed top border — separates draft territory from UDFA territory */}
+      {/* Dashed top border */}
       <line
         x1={bandX} y1={udfaZoneY}
         x2={bandX + bandW} y2={udfaZoneY}

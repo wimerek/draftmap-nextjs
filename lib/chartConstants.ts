@@ -2,12 +2,6 @@
  * lib/chartConstants.ts
  *
  * All configuration constants for the DraftMap chart.
- * Extracted from chart-engine.js — source of truth for positions, colors,
- * tier definitions, band assignments, and positional measurable ranges.
- *
- * Used by: PlayerCard.tsx (Phase 2b), full D3 refactor (Phase 2c/2d).
- * chart-engine.js still has its own copies of these — this file is the
- * TypeScript foundation, not a live import from the engine yet.
  */
 
 // ── Position types ────────────────────────────────────────────────────────────
@@ -65,7 +59,7 @@ export const BAND_ASSIGNMENTS: Record<Position, { top: string; mid: string; bot:
   S:    { top: 'Free Safety',     mid: 'Balanced', bot: 'Strong Safety'   },
 };
 
-// ── Round colors (green → purple progression) ────────────────────────────────
+// ── Round colors (green -> purple progression) ────────────────────────────────
 
 export const ROUND_COLORS: Record<number, string> = {
   1: '#34d399',
@@ -150,7 +144,7 @@ export const SCHOOL_COLORS: Record<string, { fill: string; stroke: string }> = {
   "Wisconsin":          { fill: "#c5050c", stroke: "#FFFFFF" },
 };
 
-// ── Tier definitions (order = Great → Role Player/Project) ───────────────────
+// ── Tier definitions (order = Great -> Role Player/Project) ───────────────────
 
 export const TIER_DEFS: TierDef[] = [
   { name: 'Great',                color: '#B45309', bg: 'rgba(180,83,9,0.06)'    },
@@ -159,14 +153,10 @@ export const TIER_DEFS: TierDef[] = [
   { name: 'Role Player / Project', color: '#6B7280', bg: 'rgba(107,114,128,0.03)' },
 ];
 
-/** Fraction of R1 players that fall in the "Great" tier (picks 1–15 out of ~21). */
+/** Fraction of R1 players that fall in the "Great" tier (picks 1-15 out of ~21). */
 export const R1_SPLIT = 15 / 21;
 
 // ── Positional measurable range data ─────────────────────────────────────────
-// Thresholds for each combine measurable by position.
-// Used in PlayerCard zone-track bars to grade a player vs. their positional peers.
-// Fields: lowest / good / great / highest (range endpoints) + isKey (key metric flag).
-// For "lower is better" measurables (times), the gradient runs right-to-left in the UI.
 
 export const cardPositionalRangeData: PositionalRangeData = {
   CB: {
@@ -315,57 +305,56 @@ export const cardPositionalRangeData: PositionalRangeData = {
 };
 
 // ── NFL Team colors ───────────────────────────────────────────────────────────
-// Pre-computed best visible color per team on a light/cream background.
-// Dark primary colors (luminance < 50) fall back to secondary where the
-// secondary is more visible. Both full names and common abbreviations are
-// keyed so whatever format Airtable sends resolves correctly.
+// Aliases include full team name, common abbreviations, AND the exact strings
+// Airtable sends in the "Team Drafted" field (city/nickname only).
+// Both .toUpperCase() and .toLowerCase() variants are also stored in the map.
 
 export interface TeamColor {
   fill: string;
-  /** Stroke is always a slightly darkened version of fill, computed at render time */
 }
 
 const _TEAMS: Array<[string[], string]> = [
   // AFC East
-  [['Buffalo Bills',           'BUF'],                          '#C60C30'],
-  [['Miami Dolphins',          'MIA'],                          '#008E97'],
-  [['New England Patriots',    'NWE', 'NE',  'NEP'],            '#C60C30'],
-  [['New York Jets',           'NYJ'],                          '#125740'],
+  [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#C60C30'],
+  [['Miami Dolphins',          'MIA', 'Miami'],                                         '#008E97'],
+  [['New England Patriots',    'NWE', 'NE', 'NEP', 'New England'],                     '#C60C30'],
+  [['New York Jets',           'NYJ'],                                                  '#125740'],
   // AFC North
-  [['Baltimore Ravens',        'BAL'],                          '#241773'],
-  [['Cincinnati Bengals',      'CIN'],                          '#FB4F14'],
-  [['Cleveland Browns',        'CLE'],                          '#FF3C00'],
-  [['Pittsburgh Steelers',     'PIT'],                          '#FFB612'],
+  [['Baltimore Ravens',        'BAL', 'Baltimore'],                                     '#241773'],
+  [['Cincinnati Bengals',      'CIN', 'Cincinnati'],                                    '#FB4F14'],
+  [['Cleveland Browns',        'CLE', 'Cleveland'],                                     '#FF3C00'],
+  [['Pittsburgh Steelers',     'PIT', 'Pittsburgh'],                                    '#FFB612'],
   // AFC South
-  [['Houston Texans',          'HOU'],                          '#A71930'],
-  [['Indianapolis Colts',      'IND'],                          '#002C5F'],
-  [['Jacksonville Jaguars',    'JAX'],                          '#D7A22A'],
-  [['Tennessee Titans',        'TEN'],                          '#4B92DB'],
+  [['Houston Texans',          'HOU', 'Houston'],                                       '#A71930'],
+  [['Indianapolis Colts',      'IND', 'Indianapolis'],                                  '#002C5F'],
+  [['Jacksonville Jaguars',    'JAX', 'Jacksonville'],                                  '#D7A22A'],
+  [['Tennessee Titans',        'TEN', 'Tennessee'],                                     '#4B92DB'],
   // AFC West
-  [['Denver Broncos',          'DEN'],                          '#FB4F14'],
-  [['Kansas City Chiefs',      'KAN', 'KC',  'KCC'],            '#E31837'],
-  [['Las Vegas Raiders',       'LVR', 'LV',  'OAK', 'RAI'],    '#A5ACAF'],
-  [['Los Angeles Chargers',    'LAC'],                          '#0080C6'],
+  [['Denver Broncos',          'DEN', 'Denver'],                                        '#FB4F14'],
+  [['Kansas City Chiefs',      'KAN', 'KC', 'KCC', 'Kansas City'],                     '#E31837'],
+  [['Las Vegas Raiders',       'LVR', 'LV', 'OAK', 'RAI', 'Las Vegas'],               '#A5ACAF'],
+  [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6'],
   // NFC East
-  [['Dallas Cowboys',          'DAL'],                          '#003594'],
-  [['New York Giants',         'NYG'],                          '#A71930'],
-  [['Philadelphia Eagles',     'PHI'],                          '#004C54'],
-  [['Washington Commanders',   'WAS', 'WSH', 'WFT'],            '#FFB612'],
+  [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594'],
+  [['New York Giants',         'NYG'],                                                  '#A71930'],
+  [['Philadelphia Eagles',     'PHI', 'Philadelphia'],                                  '#004C54'],
+  [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#FFB612'],
   // NFC North
-  [['Chicago Bears',           'CHI'],                          '#C83803'],
-  [['Detroit Lions',           'DET'],                          '#0076B6'],
-  [['Green Bay Packers',       'GNB', 'GB',  'GBP'],            '#FFB612'],
-  [['Minnesota Vikings',       'MIN'],                          '#4F2683'],
+  [['Chicago Bears',           'CHI', 'Chicago'],                                       '#C83803'],
+  [['Detroit Lions',           'DET', 'Detroit'],                                       '#0076B6'],
+  [['Green Bay Packers',       'GNB', 'GB', 'GBP', 'Green Bay'],                      '#FFB612'],
+  [['Minnesota Vikings',       'MIN', 'Minnesota'],                                     '#4F2683'],
   // NFC South
-  [['Atlanta Falcons',         'ATL'],                          '#A71930'],
-  [['Carolina Panthers',       'CAR'],                          '#0085CA'],
-  [['New Orleans Saints',      'NOR', 'NO',  'NOS'],            '#D3BC8D'],
-  [['Tampa Bay Buccaneers',    'TAM', 'TB',  'TBB'],            '#D50A0A'],
+  [['Atlanta Falcons',         'ATL', 'Atlanta'],                                       '#A71930'],
+  [['Carolina Panthers',       'CAR', 'Carolina'],                                      '#0085CA'],
+  [['New Orleans Saints',      'NOR', 'NO', 'NOS', 'New Orleans'],                    '#D3BC8D'],
+  [['Tampa Bay Buccaneers',    'TAM', 'TB', 'TBB', 'Tampa Bay'],                      '#D50A0A'],
   // NFC West
-  [['Arizona Cardinals',       'ARI'],                          '#97233F'],
-  [['Los Angeles Rams',        'LAR', 'LA',  'RAM'],            '#003594'],
-  [['San Francisco 49ers',     'SFO', 'SF',  'SFN'],            '#AA0000'],
-  [['Seattle Seahawks',        'SEA'],                          '#69BE28'],
+  [['Arizona Cardinals',       'ARI', 'Arizona'],                                       '#97233F'],
+  [['Los Angeles Rams',        'LAR', 'LA', 'RAM', 'LA Rams'],                         '#003594'],
+  // Airtable sends "San Fransisco" (Derek typo) -- both spellings keyed.
+  [['San Francisco 49ers',     'SFO', 'SF', 'SFN', 'San Francisco', 'San Fransisco'], '#AA0000'],
+  [['Seattle Seahawks',        'SEA', 'Seattle'],                                       '#69BE28'],
 ];
 
 /** Lookup by full team name or any abbreviation variant. Returns fill hex. */
@@ -382,7 +371,7 @@ export const TEAM_COLORS: Record<string, TeamColor> = (() => {
   return map;
 })();
 
-/** Derive a stroke color from a fill hex: darken by ~20%. */
+/** Derive a stroke color from a fill hex: darken by ~25%. */
 export function teamStrokeFromFill(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
