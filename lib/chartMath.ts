@@ -465,20 +465,20 @@ export function tierAdjustedValue(pick: number): number {
   //   R2        (33-64):   69->57  (0.39/pick)  gap=4 from R1
   //   R3        (65-96):   52->40  (0.39/pick)  gap=5 from R2
   //   --- Day 2/Day 3 cliff: 20-unit gap ---
-  //   R4        (97-128):  20->14  (0.19/pick)  gap=20 from R3
-  //   R5        (129-160): 11->7   (0.13/pick)  gap=3 from R4
-  //   R6        (161-192):  5->3   (0.065/pick) gap=2 from R5
-  //   R7        (193-256):  2->0.5 (0.024/pick) gap=1 from R6
-  //   UDFA:                 0                   gap=0.5 from R7
+  //   R4        (97-128):  32->26  (0.19/pick)  gap=8 from R3  (cliff reduced from 20)
+  //   R5        (129-160): 20->14  (0.19/pick)  gap=6 from R4
+  //   R6        (161-192): 10->6   (0.13/pick)  gap=4 from R5
+  //   R7        (193-256):  4->1   (0.048/pick) gap=2 from R6
+  //   UDFA:                 0                   gap=1 from R7
   if (pick <=   5) return 100 - (pick -   1) * (8   /  4);
   if (pick <=  15) return  91 - (pick -   6) * (9   /  9);
   if (pick <=  32) return  81 - (pick -  16) * (8   / 16);
   if (pick <=  64) return  69 - (pick -  33) * (12  / 31);
   if (pick <=  96) return  52 - (pick -  65) * (12  / 31);
-  if (pick <= 128) return  20 - (pick -  97) * (6   / 31);
-  if (pick <= 160) return  11 - (pick - 129) * (4   / 31);
-  if (pick <= 192) return   5 - (pick - 161) * (2   / 31);
-  if (pick <= 256) return   2 - (pick - 193) * (1.5 / 63);
+  if (pick <= 128) return  32 - (pick -  97) * (6   / 31);   // 32->26, gap=8 from R3
+  if (pick <= 160) return  20 - (pick - 129) * (6   / 31);   // 20->14, gap=6 from R4
+  if (pick <= 192) return  10 - (pick - 161) * (4   / 31);   // 10->6,  gap=4 from R5
+  if (pick <= 256) return   4 - (pick - 193) * (3   / 63);   //  4->1,  gap=2 from R6
   return 0; // UDFA
 }
 
