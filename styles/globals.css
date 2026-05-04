@@ -919,3 +919,39 @@ a { color: inherit; text-decoration: none; }
   line-height: 1.55;
   margin: 0;
 }
+
+/* ── Sidebar nav link (Player List) ─────────────────────────────────────── */
+.sb-nav-link-row {
+  margin-top: auto;
+  padding: 12px 8px 4px;
+  border-top: 1px solid #D6CFC6;
+}
+.sb-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5A5147;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.sb-nav-link:hover {
+  background: #EDE9E1;
+  color: #2C2C2C;
+}
+.sb-nav-link--icon-only {
+  justify-content: center;
+  padding: 8px;
+}
+.sb-nav-link-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.sb-nav-link-label {
+  white-space: nowrap;
+  overflow: hidden;
+}

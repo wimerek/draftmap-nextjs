@@ -27,23 +27,28 @@ interface Props {
   onDotLeave: () => void;
 }
 
-/** Base dot radius in projected view. */
+/** Base dot radius in projected view and minimum in drafted view. */
 const BASE_R = 6;
-/** Maximum additional radius from pick delta. sqrt(256)*1.4 = 22.4, capped at 10. */
-const MAX_R_ADD = 10;
-/** Scales sqrt(rawPickDelta) -> additional radius pixels. */
-const R_SCALE = 1.4;
 
 /**
- * Raw pick delta -> dot radius.
- * delta = |pick_drafted - rank| for drafted players.
- * delta = (257 - rank) for undrafted (treated as max possible fall).
- * r = 6 + min(10, sqrt(delta) * 1.4)
- *   pick 1 -> undrafted: sqrt(256)*1.4 = 22.4 -> capped -> r = 16
- *   2-pick miss:         sqrt(2)*1.4 = 2.0     -> r = 8
+ * Tier-adjusted delta -> dot radius.
+ *
+ * Uses exponential saturation so small within-round misses stay visually quiet
+ * and cross-round / cross-tier surprises ramp up meaningfully.
+ *
+ * r = 6 + 10 * (1 - e^(-delta/25))
+ *
+ * Reference points:
+ *   delta  3 (adjacent-pick cross-round): r ~  7.1  (nearly baseline)
+ *   delta  8 (3-8 spot fall within R1):   r ~  8.8  (small)
+ *   delta 15 (late-R1 -> early R2):       r ~ 10.5  (small-medium)
+ *   delta 25 (top-5 -> late 20s):         r ~ 12.3  (medium)
+ *   delta 40 (R1 -> R3, R5 -> R2):        r ~ 14.0  (large)
+ *   delta 58 (R1 -> R5):                  r ~ 15.0  (very large)
+ *   delta 92 (R1 -> UDFA):                r ~ 16.0  (max)
  */
 function deltaToRadius(delta: number): number {
-  return BASE_R + Math.min(MAX_R_ADD, Math.sqrt(delta) * R_SCALE);
+  return BASE_R + 10 * (1 - Math.exp(-delta / 25));
 }
 
 export default function PlayerDots({
