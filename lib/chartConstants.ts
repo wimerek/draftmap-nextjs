@@ -36,11 +36,11 @@ export type PositionalRangeData = Partial<Record<Position, Record<string, Measur
 
 export const POSITIONS: { defense: Position[]; offense: Position[] } = {
   defense: ['EDGE', 'DT', 'LB', 'CB', 'S'],
-  offense: ['QB', 'RB', 'WR', 'TE', 'OT', 'IOL'],
+  offense: ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'],
 };
 
 export const POSITION_ORDER: Position[] = [
-  'QB', 'RB', 'WR', 'TE', 'OT', 'IOL', 'EDGE', 'DT', 'LB', 'CB', 'S',
+  'EDGE', 'DT', 'LB', 'CB', 'S', 'RB', 'WR', 'TE', 'OT', 'IOL', 'QB',
 ];
 
 // ── Band / role assignments per position ─────────────────────────────────────
@@ -311,57 +311,58 @@ export const cardPositionalRangeData: PositionalRangeData = {
 
 export interface TeamColor {
   fill: string;
+  secondary: string;
 }
 
-const _TEAMS: Array<[string[], string]> = [
+const _TEAMS: Array<[string[], string, string]> = [
   // AFC East
-  [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#00338D'],
-  [['Miami Dolphins',          'MIA', 'Miami'],                                         '#008E97'],
-  [['New England Patriots',    'NWE', 'NE', 'NEP', 'New England'],                     '#C60C30'],
-  [['New York Jets',           'NYJ'],                                                  '#125740'],
+  [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#00338D', '#C60C30'],
+  [['Miami Dolphins',          'MIA', 'Miami'],                                         '#008E97', '#FC4C02'],
+  [['New England Patriots',    'NWE', 'NE', 'NEP', 'New England'],                     '#C60C30', '#002244'],
+  [['New York Jets',           'NYJ'],                                                  '#125740', '#000000'],
   // AFC North
-  [['Baltimore Ravens',        'BAL', 'Baltimore'],                                     '#241773'],
-  [['Cincinnati Bengals',      'CIN', 'Cincinnati'],                                    '#FB4F14'],
-  [['Cleveland Browns',        'CLE', 'Cleveland'],                                     '#FF3C00'],
-  [['Pittsburgh Steelers',     'PIT', 'Pittsburgh'],                                    '#FFB612'],
+  [['Baltimore Ravens',        'BAL', 'Baltimore'],                                     '#241773', '#9E7C0C'],
+  [['Cincinnati Bengals',      'CIN', 'Cincinnati'],                                    '#FB4F14', '#000000'],
+  [['Cleveland Browns',        'CLE', 'Cleveland'],                                     '#FF3C00', '#311D00'],
+  [['Pittsburgh Steelers',     'PIT', 'Pittsburgh'],                                    '#FFB612', '#101820'],
   // AFC South
-  [['Houston Texans',          'HOU', 'Houston'],                                       '#A71930'],
-  [['Indianapolis Colts',      'IND', 'Indianapolis'],                                  '#002C5F'],
-  [['Jacksonville Jaguars',    'JAX', 'Jacksonville'],                                  '#D7A22A'],
-  [['Tennessee Titans',        'TEN', 'Tennessee'],                                     '#4B92DB'],
+  [['Houston Texans',          'HOU', 'Houston'],                                       '#A71930', '#03202F'],
+  [['Indianapolis Colts',      'IND', 'Indianapolis'],                                  '#002C5F', '#A2AAAD'],
+  [['Jacksonville Jaguars',    'JAX', 'Jacksonville'],                                  '#D7A22A', '#101820'],
+  [['Tennessee Titans',        'TEN', 'Tennessee'],                                     '#4B92DB', '#0C2340'],
   // AFC West
-  [['Denver Broncos',          'DEN', 'Denver'],                                        '#FB4F14'],
-  [['Kansas City Chiefs',      'KAN', 'KC', 'KCC', 'Kansas City'],                     '#E31837'],
-  [['Las Vegas Raiders',       'LVR', 'LV', 'OAK', 'RAI', 'Las Vegas'],               '#A5ACAF'],
-  [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6'],
+  [['Denver Broncos',          'DEN', 'Denver'],                                        '#FB4F14', '#002244'],
+  [['Kansas City Chiefs',      'KAN', 'KC', 'KCC', 'Kansas City'],                     '#E31837', '#FFB81C'],
+  [['Las Vegas Raiders',       'LVR', 'LV', 'OAK', 'RAI', 'Las Vegas'],               '#A5ACAF', '#000000'],
+  [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6', '#FFC20E'],
   // NFC East
-  [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594'],
-  [['New York Giants',         'NYG'],                                                  '#0B2265'],
-  [['Philadelphia Eagles',     'PHI', 'Philadelphia'],                                  '#004C54'],
-  [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#5A1414'],
+  [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594', '#869397'],
+  [['New York Giants',         'NYG'],                                                  '#0B2265', '#A71930'],
+  [['Philadelphia Eagles',     'PHI', 'Philadelphia'],                                  '#004C54', '#A5ACAF'],
+  [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#5A1414', '#FFB612'],
   // NFC North
-  [['Chicago Bears',           'CHI', 'Chicago'],                                       '#C83803'],
-  [['Detroit Lions',           'DET', 'Detroit'],                                       '#0076B6'],
-  [['Green Bay Packers',       'GNB', 'GB', 'GBP', 'Green Bay'],                      '#203731'],
-  [['Minnesota Vikings',       'MIN', 'Minnesota'],                                     '#4F2683'],
+  [['Chicago Bears',           'CHI', 'Chicago'],                                       '#C83803', '#0B162A'],
+  [['Detroit Lions',           'DET', 'Detroit'],                                       '#0076B6', '#B0B7BC'],
+  [['Green Bay Packers',       'GNB', 'GB', 'GBP', 'Green Bay'],                      '#203731', '#FFB612'],
+  [['Minnesota Vikings',       'MIN', 'Minnesota'],                                     '#4F2683', '#FFC62F'],
   // NFC South
-  [['Atlanta Falcons',         'ATL', 'Atlanta'],                                       '#A71930'],
-  [['Carolina Panthers',       'CAR', 'Carolina'],                                      '#0085CA'],
-  [['New Orleans Saints',      'NOR', 'NO', 'NOS', 'New Orleans'],                    '#D3BC8D'],
-  [['Tampa Bay Buccaneers',    'TAM', 'TB', 'TBB', 'Tampa Bay'],                      '#D50A0A'],
+  [['Atlanta Falcons',         'ATL', 'Atlanta'],                                       '#A71930', '#000000'],
+  [['Carolina Panthers',       'CAR', 'Carolina'],                                      '#0085CA', '#101820'],
+  [['New Orleans Saints',      'NOR', 'NO', 'NOS', 'New Orleans'],                    '#D3BC8D', '#101820'],
+  [['Tampa Bay Buccaneers',    'TAM', 'TB', 'TBB', 'Tampa Bay'],                      '#D50A0A', '#34302B'],
   // NFC West
-  [['Arizona Cardinals',       'ARI', 'Arizona'],                                       '#97233F'],
-  [['Los Angeles Rams',        'LAR', 'LA', 'RAM', 'LA Rams'],                         '#003594'],
+  [['Arizona Cardinals',       'ARI', 'Arizona'],                                       '#97233F', '#000000'],
+  [['Los Angeles Rams',        'LAR', 'LA', 'RAM', 'LA Rams'],                         '#003594', '#FFA300'],
   // Airtable sends "San Fransisco" (Derek typo) -- both spellings keyed.
-  [['San Francisco 49ers',     'SFO', 'SF', 'SFN', 'San Francisco', 'San Fransisco'], '#AA0000'],
-  [['Seattle Seahawks',        'SEA', 'Seattle'],                                       '#69BE28'],
+  [['San Francisco 49ers',     'SFO', 'SF', 'SFN', 'San Francisco', 'San Fransisco'], '#AA0000', '#B3995D'],
+  [['Seattle Seahawks',        'SEA', 'Seattle'],                                       '#69BE28', '#002244'],
 ];
 
 /** Lookup by full team name or any abbreviation variant. Returns fill hex. */
 export const TEAM_COLORS: Record<string, TeamColor> = (() => {
   const map: Record<string, TeamColor> = {};
-  for (const [aliases, fill] of _TEAMS) {
-    const entry: TeamColor = { fill };
+  for (const [aliases, fill, secondary] of _TEAMS) {
+    const entry: TeamColor = { fill, secondary };
     for (const alias of aliases) {
       map[alias] = entry;
       map[alias.toUpperCase()] = entry;

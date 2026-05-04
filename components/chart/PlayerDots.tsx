@@ -81,7 +81,8 @@ export default function PlayerDots({
           const tc = TEAM_COLORS[player.team_drafted];
           if (tc) {
             fill   = tc.fill;
-            stroke = "#333333";
+            // Use team secondary as stroke so both colors are visible
+            stroke = tc.secondary;
           } else {
             // Team not found in lookup — fall back to school color
             fill   = sc.fill;
@@ -118,7 +119,7 @@ export default function PlayerDots({
             cy={cy}
             r={r}
             stroke={stroke}
-            strokeWidth="1.5"
+            strokeWidth={inDraftedView ? 2.5 : 1.5}
             // fill in style (not as SVG attribute) so CSS transition works.
             style={{ fill, cursor: "pointer", transition }}
             onClick={e => { e.stopPropagation(); onDotClick(player); }}

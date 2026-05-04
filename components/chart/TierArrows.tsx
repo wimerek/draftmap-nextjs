@@ -44,15 +44,16 @@ export default function TierArrows({ layout }: Props) {
         strokeWidth={1}
         strokeLinejoin="round"
       />
-      {/* "Top" label — ends just left of the arrow */}
+      {/* "Top Prospects" — two lines, centred over the arrowhead */}
       <text
-        x={arrowX - 10} y={arrowTopY - aHead - 4}
-        textAnchor="end"
+        x={arrowX} y={arrowTopY - aHead - 14}
+        textAnchor="middle"
         fontSize={9} fontWeight={800}
         fill={GOLD}
         stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} paintOrder="stroke fill"
       >
-        Top Prospects
+        <tspan x={arrowX} dy="0">Top</tspan>
+        <tspan x={arrowX} dy="11">Prospects</tspan>
       </text>
       {/* "Lower" label — ends just left of the arrow */}
       <text

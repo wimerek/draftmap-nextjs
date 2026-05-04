@@ -100,11 +100,11 @@ export default function PositionColumns({ layout }: Props) {
         ) : null;
       })()}
 
-      {/* D/O separator — dashed vertical line before first defense column */}
+      {/* D/O separator — dashed vertical line at boundary between defense (left) and offense (right) */}
       {hasDefense && hasOffense && (() => {
-        const firstDefPos = visiblePositions.find(p => (POSITIONS.defense as readonly string[]).includes(p));
-        if (!firstDefPos) return null;
-        const sepX = colXMap[firstDefPos] - sepW / 2;
+        const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
+        if (!firstOffPos) return null;
+        const sepX = colXMap[firstOffPos] - sepW / 2;
         return (
           <line
             x1={sepX} y1={14}

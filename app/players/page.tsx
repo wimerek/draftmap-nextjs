@@ -14,17 +14,8 @@ export const metadata: Metadata = {
 
 export default function PlayersPage() {
   return (
-    <main className="min-h-screen bg-dm-bg px-4 py-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-condensed font-bold text-dm-text mb-6">
-          2026 Draft Prospects
-        </h1>
-        {/*
-          PlayerList fetches from /api/players client-side.
-          Scaffold only — filtering/sorting logic in Stage 1 build.
-        */}
-        <PlayerList year={2026} />
-      </div>
+    <main style={{ minHeight: "100vh", background: "#F5EFE4", padding: "24px 20px" }}>
+      <PlayerList year={2026} />
     </main>
   );
 }
