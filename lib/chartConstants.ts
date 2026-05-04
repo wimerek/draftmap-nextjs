@@ -313,3 +313,80 @@ export const cardPositionalRangeData: PositionalRangeData = {
     weight:  { lowest: 170,   good: 185,   great: 195,   highest: 210,   isKey: true  },
   },
 };
+
+// ── NFL Team colors ───────────────────────────────────────────────────────────
+// Pre-computed best visible color per team on a light/cream background.
+// Dark primary colors (luminance < 50) fall back to secondary where the
+// secondary is more visible. Both full names and common abbreviations are
+// keyed so whatever format Airtable sends resolves correctly.
+
+export interface TeamColor {
+  fill: string;
+  /** Stroke is always a slightly darkened version of fill, computed at render time */
+}
+
+const _TEAMS: Array<[string[], string]> = [
+  // AFC East
+  [['Buffalo Bills',           'BUF'],                          '#C60C30'],
+  [['Miami Dolphins',          'MIA'],                          '#008E97'],
+  [['New England Patriots',    'NWE', 'NE',  'NEP'],            '#C60C30'],
+  [['New York Jets',           'NYJ'],                          '#125740'],
+  // AFC North
+  [['Baltimore Ravens',        'BAL'],                          '#241773'],
+  [['Cincinnati Bengals',      'CIN'],                          '#FB4F14'],
+  [['Cleveland Browns',        'CLE'],                          '#FF3C00'],
+  [['Pittsburgh Steelers',     'PIT'],                          '#FFB612'],
+  // AFC South
+  [['Houston Texans',          'HOU'],                          '#A71930'],
+  [['Indianapolis Colts',      'IND'],                          '#002C5F'],
+  [['Jacksonville Jaguars',    'JAX'],                          '#D7A22A'],
+  [['Tennessee Titans',        'TEN'],                          '#4B92DB'],
+  // AFC West
+  [['Denver Broncos',          'DEN'],                          '#FB4F14'],
+  [['Kansas City Chiefs',      'KAN', 'KC',  'KCC'],            '#E31837'],
+  [['Las Vegas Raiders',       'LVR', 'LV',  'OAK', 'RAI'],    '#A5ACAF'],
+  [['Los Angeles Chargers',    'LAC'],                          '#0080C6'],
+  // NFC East
+  [['Dallas Cowboys',          'DAL'],                          '#003594'],
+  [['New York Giants',         'NYG'],                          '#A71930'],
+  [['Philadelphia Eagles',     'PHI'],                          '#004C54'],
+  [['Washington Commanders',   'WAS', 'WSH', 'WFT'],            '#FFB612'],
+  // NFC North
+  [['Chicago Bears',           'CHI'],                          '#C83803'],
+  [['Detroit Lions',           'DET'],                          '#0076B6'],
+  [['Green Bay Packers',       'GNB', 'GB',  'GBP'],            '#FFB612'],
+  [['Minnesota Vikings',       'MIN'],                          '#4F2683'],
+  // NFC South
+  [['Atlanta Falcons',         'ATL'],                          '#A71930'],
+  [['Carolina Panthers',       'CAR'],                          '#0085CA'],
+  [['New Orleans Saints',      'NOR', 'NO',  'NOS'],            '#D3BC8D'],
+  [['Tampa Bay Buccaneers',    'TAM', 'TB',  'TBB'],            '#D50A0A'],
+  // NFC West
+  [['Arizona Cardinals',       'ARI'],                          '#97233F'],
+  [['Los Angeles Rams',        'LAR', 'LA',  'RAM'],            '#003594'],
+  [['San Francisco 49ers',     'SFO', 'SF',  'SFN'],            '#AA0000'],
+  [['Seattle Seahawks',        'SEA'],                          '#69BE28'],
+];
+
+/** Lookup by full team name or any abbreviation variant. Returns fill hex. */
+export const TEAM_COLORS: Record<string, TeamColor> = (() => {
+  const map: Record<string, TeamColor> = {};
+  for (const [aliases, fill] of _TEAMS) {
+    const entry: TeamColor = { fill };
+    for (const alias of aliases) {
+      map[alias] = entry;
+      map[alias.toUpperCase()] = entry;
+      map[alias.toLowerCase()] = entry;
+    }
+  }
+  return map;
+})();
+
+/** Derive a stroke color from a fill hex: darken by ~20%. */
+export function teamStrokeFromFill(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const darken = (c: number) => Math.max(0, Math.round(c * 0.75)).toString(16).padStart(2, '0');
+  return `#${darken(r)}${darken(g)}${darken(b)}`;
+}

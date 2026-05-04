@@ -2,8 +2,8 @@
 /**
  * components/chart/TierArrows.tsx
  * Direction arrows showing tier quality gradient.
- * Session F: single vertical line using tierPillGradient stroke (continuous gold
- * gradient) instead of per-tier coloured segments. Tick marks removed.
+ * Session G: both arrows moved to right side (pills also moved right).
+ * Session F: single gradient stroke line, tick marks removed.
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -18,19 +18,21 @@ export default function TierArrows({ layout }: Props) {
   const { tierBandDefs, margin, chartW, pillX, pillW, totalChartH } = layout;
 
   const arrowTopY = tierBandDefs[0].y1;
+  // Stop at the pick-256 line — arrows describe ranked tiers only, not UDFA zone.
   const arrowBotY = margin.top + totalChartH;
-  const aHead     = 6;
+  const aHead = 6;
 
+  // Both arrows on the RIGHT side (pills moved right in Session G).
+  // Arrow 1: between chart edge and pills.  Arrow 2: beyond pills.
   const arrows = [
-    { x: pillX + pillW + 12, anchor: "end"   as const, dx: -4 },
-    { x: margin.left + chartW + 18, anchor: "start" as const, dx:  4 },
+    { x: margin.left + chartW + 12, anchor: "start" as const, dx: 4 },
+    { x: pillX + pillW + 12,        anchor: "start" as const, dx: 4 },
   ];
 
   return (
     <g>
       {arrows.map(({ x, anchor, dx }, ai) => (
         <g key={ai}>
-          {/* Continuous gradient line — colour determined by y position in SVG space */}
           <line
             x1={x} y1={arrowTopY}
             x2={x} y2={arrowBotY}
@@ -38,13 +40,13 @@ export default function TierArrows({ layout }: Props) {
             strokeWidth={3}
             strokeLinecap="round"
           />
-          {/* Arrowhead at top — sits in the darkest-gold zone */}
           <polygon
             points={`${x},${arrowTopY - aHead} ${x - aHead},${arrowTopY + 2} ${x + aHead},${arrowTopY + 2}`}
             fill={GOLD}
-            stroke="rgba(0,0,0,0.25)" strokeWidth={1} strokeLinejoin="round"
+            stroke="rgba(0,0,0,0.25)"
+            strokeWidth={1}
+            strokeLinejoin="round"
           />
-          {/* Labels */}
           <text
             x={x + dx} y={arrowTopY - aHead - 5}
             textAnchor={anchor}

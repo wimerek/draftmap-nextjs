@@ -2,14 +2,17 @@
 /**
  * components/DraftChart.tsx
  *
- * Session E (2026-05-02): Core chart redesign pass.
- *   - Pan/zoom eliminated. usePanZoom hook deleted.
- *   - Full-page rendering: SVG is page content, no inner viewport.
- *   - Continuous Y-axis: pickToY(rank) positions dots at their actual pick value.
- *   - Variable position column widths: proportional to class size.
- *   - Light mode primary.
- *   - Role sub-bands removed (visible in player card instead).
- *   - Single-click opens player card (no double-tap).
+ * Session G: Projection View animation.
+ *   - Sidebar replaces top controls bar for most settings.
+ *   - viewMode: "projected" | "drafted" — drives dot Y positions + colors.
+ *   - Animation player: Play flips to Drafted, Reset snaps back to Projected.
+ *   - pick_value_curve.json loaded client-side for dot-size delta computation.
+ *   - UDFA zone visible in Drafted view.
+ *   - Pills moved to SVG right margin (layout change in chartMath).
+ *   - Flex-push layout: sidebar on left, chart main on right.
+ *
+ * Session F: Visual polish (tier pill gradient, soft borders, crisper strokes).
+ * Session E: Continuous Y-axis, variable column widths, no zoom states.
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -20,6 +23,7 @@ import {
   type ChartLayout,
   type DotPosition,
   type ChartView,
+  type PickValueEntry,
 } from "@/lib/chartMath";
 import PlayerCard from "@/components/PlayerCard";
 import TierBands from "@/components/chart/TierBands";
@@ -27,6 +31,11 @@ import TierArrows from "@/components/chart/TierArrows";
 import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
 import PlayerDots from "@/components/chart/PlayerDots";
+import UDFAZone from "@/components/chart/UDFAZone";
+import Sidebar, {
+  type ViewMode,
+  type AnimationState,
+} from "@/components/Sidebar";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -43,23 +52,43 @@ interface TooltipState {
 }
 
 function ChartTooltip({ player, x, y }: TooltipState) {
-  const strengths = [player.s1, player.s2, player.s3].filter((s): s is string => !!s && s !== "N/A");
-  const strengthColors = ["#B8D4C4", "#9ABFAD", "#7EA896"];
+  const strengths = [player.s1, player.s2, player.s3].filter(
+    (s): s is string => !!s && s !== "N/A",
+  );
+  const strengthColors  = ["#B8D4C4", "#9ABFAD", "#7EA896"];
   const strengthWeights = ["700", "600", "500"];
 
   return (
-    <div
-      className="dm-tooltip"
-      style={{ left: x, top: y }}
-    >
-      <div className="dm-tooltip-line"><strong>{player.name}</strong> — {player.pos}</div>
-      <div className="dm-tooltip-line"><span className="dm-tooltip-label">School:</span> {player.school || "N/A"}</div>
-      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Role:</span> {player.role || "—"}</div>
-      <div className="dm-tooltip-line"><span className="dm-tooltip-label">Proj. Pick</span> #{player.rank}</div>
+    <div className="dm-tooltip" style={{ left: x, top: y }}>
+      <div className="dm-tooltip-line">
+        <strong>{player.name}</strong> — {player.pos}
+      </div>
+      <div className="dm-tooltip-line">
+        <span className="dm-tooltip-label">School:</span> {player.school || "N/A"}
+      </div>
+      <div className="dm-tooltip-line">
+        <span className="dm-tooltip-label">Role:</span> {player.role || "—"}
+      </div>
+      <div className="dm-tooltip-line">
+        <span className="dm-tooltip-label">Proj. Pick</span> #{player.rank}
+      </div>
+      {player.pick_drafted && (
+        <div className="dm-tooltip-line">
+          <span className="dm-tooltip-label">Actual Pick</span> #{player.pick_drafted}
+          {player.team_drafted ? ` — ${player.team_drafted}` : ""}
+        </div>
+      )}
       {strengths.length > 0 && (
         <div style={{ marginTop: 6 }}>
           {strengths.map((s, i) => (
-            <div key={i} style={{ color: strengthColors[i], fontWeight: strengthWeights[i], fontSize: 11 }}>
+            <div
+              key={i}
+              style={{
+                color:      strengthColors[i],
+                fontWeight: strengthWeights[i],
+                fontSize:   11,
+              }}
+            >
               • {s}
             </div>
           ))}
@@ -75,8 +104,11 @@ function ChartBorders({ layout }: { layout: ChartLayout }) {
   const { margin, chartW } = layout;
   return (
     <g>
-      {/* Subtle top accent bar — anchors column headers, very low opacity */}
-      <rect x={margin.left} y={0} width={chartW} height={4} fill="#0B2239" opacity={0.12} />
+      <rect
+        x={margin.left} y={0}
+        width={chartW} height={4}
+        fill="#0B2239" opacity={0.12}
+      />
     </g>
   );
 }
@@ -84,15 +116,31 @@ function ChartBorders({ layout }: { layout: ChartLayout }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DraftChart({ year = 2026 }: DraftChartProps) {
-  const [players, setPlayers]       = useState<Player[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
-  const [liveMode, setLiveMode]     = useState(false);
-  const [view, setView]             = useState<ChartView>("all");
+  const [players,    setPlayers]    = useState<Player[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [liveMode,   setLiveMode]   = useState(false);
+  const [view,       setView]       = useState<ChartView>("all");
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
-  const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
+  const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
-  // ── Data fetch ──────────────────────────────────────────────────────────────
+  // ── Projection view state ────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>("projected");
+  const [animState, setAnimState] = useState<AnimationState>({
+    playing: false,
+    step: 0,
+  });
+
+  // ── Pick-value curve (for dot delta sizing) ──────────────────────────────
+  const [pickValueCurve, setPickValueCurve] = useState<PickValueEntry[]>([]);
+  useEffect(() => {
+    fetch("/pick_value_curve.json")
+      .then(r => r.json())
+      .then(data => setPickValueCurve(data))
+      .catch(() => { /* graceful degradation — dots use uniform size */ });
+  }, []);
+
+  // ── Data fetch ───────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     const url = `/api/draft?year=${year}${liveMode ? "&live=1" : ""}`;
@@ -102,28 +150,65 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       .catch(e => { setError(e.message); setLoading(false); });
   }, [year, liveMode]);
 
-  // ── Layout (pure, recomputes only when players/view change) ─────────────────
+  // ── Layout ───────────────────────────────────────────────────────────────
   const layout = useMemo<ChartLayout>(
     () => computeChartLayout(players, view),
     [players, view],
   );
 
-  // ── Dot positions (pure) ─────────────────────────────────────────────────
+  // ── Dot positions ────────────────────────────────────────────────────────
   const dotPositions = useMemo<DotPosition[]>(
-    () => computeAllDotPositions(players, layout),
-    [players, layout],
+    () => computeAllDotPositions(players, layout, pickValueCurve),
+    [players, layout, pickValueCurve],
   );
 
-  // ── Event handlers ──────────────────────────────────────────────────────────
+  // ── Animation controls ───────────────────────────────────────────────────
+  const handlePlay = useCallback(() => {
+    setViewMode("drafted");
+    setAnimState({ playing: true, step: 1 });
+    // Animation is CSS-driven; mark as not-playing after longest stagger window.
+    const longestDelay = dotPositions.length * 22 + 550;
+    setTimeout(() => setAnimState(s => ({ ...s, playing: false })), longestDelay);
+  }, [dotPositions.length]);
 
-  // Single click opens the player card directly (no double-tap needed).
-  const handleDotClick = useCallback(
-    (player: Player) => {
-      setTooltip(null);
-      setOpenPlayer(player);
-    },
-    [],
-  );
+  const handlePause = useCallback(() => {
+    setAnimState(s => ({ ...s, playing: false }));
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setViewMode("projected");
+    setAnimState({ playing: false, step: 0 });
+  }, []);
+
+  const handleStepForward = useCallback(() => {
+    setViewMode("drafted");
+    setAnimState({ playing: false, step: 1 });
+  }, []);
+
+  const handleStepBack = useCallback(() => {
+    setViewMode("projected");
+    setAnimState({ playing: false, step: 0 });
+  }, []);
+
+  const handleJumpEnd = useCallback(() => {
+    setViewMode("drafted");
+    setAnimState({ playing: false, step: 1 });
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    setAnimState(s => ({
+      ...s,
+      step: mode === "drafted" ? 1 : 0,
+      playing: false,
+    }));
+  }, []);
+
+  // ── Event handlers ───────────────────────────────────────────────────────
+  const handleDotClick = useCallback((player: Player) => {
+    setTooltip(null);
+    setOpenPlayer(player);
+  }, []);
 
   const handleDotHover = useCallback(
     (player: Player, clientX: number, clientY: number) => {
@@ -132,65 +217,48 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     [],
   );
 
-  const handleDotLeave = useCallback(() => setTooltip(null), []);
-  const dismissTooltip = useCallback(() => setTooltip(null), []);
+  const handleDotLeave   = useCallback(() => setTooltip(null), []);
+  const dismissTooltip   = useCallback(() => setTooltip(null), []);
+  const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <>
-      <div className="dm-page">
+    <div className="dm-app-layout">
+      {/* ── Left sidebar ── */}
+      <Sidebar
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        animState={animState}
+        onPlay={handlePlay}
+        onPause={handlePause}
+        onReset={handleReset}
+        onStepBack={handleStepBack}
+        onStepForward={handleStepForward}
+        onJumpEnd={handleJumpEnd}
+        view={view}
+        onViewChange={setView}
+        year={year}
+        liveMode={liveMode}
+        onLiveModeToggle={handleLiveToggle}
+      />
 
-        {/* Controls bar */}
-        {!loading && !error && (
-          <div className="dm-controls">
-            <div className="dm-btn-group">
-              {(["all", "offense", "defense"] as ChartView[]).map(v => (
-                <button
-                  key={v}
-                  className={`dm-btn${view === v ? " active" : ""}`}
-                  onClick={() => setView(v)}
-                >
-                  {v === "all" ? "All Positions" : v.charAt(0).toUpperCase() + v.slice(1)}
-                </button>
-              ))}
-            </div>
-            <span className="dm-year-label">{year} Draft Class</span>
-            <button
-              className={`dm-live-btn${liveMode ? " active" : ""}`}
-              onClick={() => setLiveMode(l => !l)}
-              title="Grey out drafted players"
-            >
-              <span className="dm-live-dot" />
-              Live Draft
-            </button>
-            <span className="dm-hint">
-              Hover a dot to preview · click for full player profile
-            </span>
+      {/* ── Main chart area ── */}
+      <main className="dm-main" onClick={dismissTooltip}>
+        {loading && (
+          <div className="dm-state-msg"><p>Loading draft data…</p></div>
+        )}
+        {error && (
+          <div className="dm-state-msg dm-state-error">
+            <p>Failed to load chart: {error}</p>
           </div>
         )}
-
-        {/* Chart frame — full-page width, height from SVG content */}
-        <div className="dm-chart-frame" onClick={dismissTooltip}>
-
-          {loading && (
-            <div className="dm-state-msg">
-              <p>Loading draft data…</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="dm-state-msg dm-state-error">
-              <p>Failed to load chart: {error}</p>
-            </div>
-          )}
-
-          {!loading && !error && (
+        {!loading && !error && (
+          <div className="dm-chart-frame">
             <svg
               width={layout.svgW}
               height={layout.svgH}
               style={{ display: "block", maxWidth: "100%" }}
             >
-              {/* Gold gradient: spans full chart height; Great (top) = solid, Role Player (bottom) = pale */}
               <defs>
                 <linearGradient
                   id="tierPillGradient"
@@ -206,28 +274,30 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               <TierArrows layout={layout} />
               <PositionColumns layout={layout} />
               <RoundZones layout={layout} />
+              <UDFAZone layout={layout} visible={viewMode === "drafted"} />
               <PlayerDots
                 dotPositions={dotPositions}
                 liveMode={liveMode}
+                viewMode={viewMode}
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
               />
               <ChartBorders layout={layout} />
             </svg>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </main>
 
-      {/* Floating tooltip (fixed positioning) */}
+      {/* Floating tooltip */}
       {tooltip && <ChartTooltip {...tooltip} />}
 
-      {/* Player card modal */}
+      {/* Player card */}
       <PlayerCard
         player={openPlayer}
         players={players}
         onClose={() => setOpenPlayer(null)}
       />
-    </>
+    </div>
   );
 }
