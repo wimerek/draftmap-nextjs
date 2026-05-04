@@ -452,15 +452,33 @@ export interface DotPosition {
  *   UDFA:                0
  */
 export function tierAdjustedValue(pick: number): number {
-  if (pick <=   5) return 100 - (pick -   1) * (8  /  4);
-  if (pick <=  15) return  91 - (pick -   6) * (9  /  9);
-  if (pick <=  32) return  81 - (pick -  16) * (8  / 16);
-  if (pick <=  64) return  70 - (pick -  33) * (14 / 31);
-  if (pick <=  96) return  53 - (pick -  65) * (13 / 31);
-  if (pick <= 128) return  37 - (pick -  97) * (9  / 31);
-  if (pick <= 160) return  25 - (pick - 129) * (7  / 31);
-  if (pick <= 192) return  15 - (pick - 161) * (5  / 31);
-  if (pick <= 256) return   7 - (pick - 193) * (4  / 63);
+  // Piecewise linear scale: compresses within-round variation and
+  // preserves meaningful jumps at tier/round transitions.
+  //
+  // Key design decision: big cliff (20 units) between R3 and R4 reflects
+  // the real Day 2 / Day 3 draft value drop. R4-R7 are tightly compressed
+  // so late-round movement stays visually quiet; R1-R3 movement reads clearly.
+  //
+  //   Elite R1  (1-5):    100->92  (2.0/pick)
+  //   Upper R1  (6-15):    91->82  (1.0/pick)   gap=1 from Elite
+  //   Lower R1  (16-32):   81->73  (0.5/pick)   gap=1 from Upper
+  //   R2        (33-64):   69->57  (0.39/pick)  gap=4 from R1
+  //   R3        (65-96):   52->40  (0.39/pick)  gap=5 from R2
+  //   --- Day 2/Day 3 cliff: 20-unit gap ---
+  //   R4        (97-128):  20->14  (0.19/pick)  gap=20 from R3
+  //   R5        (129-160): 11->7   (0.13/pick)  gap=3 from R4
+  //   R6        (161-192):  5->3   (0.065/pick) gap=2 from R5
+  //   R7        (193-256):  2->0.5 (0.024/pick) gap=1 from R6
+  //   UDFA:                 0                   gap=0.5 from R7
+  if (pick <=   5) return 100 - (pick -   1) * (8   /  4);
+  if (pick <=  15) return  91 - (pick -   6) * (9   /  9);
+  if (pick <=  32) return  81 - (pick -  16) * (8   / 16);
+  if (pick <=  64) return  69 - (pick -  33) * (12  / 31);
+  if (pick <=  96) return  52 - (pick -  65) * (12  / 31);
+  if (pick <= 128) return  20 - (pick -  97) * (6   / 31);
+  if (pick <= 160) return  11 - (pick - 129) * (4   / 31);
+  if (pick <= 192) return   5 - (pick - 161) * (2   / 31);
+  if (pick <= 256) return   2 - (pick - 193) * (1.5 / 63);
   return 0; // UDFA
 }
 

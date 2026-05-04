@@ -221,6 +221,18 @@ export default function Sidebar(props: SidebarProps) {
         </div>
       )}
 
+      {/* ── Nav link: Player List ── */}
+      <div className="sb-nav-link-row">
+        <Link
+          href="/players"
+          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
+          title="Player List"
+        >
+          <span className="sb-nav-link-icon">☰</span>
+          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
+        </Link>
+      </div>
+
       {/* ── Zone 1: View Mode ── */}
       <SidebarSection label="View Mode" icon="⊞" collapsed={collapsed}>
         <SegmentedControl
@@ -321,17 +333,6 @@ export default function Sidebar(props: SidebarProps) {
           UDFA zone shows players who went undrafted.
         </p>
       </SidebarSection>
-    {/* ── Nav link: Player List ── */}
-      <div className="sb-nav-link-row">
-        <Link
-          href="/players"
-          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
-          title="Player List"
-        >
-          <span className="sb-nav-link-icon">☰</span>
-          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
-        </Link>
-      </div>
     </aside>
   );
 }

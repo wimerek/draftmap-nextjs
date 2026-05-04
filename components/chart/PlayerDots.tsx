@@ -38,14 +38,14 @@ const BASE_R = 6;
  *
  * r = 6 + 10 * (1 - e^(-delta/25))
  *
- * Reference points:
- *   delta  3 (adjacent-pick cross-round): r ~  7.1  (nearly baseline)
- *   delta  8 (3-8 spot fall within R1):   r ~  8.8  (small)
- *   delta 15 (late-R1 -> early R2):       r ~ 10.5  (small-medium)
- *   delta 25 (top-5 -> late 20s):         r ~ 12.3  (medium)
- *   delta 40 (R1 -> R3, R5 -> R2):        r ~ 14.0  (large)
- *   delta 58 (R1 -> R5):                  r ~ 15.0  (very large)
- *   delta 92 (R1 -> UDFA):                r ~ 16.0  (max)
+ * Reference points (Session J v2 scale):
+ *   delta  2 (within R4, 10-pick move):   r ~  6.7  (baseline/tiny)
+ *   delta  7 (3-8 spot fall in R1):       r ~  8.4  (small)
+ *   delta  9 (late R1 -> early R2):       r ~  8.9  (small-medium)
+ *   delta 21 (top-5 -> late 20s in R1):   r ~ 11.7  (medium-large)
+ *   delta 45 (R5 -> R3, e.g. Carson Beck):r ~ 14.4  (large)
+ *   delta 70 (R1 -> R5):                  r ~ 15.4  (very large)
+ *   delta 92 (R1 -> UDFA):                r ~ 15.7  (max)
  */
 function deltaToRadius(delta: number): number {
   return BASE_R + 10 * (1 - Math.exp(-delta / 25));
