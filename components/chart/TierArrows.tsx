@@ -2,10 +2,10 @@
 /**
  * components/chart/TierArrows.tsx
  *
- * Session H: Single quality-gradient arrow on the LEFT margin.
- * Serves as both a visual quality indicator and the chart's left border.
- * Pills remain on the right (unchanged from Session G).
- * Gradient opacity reduced: 0.65 top -> near-transparent at R2 boundary.
+ * Session I: Arrow repositioned to fixed x=40, clear of round labels.
+ * Text labels now sit to the LEFT of the arrow (textAnchor="end").
+ * Gradient boosted to 0.88 top opacity for better pop.
+ * strokeWidth bumped to 4.
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const GOLD      = "#D4A017";
-const GOLD_PALE = "rgba(212,160,23,0.18)";
+const GOLD_PALE = "rgba(212,160,23,0.28)";
 
 export default function TierArrows({ layout }: Props) {
   const { tierBandDefs, margin, totalChartH } = layout;
@@ -22,11 +22,11 @@ export default function TierArrows({ layout }: Props) {
   const arrowTopY = tierBandDefs[0].y1;
   // Arrow stops at the pick-256 line; UDFA zone is a separate element.
   const arrowBotY = margin.top + totalChartH;
-  const aHead = 6;
+  const aHead = 7;
 
-  // Single arrow on the LEFT margin, ~16px left of the chart edge.
-  // This also serves as the visual left border separating round labels from data.
-  const arrowX = margin.left - 16;
+  // Fixed x=40 — sits comfortably left of round labels
+  // (round labels end at margin.left - 10 ≈ x=90, arrow is at x=40, gap=50px).
+  const arrowX = 40;
 
   return (
     <g>
@@ -34,28 +34,30 @@ export default function TierArrows({ layout }: Props) {
         x1={arrowX} y1={arrowTopY}
         x2={arrowX} y2={arrowBotY}
         stroke="url(#tierPillGradient)"
-        strokeWidth={3}
+        strokeWidth={4}
         strokeLinecap="round"
       />
       <polygon
         points={`${arrowX},${arrowTopY - aHead} ${arrowX - aHead},${arrowTopY + 2} ${arrowX + aHead},${arrowTopY + 2}`}
         fill={GOLD}
-        stroke="rgba(0,0,0,0.25)"
+        stroke="rgba(0,0,0,0.30)"
         strokeWidth={1}
         strokeLinejoin="round"
       />
+      {/* "Top" label — ends just left of the arrow */}
       <text
-        x={arrowX + 8} y={arrowTopY - aHead - 5}
-        textAnchor="start"
+        x={arrowX - 10} y={arrowTopY - aHead - 4}
+        textAnchor="end"
         fontSize={9} fontWeight={800}
         fill={GOLD}
         stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} paintOrder="stroke fill"
       >
         Top Prospects
       </text>
+      {/* "Lower" label — ends just left of the arrow */}
       <text
-        x={arrowX + 8} y={arrowBotY + 12}
-        textAnchor="start"
+        x={arrowX - 10} y={arrowBotY + 13}
+        textAnchor="end"
         fontSize={9} fontWeight={800}
         fill={GOLD_PALE}
         stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} paintOrder="stroke fill"

@@ -15,7 +15,7 @@ import type { Player } from "@/lib/airtable";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
 import { SCHOOL_COLORS } from "@/lib/chartConstants";
-import { TEAM_COLORS, teamStrokeFromFill } from "@/lib/chartConstants";
+import { TEAM_COLORS } from "@/lib/chartConstants";
 
 interface Props {
   dotPositions: DotPosition[];
@@ -76,7 +76,7 @@ export default function PlayerDots({
           const tc = TEAM_COLORS[player.team_drafted];
           if (tc) {
             fill   = tc.fill;
-            stroke = teamStrokeFromFill(tc.fill);
+            stroke = "#333333";
           } else {
             // Team not found in lookup — fall back to school color
             fill   = sc.fill;

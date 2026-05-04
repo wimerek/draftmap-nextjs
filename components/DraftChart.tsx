@@ -314,7 +314,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                   gradientUnits="userSpaceOnUse"
                 >
                   {/* Reduced opacity: 0.65 top -> 0.08 bottom (softer, less dominant) */}
-                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.65} />
+                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.88} />
                   <stop offset="100%" stopColor="#D4A017" stopOpacity={0.08} />
                 </linearGradient>
               </defs>

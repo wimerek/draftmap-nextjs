@@ -315,7 +315,7 @@ export interface TeamColor {
 
 const _TEAMS: Array<[string[], string]> = [
   // AFC East
-  [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#C60C30'],
+  [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#00338D'],
   [['Miami Dolphins',          'MIA', 'Miami'],                                         '#008E97'],
   [['New England Patriots',    'NWE', 'NE', 'NEP', 'New England'],                     '#C60C30'],
   [['New York Jets',           'NYJ'],                                                  '#125740'],
@@ -336,13 +336,13 @@ const _TEAMS: Array<[string[], string]> = [
   [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6'],
   // NFC East
   [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594'],
-  [['New York Giants',         'NYG'],                                                  '#A71930'],
+  [['New York Giants',         'NYG'],                                                  '#0B2265'],
   [['Philadelphia Eagles',     'PHI', 'Philadelphia'],                                  '#004C54'],
-  [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#FFB612'],
+  [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#5A1414'],
   // NFC North
   [['Chicago Bears',           'CHI', 'Chicago'],                                       '#C83803'],
   [['Detroit Lions',           'DET', 'Detroit'],                                       '#0076B6'],
-  [['Green Bay Packers',       'GNB', 'GB', 'GBP', 'Green Bay'],                      '#FFB612'],
+  [['Green Bay Packers',       'GNB', 'GB', 'GBP', 'Green Bay'],                      '#203731'],
   [['Minnesota Vikings',       'MIN', 'Minnesota'],                                     '#4F2683'],
   // NFC South
   [['Atlanta Falcons',         'ATL', 'Atlanta'],                                       '#A71930'],
