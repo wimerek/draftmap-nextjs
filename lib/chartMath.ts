@@ -482,43 +482,6 @@ export function tierAdjustedValue(pick: number): number {
   return 0; // UDFA
 }
 
-// ── Tier-adjusted position value ──────────────────────────────────────────────
-
-/**
- * Maps a draft pick number to a 0–100 "tier-adjusted" value.
- *
- * Design goals (per Session J):
- *   - Within-round movement produces small deltas (teams have pick preferences).
- *   - Cross-round movement produces meaningfully larger deltas.
- *   - R1 is sub-divided: Elite (1-5), Upper (6-15), Lower (16-32).
- *   - 3-unit gaps at each round boundary ensure even a 1-pick cross-round
- *     move registers as a different tier visually.
- *   - UDFA = 0, enabling graduated surprise dots for undrafted players.
- *
- * Piecewise linear scale:
- *   Elite R1  (1-5):    100->92  (2.0 units/pick)
- *   Upper R1  (6-15):    91->82  (1.0 units/pick)
- *   Lower R1  (16-32):   81->73  (0.5 units/pick)
- *   R2        (33-64):   70->56  (0.45 units/pick)  [gap of 3 from R1]
- *   R3        (65-96):   53->40  (0.42 units/pick)  [gap of 3 from R2]
- *   R4        (97-128):  37->28  (0.29 units/pick)  [gap of 3 from R3]
- *   R5        (129-160): 25->18  (0.23 units/pick)  [gap of 3 from R4]
- *   R6        (161-192): 15->10  (0.16 units/pick)  [gap of 3 from R5]
- *   R7        (193-256):  7-> 3  (0.063 units/pick) [gap of 3 from R6]
- *   UDFA:                 0                          [gap of 3 from R7]
- */
-export function tierAdjustedValue(pick: number): number {
-  if (pick <=   5) return 100 - (pick -   1) * (8  /  4);
-  if (pick <=  15) return  91 - (pick -   6) * (9  /  9);
-  if (pick <=  32) return  81 - (pick -  16) * (8  / 16);
-  if (pick <=  64) return  70 - (pick -  33) * (14 / 31);
-  if (pick <=  96) return  53 - (pick -  65) * (13 / 31);
-  if (pick <= 128) return  37 - (pick -  97) * (9  / 31);
-  if (pick <= 160) return  25 - (pick - 129) * (7  / 31);
-  if (pick <= 192) return  15 - (pick - 161) * (5  / 31);
-  if (pick <= 256) return   7 - (pick - 193) * (4  / 63);
-  return 0; // UDFA
-}
 
 /** Stable integer hash from an arbitrary string (e.g., Airtable record ID). */
 function hashStr(s: string): number {
