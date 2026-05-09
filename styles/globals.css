@@ -15,7 +15,7 @@
  */
 :root {
   /* Page */
-  --dm-bg:            #F5F0E8;   /* warm parchment — light mode primary */
+  --dm-bg:            #F7F9FA;   /* near-white — chart area */
   --dm-panel:         #EDE8DF;
   --dm-accent:        #D4A017;   /* gold — buttons and interactive elements only */
   --dm-text:          #0B2239;   /* dark navy — primary text */
@@ -603,7 +603,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   min-height: 100vh;
   align-items: flex-start;
-  background: #F5F0E8;
+  background: #F7F9FA;
 }
 
 .dm-main {
@@ -617,8 +617,8 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
   width: 280px;
   min-height: 100vh;
-  background: #FAF7F2;
-  border-right: 1px solid #E0DAD0;
+  background: #0B2239;
+  border-right: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;
   position: sticky;
@@ -679,7 +679,7 @@ a { color: inherit; text-decoration: none; }
 }
 .sb-brand-name {
   font-family: 'Oswald', sans-serif;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #F5F0E8;
   letter-spacing: 0.10em;
@@ -699,7 +699,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
 .sb-section {
-  border-bottom: 1px solid #E0DAD0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .sb-section--icon-only {
@@ -726,7 +726,7 @@ a { color: inherit; text-decoration: none; }
   text-align: left;
   transition: background 150ms;
 }
-.sb-section-header:hover { background: #EDE9E1; }
+.sb-section-header:hover { background: rgba(255,255,255,0.05); }
 
 .sb-section-icon {
   font-size: 13px;
@@ -740,11 +740,11 @@ a { color: inherit; text-decoration: none; }
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6A7E8E;
+  color: rgba(245,240,232,0.55);
 }
 .sb-section-chevron {
   font-size: 11px;
-  color: #8A7F74;
+  color: rgba(245,240,232,0.35);
 }
 .sb-section-body {
   padding: 8px 14px 14px;
@@ -756,7 +756,7 @@ a { color: inherit; text-decoration: none; }
 /* ── Segmented control ───────────────────────────────────────────────────── */
 .sb-segmented {
   display: flex;
-  border: 1.5px solid #D0C9BE;
+  border: 1.5px solid rgba(255,255,255,0.15);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -765,24 +765,24 @@ a { color: inherit; text-decoration: none; }
   padding: 7px 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #6A7E8E;
-  background: #FAF7F2;
+  color: rgba(245,240,232,0.55);
+  background: rgba(255,255,255,0.05);
   border: none;
   cursor: pointer;
   transition: background 150ms, color 150ms;
-  border-right: 1.5px solid #D0C9BE;
+  border-right: 1.5px solid rgba(255,255,255,0.15);
 }
 .sb-seg-btn:last-child { border-right: none; }
-.sb-seg-btn:hover { background: #EDE9E1; color: #2D2926; }
+.sb-seg-btn:hover { background: rgba(255,255,255,0.10); color: #F5F0E8; }
 .sb-seg-btn.active {
-  background: #2D2926;
-  color: #F5F0E8;
+  background: #D4A017;
+  color: #0B2239;
   font-weight: 700;
 }
 
 .sb-view-hint {
   font-size: 10px;
-  color: #8A7F74;
+  color: rgba(245,240,232,0.40);
   font-style: italic;
   line-height: 1.4;
   margin-top: -4px;
@@ -799,8 +799,8 @@ a { color: inherit; text-decoration: none; }
   height: 32px;
   border: 1.5px solid #D0C9BE;
   border-radius: 5px;
-  background: #FAF7F2;
-  color: #2D2926;
+  background: rgba(255,255,255,0.06);
+  color: #F5F0E8;
   font-size: 14px;
   cursor: pointer;
   transition: background 150ms, color 150ms;
@@ -808,19 +808,19 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: center;
 }
-.sb-player-btn:hover:not(:disabled) { background: #EDE9E1; }
+.sb-player-btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
 .sb-player-btn:disabled {
   opacity: 0.28;
   cursor: default;
 }
 .sb-player-btn--primary {
-  background: #2D2926;
-  color: #F5F0E8;
-  border-color: #2D2926;
+  background: #D4A017;
+  color: #0B2239;
+  border-color: #D4A017;
   font-size: 16px;
   flex: 1.4;
 }
-.sb-player-btn--primary:hover:not(:disabled) { background: #4A3F35; }
+.sb-player-btn--primary:hover:not(:disabled) { background: #E5B01E; }
 
 /* ── Field groups ────────────────────────────────────────────────────────── */
 .sb-field-group {
@@ -833,16 +833,16 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #8A7F74;
+  color: rgba(245,240,232,0.45);
 }
 .sb-field-value {
   font-size: 12px;
-  color: #2D2926;
+  color: #F5F0E8;
   font-weight: 600;
 }
 .sb-field-hint {
   font-size: 10px;
-  color: #8A7F74;
+  color: rgba(245,240,232,0.38);
   font-style: italic;
 }
 
@@ -855,15 +855,15 @@ a { color: inherit; text-decoration: none; }
   padding: 5px 10px;
   font-size: 11px;
   font-weight: 600;
-  color: #6A7E8E;
-  background: #FAF7F2;
-  border: 1.5px solid #D0C9BE;
+  color: rgba(245,240,232,0.65);
+  background: rgba(255,255,255,0.06);
+  border: 1.5px solid rgba(255,255,255,0.15);
   border-radius: 5px;
   cursor: pointer;
   transition: background 150ms, color 150ms;
 }
-.sb-filter-btn:hover { background: #EDE9E1; }
-.sb-filter-btn.active { background: #2D2926; color: #F5F0E8; border-color: #2D2926; }
+.sb-filter-btn:hover { background: rgba(255,255,255,0.12); color: #F5F0E8; }
+.sb-filter-btn.active { background: #D4A017; color: #0B2239; border-color: #D4A017; }
 
 /* Live draft button */
 .sb-live-btn {
@@ -873,18 +873,18 @@ a { color: inherit; text-decoration: none; }
   padding: 7px 12px;
   font-size: 11px;
   font-weight: 600;
-  color: #6A7E8E;
-  background: #FAF7F2;
-  border: 1.5px solid #D0C9BE;
+  color: rgba(245,240,232,0.65);
+  background: rgba(255,255,255,0.06);
+  border: 1.5px solid rgba(255,255,255,0.15);
   border-radius: 6px;
   cursor: pointer;
   transition: background 150ms, color 150ms, border-color 150ms;
 }
-.sb-live-btn:hover { background: #EDE9E1; }
+.sb-live-btn:hover { background: rgba(255,255,255,0.12); color: #F5F0E8; }
 .sb-live-btn.active {
-  background: #fff3f3;
-  color: #c0392b;
-  border-color: #e57373;
+  background: rgba(229,57,53,0.18);
+  color: #ef9a9a;
+  border-color: rgba(229,57,53,0.45);
 }
 .sb-live-dot {
   width: 8px;
@@ -914,7 +914,7 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #6A7E8E;
+  color: rgba(245,240,232,0.55);
 }
 .sb-legend-row {
   display: flex;
@@ -923,11 +923,11 @@ a { color: inherit; text-decoration: none; }
 }
 .sb-legend-label {
   font-size: 11px;
-  color: #6A7E8E;
+  color: rgba(245,240,232,0.65);
 }
 .sb-legend-subtext {
   font-size: 10px;
-  color: #8A7F74;
+  color: rgba(245,240,232,0.40);
   font-style: italic;
   line-height: 1.4;
 }
@@ -936,7 +936,7 @@ a { color: inherit; text-decoration: none; }
 /* ── Help text ───────────────────────────────────────────────────────────── */
 .sb-help-text {
   font-size: 11px;
-  color: #5A5147;
+  color: rgba(245,240,232,0.55);
   line-height: 1.55;
   margin: 0;
 }
@@ -944,7 +944,7 @@ a { color: inherit; text-decoration: none; }
 /* ── Sidebar nav link (Player List) ─────────────────────────────────────── */
 .sb-nav-link-row {
   padding: 4px 8px 8px;
-  border-bottom: 1px solid #D6CFC6;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .sb-nav-link {
   display: flex;
@@ -955,13 +955,13 @@ a { color: inherit; text-decoration: none; }
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #5A5147;
+  color: rgba(245,240,232,0.60);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
 }
 .sb-nav-link:hover {
-  background: #EDE9E1;
-  color: #2C2C2C;
+  background: rgba(255,255,255,0.08);
+  color: #F5F0E8;
 }
 .sb-nav-link--icon-only {
   justify-content: center;

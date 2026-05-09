@@ -26,7 +26,7 @@ export default function PositionColumns({ layout }: Props) {
       {visiblePositions.map((pos, posIdx) => {
         const colX = colXMap[pos];
         const cW   = colWidths[pos];
-        const colBg = posIdx % 2 === 0 ? "#F8F3EA" : "#EEE8DD";
+        const colBg = posIdx % 2 === 0 ? "#F3F6F9" : "#E9EEF3";
 
         return (
           <g key={pos}>

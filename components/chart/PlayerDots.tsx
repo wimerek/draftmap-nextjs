@@ -2,21 +2,20 @@
 /**
  * components/chart/PlayerDots.tsx
  *
- * Session N: Direction triangles replaced with connector lines (Session O polish).
- *   - Thin vertical line drawn from projectedY → actualY BEFORE circles.
- *   - Green (#4ade80) if player rose (steal: actualY < projectedY).
- *   - Soft red (#f87171) if player fell (reach/miss: actualY > projectedY).
- *   - strokeWidth 1.2, opacity scales with delta (0.15 → 0.38).
- *   - Threshold: pickValueDelta >= 15 picks (noise filter).
- *   - Dots rendered AFTER connectors so they sit on top.
+ * Session P: Connector lines are now hover-only.
+ *   - On hover in Drafted view: show a connector line from projectedY to actualY
+ *     + a ghost circle (dashed outline) at the projected position.
+ *   - Green (#4ade80) = rose vs projection (steal). Soft red (#f87171) = fell.
+ *   - No delta threshold on hover — even small moves are informative on demand.
+ *   - Always-on connector lines removed entirely.
  *
  * Session H fixes (preserved):
  *   - fill moved from SVG attribute to style.fill so CSS transition fires.
- *   - isAnimating prop: transition only applied during Play animation (0ms otherwise).
- *   - liveMode grey-out only applies in Projected view (not Drafted view).
- *   - Dot radius formula: exponential saturation, range 6–16px.
+ *   - isAnimating prop: transition only during Play animation.
+ *   - liveMode grey-out only applies in Projected view.
+ *   - Dot radius: exponential saturation, range 6-16px.
  */
-import { useMemo } from "react";
+import { useState } from "react";
 import type { Player } from "@/lib/airtable";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
@@ -33,23 +32,11 @@ interface Props {
   onDotLeave: () => void;
 }
 
-/** Base dot radius in projected view and minimum in drafted view. */
 const BASE_R = 6;
 
-/** Min pick delta to show a connector line. Within 15 picks = close enough to skip. */
-const INDICATOR_THRESHOLD = 15;
-
 /**
- * Tier-adjusted delta -> dot radius.
- *
  * r = 6 + 10 * (1 - e^(-delta/25))
- *
- * Reference points:
- *   delta  2 (within R4, 10-pick move):   r ~  6.7  (baseline/tiny)
- *   delta  7 (3-8 spot fall in R1):       r ~  8.4  (small)
- *   delta 21 (top-5 -> late 20s in R1):   r ~ 11.7  (medium-large)
- *   delta 45 (R5 -> R3, e.g. Carson Beck):r ~ 14.4  (large)
- *   delta 92 (R1 -> UDFA):                r ~ 15.7  (max)
+ * delta 0 -> r 6, delta 45 -> r ~14.4, delta 92 -> r ~15.7
  */
 function deltaToRadius(delta: number): number {
   return BASE_R + 10 * (1 - Math.exp(-delta / 25));
@@ -61,42 +48,47 @@ export default function PlayerDots({
 }: Props) {
   const inDraftedView = viewMode === "drafted";
 
+  /** ID of the currently-hovered player (for connector line). */
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   const prefersReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Find the hovered dot's data for the connector overlay
+  const hoveredDot = inDraftedView && hoveredId
+    ? dotPositions.find(d => d.player.id === hoveredId) ?? null
+    : null;
+
   return (
     <g>
-      {/* ── Connector lines (rendered FIRST so dots sit on top) ──────────── */}
-      {/* Only shown in Drafted view, after animation completes.              */}
-      {/* Green  = rose higher than projected (steal: actualY < projectedY)  */}
-      {/* Soft red = fell lower than projected (reach/miss: actualY > proj)  */}
-      {inDraftedView && !isAnimating && dotPositions.map(({ player, x, actualY, projectedY, pickValueDelta }, i) => {
-        if (pickValueDelta < INDICATOR_THRESHOLD) return null;
-        if (actualY === projectedY) return null;
-
-        const isSteal   = actualY < projectedY;
-        const lineColor = isSteal ? "#4ade80" : "#f87171";
-
-        // Opacity scales with magnitude: min 0.15 at threshold, max 0.38 at large deltas
-        const excess  = pickValueDelta - INDICATOR_THRESHOLD;
-        const opacity = Math.min(0.15 + excess / 130, 0.38);
-
-        const y1 = isSteal ? actualY   : projectedY;
-        const y2 = isSteal ? projectedY : actualY;
-
-        return (
+      {/* ── Hover connector (rendered FIRST so dots sit on top) ──────────── */}
+      {/* Shown only when a dot is hovered in Drafted view.                   */}
+      {hoveredDot && hoveredDot.actualY !== hoveredDot.projectedY && (
+        <g style={{ pointerEvents: "none" }}>
+          {/* Connector line: projectedY <-> actualY */}
           <line
-            key={`conn-${player.id}-${i}`}
-            x1={x} y1={y1}
-            x2={x} y2={y2}
-            stroke={lineColor}
-            strokeWidth={1.2}
-            opacity={opacity}
-            style={{ pointerEvents: "none" }}
+            x1={hoveredDot.x}
+            y1={Math.min(hoveredDot.actualY, hoveredDot.projectedY)}
+            x2={hoveredDot.x}
+            y2={Math.max(hoveredDot.actualY, hoveredDot.projectedY)}
+            stroke={hoveredDot.actualY < hoveredDot.projectedY ? "#4ade80" : "#f87171"}
+            strokeWidth={1.5}
+            opacity={0.72}
           />
-        );
-      })}
+          {/* Ghost circle at projected position */}
+          <circle
+            cx={hoveredDot.x}
+            cy={hoveredDot.projectedY}
+            r={BASE_R}
+            fill="none"
+            stroke={hoveredDot.actualY < hoveredDot.projectedY ? "#4ade80" : "#f87171"}
+            strokeWidth={1.5}
+            strokeDasharray="3,2"
+            opacity={0.52}
+          />
+        </g>
+      )}
 
       {/* ── Circles ─────────────────────────────────────────────────────── */}
       {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
@@ -151,8 +143,14 @@ export default function PlayerDots({
             strokeWidth={inDraftedView ? 2.5 : 1.5}
             style={{ fill, cursor: "pointer", transition }}
             onClick={e => { e.stopPropagation(); onDotClick(player); }}
-            onMouseEnter={e => onDotHover(player, e.clientX, e.clientY)}
-            onMouseLeave={onDotLeave}
+            onMouseEnter={e => {
+              setHoveredId(player.id);
+              onDotHover(player, e.clientX, e.clientY);
+            }}
+            onMouseLeave={() => {
+              setHoveredId(null);
+              onDotLeave();
+            }}
           />
         );
       })}
