@@ -225,7 +225,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   const handleDotHover = useCallback(
     (player: Player, clientX: number, clientY: number) => {
-      setTooltip({ player, x: clientX + 14, y: clientY + 12 });
+      // Smart positioning: upper-right by default, upper-left near right edge
+      const nearRight = typeof window !== "undefined" && clientX > window.innerWidth - 280;
+      setTooltip({ player, x: nearRight ? clientX - 240 : clientX + 16, y: clientY - 115 });
     },
     [],
   );

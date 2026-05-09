@@ -232,8 +232,8 @@ export default function Sidebar(props: SidebarProps) {
         <Image
           src="/brand/draftmap-mark.svg"
           alt="DraftMap"
-          width={collapsed ? 34 : 56}
-          height={collapsed ? 34 : 56}
+          width={collapsed ? 34 : 64}
+          height={collapsed ? 34 : 64}
           className="sb-brand-mark"
         />
         {!collapsed && (
