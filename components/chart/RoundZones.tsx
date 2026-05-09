@@ -5,6 +5,10 @@
  * Session E: Round rows replaced by thin horizontal reference lines at round
  * boundaries on the continuous pick-number Y axis. Round labels (R1–R7) sit
  * in the left margin at the midpoint Y of each round's pick range.
+ *
+ * Session O: Lines made solid (removed dasharray), slightly more visible
+ * stroke (#B0A898, width 1.1). Round labels use Oswald for typographic
+ * consistency with position headers.
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -12,22 +16,19 @@ interface Props {
   layout: ChartLayout;
 }
 
-const ROUND_BOUNDARY_ROUNDS = [1, 2, 3, 4, 5, 6] as const; // line after each of these rounds
-
 export default function RoundZones({ layout }: Props) {
   const { roundBoundaryYs, roundLabelYs, margin, chartW } = layout;
 
   return (
     <g>
-      {/* Round reference lines — thin, subtle, at each round boundary */}
+      {/* Round reference lines — solid, slightly more visible than before */}
       {roundBoundaryYs.map((ry, i) => (
         <line
           key={`rd-line-${i}`}
           x1={margin.left} y1={ry}
           x2={margin.left + chartW} y2={ry}
-          stroke="#C8C4BC"
-          strokeWidth={0.8}
-          strokeDasharray="4,5"
+          stroke="#B0A898"
+          strokeWidth={1.1}
         />
       ))}
 
@@ -40,8 +41,9 @@ export default function RoundZones({ layout }: Props) {
           textAnchor="end"
           fontSize={11}
           fontWeight={700}
+          fontFamily="Oswald, sans-serif"
           fill="#6A7E8E"
-          letterSpacing={0.3}
+          letterSpacing={0.5}
         >
           R{rd}
         </text>

@@ -2,13 +2,19 @@
 /**
  * components/chart/PlayerDots.tsx
  *
- * Session H fixes:
+ * Session N: Direction triangles replaced with connector lines (Session O polish).
+ *   - Thin vertical line drawn from projectedY → actualY BEFORE circles.
+ *   - Green (#4ade80) if player rose (steal: actualY < projectedY).
+ *   - Soft red (#f87171) if player fell (reach/miss: actualY > projectedY).
+ *   - strokeWidth 1.2, opacity scales with delta (0.15 → 0.38).
+ *   - Threshold: pickValueDelta >= 15 picks (noise filter).
+ *   - Dots rendered AFTER connectors so they sit on top.
+ *
+ * Session H fixes (preserved):
  *   - fill moved from SVG attribute to style.fill so CSS transition fires.
  *   - isAnimating prop: transition only applied during Play animation (0ms otherwise).
  *   - liveMode grey-out only applies in Projected view (not Drafted view).
- *   - Dot radius formula: sqrt(raw pick delta) * 1.4, range 6-16px.
- *     Raw pick delta = |pick_drafted - rank| for drafted players,
- *                     (257 - rank) for undrafted (treated as "fell off the board").
+ *   - Dot radius formula: exponential saturation, range 6–16px.
  */
 import { useMemo } from "react";
 import type { Player } from "@/lib/airtable";
@@ -30,21 +36,19 @@ interface Props {
 /** Base dot radius in projected view and minimum in drafted view. */
 const BASE_R = 6;
 
+/** Min pick delta to show a connector line. Within 15 picks = close enough to skip. */
+const INDICATOR_THRESHOLD = 15;
+
 /**
  * Tier-adjusted delta -> dot radius.
  *
- * Uses exponential saturation so small within-round misses stay visually quiet
- * and cross-round / cross-tier surprises ramp up meaningfully.
- *
  * r = 6 + 10 * (1 - e^(-delta/25))
  *
- * Reference points (Session J v2 scale):
+ * Reference points:
  *   delta  2 (within R4, 10-pick move):   r ~  6.7  (baseline/tiny)
  *   delta  7 (3-8 spot fall in R1):       r ~  8.4  (small)
- *   delta  9 (late R1 -> early R2):       r ~  8.9  (small-medium)
  *   delta 21 (top-5 -> late 20s in R1):   r ~ 11.7  (medium-large)
  *   delta 45 (R5 -> R3, e.g. Carson Beck):r ~ 14.4  (large)
- *   delta 70 (R1 -> R5):                  r ~ 15.4  (very large)
  *   delta 92 (R1 -> UDFA):                r ~ 15.7  (max)
  */
 function deltaToRadius(delta: number): number {
@@ -57,25 +61,50 @@ export default function PlayerDots({
 }: Props) {
   const inDraftedView = viewMode === "drafted";
 
-  // Detect reduced-motion preference once per render.
   const prefersReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Min delta to show a direction indicator — within 12 picks is close enough to call "on target"
-  const INDICATOR_THRESHOLD = 12;
-
   return (
     <g>
+      {/* ── Connector lines (rendered FIRST so dots sit on top) ──────────── */}
+      {/* Only shown in Drafted view, after animation completes.              */}
+      {/* Green  = rose higher than projected (steal: actualY < projectedY)  */}
+      {/* Soft red = fell lower than projected (reach/miss: actualY > proj)  */}
+      {inDraftedView && !isAnimating && dotPositions.map(({ player, x, actualY, projectedY, pickValueDelta }, i) => {
+        if (pickValueDelta < INDICATOR_THRESHOLD) return null;
+        if (actualY === projectedY) return null;
+
+        const isSteal   = actualY < projectedY;
+        const lineColor = isSteal ? "#4ade80" : "#f87171";
+
+        // Opacity scales with magnitude: min 0.15 at threshold, max 0.38 at large deltas
+        const excess  = pickValueDelta - INDICATOR_THRESHOLD;
+        const opacity = Math.min(0.15 + excess / 130, 0.38);
+
+        const y1 = isSteal ? actualY   : projectedY;
+        const y2 = isSteal ? projectedY : actualY;
+
+        return (
+          <line
+            key={`conn-${player.id}-${i}`}
+            x1={x} y1={y1}
+            x2={x} y2={y2}
+            stroke={lineColor}
+            strokeWidth={1.2}
+            opacity={opacity}
+            style={{ pointerEvents: "none" }}
+          />
+        );
+      })}
+
       {/* ── Circles ─────────────────────────────────────────────────────── */}
       {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
         const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
 
-        // Live Draft Mode grey-out only applies in Projected view.
-        // In Drafted view we always show full team colors / results.
         const isDrafted = liveMode && player.drafted && !inDraftedView;
 
-        // ── Color ────────────────────────────────────────────────────────────
+        // ── Color ──────────────────────────────────────────────────────────
         let fill: string;
         let stroke: string;
         if (isDrafted) {
@@ -85,10 +114,8 @@ export default function PlayerDots({
           const tc = TEAM_COLORS[player.team_drafted];
           if (tc) {
             fill   = tc.fill;
-            // Use team secondary as stroke so both colors are visible
             stroke = tc.secondary;
           } else {
-            // Team not found in lookup — fall back to school color
             fill   = sc.fill;
             stroke = "#333333";
           }
@@ -97,15 +124,13 @@ export default function PlayerDots({
           stroke = "#333333";
         }
 
-        // ── Position (Y) ────────────────────────────────────────────────────
+        // ── Position (Y) ───────────────────────────────────────────────────
         const cy = inDraftedView ? actualY : projectedY;
 
-        // ── Radius ──────────────────────────────────────────────────────────
+        // ── Radius ─────────────────────────────────────────────────────────
         const r = inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R;
 
-        // ── Transition ──────────────────────────────────────────────────────
-        // isAnimating=true (Play button)  -> 550ms staggered ease-out
-        // isAnimating=false (seg control) -> 0ms instant snap
+        // ── Transition ─────────────────────────────────────────────────────
         const tDuration = isAnimating ? (prefersReducedMotion ? 100 : 550) : 0;
         const tDelay    = isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0;
         const transition = tDuration > 0
@@ -124,56 +149,10 @@ export default function PlayerDots({
             r={r}
             stroke={stroke}
             strokeWidth={inDraftedView ? 2.5 : 1.5}
-            // fill in style (not as SVG attribute) so CSS transition works.
             style={{ fill, cursor: "pointer", transition }}
             onClick={e => { e.stopPropagation(); onDotClick(player); }}
             onMouseEnter={e => onDotHover(player, e.clientX, e.clientY)}
             onMouseLeave={onDotLeave}
-          />
-        );
-      })}
-
-      {/* ── Direction indicators (rendered after circles so they sit on top) ── */}
-      {/* Only shown in Drafted view, after animation completes.                 */}
-      {/* ▲ green = rose higher than projected (steal)                           */}
-      {/* ▼ amber = fell lower than projected (reach / miss)                     */}
-      {inDraftedView && !isAnimating && dotPositions.map(({ player, x, actualY, projectedY, pickValueDelta }, i) => {
-        if (pickValueDelta < INDICATOR_THRESHOLD) return null;
-
-        const r = deltaToRadius(pickValueDelta);
-
-        // actualY < projectedY → dot is higher on chart → picked earlier → steal (▲)
-        // actualY > projectedY → dot is lower on chart  → picked later  → reach (▼)
-        const isSteal = actualY < projectedY;
-
-        // Scale opacity and size with delta magnitude, staying subtle
-        const excess  = pickValueDelta - INDICATOR_THRESHOLD;
-        const opacity = Math.min(0.18 + excess / 120, 0.52);
-        const triSize = Math.min(3 + excess / 22, 6.5);
-        const gap     = 3; // pixels between dot edge and triangle base
-
-        const triColor = isSteal ? "#22c55e" : "#f59e0b";
-
-        let points: string;
-        if (isSteal) {
-          // ▲ above the dot: tip up, base below
-          const tipY  = actualY - r - gap - triSize * 1.4;
-          const baseY = actualY - r - gap;
-          points = `${x},${tipY} ${x - triSize},${baseY} ${x + triSize},${baseY}`;
-        } else {
-          // ▼ below the dot: tip down, base above
-          const baseY = actualY + r + gap;
-          const tipY  = actualY + r + gap + triSize * 1.4;
-          points = `${x},${tipY} ${x - triSize},${baseY} ${x + triSize},${baseY}`;
-        }
-
-        return (
-          <polygon
-            key={`ind-${player.id}-${i}`}
-            points={points}
-            fill={triColor}
-            opacity={opacity}
-            style={{ pointerEvents: "none" }}
           />
         );
       })}

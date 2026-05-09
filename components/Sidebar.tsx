@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 /**
  * components/Sidebar.tsx
@@ -226,13 +227,22 @@ export default function Sidebar(props: SidebarProps) {
         {collapsed ? "›" : "‹"}
       </button>
 
-      {/* Logo / title row when expanded */}
-      {!collapsed && (
-        <div className="sb-brand">
-          <span className="sb-brand-name">DraftMap</span>
-          <span className="sb-brand-year">{year}</span>
-        </div>
-      )}
+      {/* Brand header — always visible, dark navy with logo mark */}
+      <div className={`sb-brand${collapsed ? " sb-brand--collapsed" : ""}`}>
+        <Image
+          src="/brand/draftmap-mark.svg"
+          alt="DraftMap"
+          width={collapsed ? 30 : 36}
+          height={collapsed ? 30 : 36}
+          className="sb-brand-mark"
+        />
+        {!collapsed && (
+          <div className="sb-brand-text">
+            <span className="sb-brand-name">DRAFTMAP</span>
+            <span className="sb-brand-tagline">NFL Draft at a glance.</span>
+          </div>
+        )}
+      </div>
 
       {/* ── Nav link: Player List ── */}
       <div className="sb-nav-link-row">
