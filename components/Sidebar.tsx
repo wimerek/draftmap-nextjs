@@ -306,9 +306,9 @@ export default function Sidebar(props: SidebarProps) {
               onClick={onLiveModeToggle}
             >
               <span className="sb-live-dot" />
-              Live Draft Mode
+              Mark Picked Players
             </button>
-            <div className="sb-field-hint">Greys out players as they're picked</div>
+            <div className="sb-field-hint">Greys out drafted players in Projected view</div>
           </div>
       </SidebarSection>
 

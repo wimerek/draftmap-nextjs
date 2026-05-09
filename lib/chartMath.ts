@@ -290,10 +290,10 @@ export function computeChartLayout(
   const hasDefense = visiblePositions.some(p => (POSITIONS.defense as readonly string[]).includes(p));
   const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
 
-  const sepW = hasDefense && hasOffense ? 36 : 0;
+  const sepW = hasDefense && hasOffense ? 48 : 0;
   // margin.left: 80px — accommodates round labels + the left-side quality arrow.
   // margin.right: 160px — accommodates tier pills on the right.
-  const margin = { top: 96, right: 160, bottom: 48, left: 100 };
+  const margin = { top: 120, right: 160, bottom: 48, left: 100 };
 
   // ── Y-axis: continuous pick scale ────────────────────────────────────────
   const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px

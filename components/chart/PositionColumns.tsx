@@ -100,18 +100,33 @@ export default function PositionColumns({ layout }: Props) {
         ) : null;
       })()}
 
-      {/* D/O separator — dashed vertical line at boundary between defense (left) and offense (right) */}
+      {/* D/O separator — colored gap column + solid center line */}
       {hasDefense && hasOffense && (() => {
         const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
         if (!firstOffPos) return null;
-        const sepX = colXMap[firstOffPos] - sepW / 2;
+        const gapStartX  = colXMap[firstOffPos] - sepW;
+        const gapCenterX = colXMap[firstOffPos] - sepW / 2;
         return (
-          <line
-            x1={sepX} y1={14}
-            x2={sepX} y2={margin.top + totalChartH}
-            stroke="#C4D0CC" strokeWidth={1.4}
-            strokeDasharray="6,4"
-          />
+          <g>
+            {/* Header-area fill — cool blue-grey, distinct from warm cream column backgrounds */}
+            <rect
+              x={gapStartX} y={0}
+              width={sepW} height={margin.top}
+              fill="#C8D4DE" opacity={0.55}
+            />
+            {/* Chart-body fill — lighter so it doesn't compete with dots */}
+            <rect
+              x={gapStartX} y={margin.top}
+              width={sepW} height={totalChartH}
+              fill="#C8D4DE" opacity={0.18}
+            />
+            {/* Center divider — solid, more prominent than old dashed line */}
+            <line
+              x1={gapCenterX} y1={0}
+              x2={gapCenterX} y2={margin.top + totalChartH}
+              stroke="#8A9EAE" strokeWidth={1.6}
+            />
+          </g>
         );
       })()}
     </g>

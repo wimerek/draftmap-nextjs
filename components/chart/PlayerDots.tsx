@@ -62,8 +62,12 @@ export default function PlayerDots({
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // Min delta to show a direction indicator — within 12 picks is close enough to call "on target"
+  const INDICATOR_THRESHOLD = 12;
+
   return (
     <g>
+      {/* ── Circles ─────────────────────────────────────────────────────── */}
       {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
         const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
 
@@ -125,6 +129,51 @@ export default function PlayerDots({
             onClick={e => { e.stopPropagation(); onDotClick(player); }}
             onMouseEnter={e => onDotHover(player, e.clientX, e.clientY)}
             onMouseLeave={onDotLeave}
+          />
+        );
+      })}
+
+      {/* ── Direction indicators (rendered after circles so they sit on top) ── */}
+      {/* Only shown in Drafted view, after animation completes.                 */}
+      {/* ▲ green = rose higher than projected (steal)                           */}
+      {/* ▼ amber = fell lower than projected (reach / miss)                     */}
+      {inDraftedView && !isAnimating && dotPositions.map(({ player, x, actualY, projectedY, pickValueDelta }, i) => {
+        if (pickValueDelta < INDICATOR_THRESHOLD) return null;
+
+        const r = deltaToRadius(pickValueDelta);
+
+        // actualY < projectedY → dot is higher on chart → picked earlier → steal (▲)
+        // actualY > projectedY → dot is lower on chart  → picked later  → reach (▼)
+        const isSteal = actualY < projectedY;
+
+        // Scale opacity and size with delta magnitude, staying subtle
+        const excess  = pickValueDelta - INDICATOR_THRESHOLD;
+        const opacity = Math.min(0.18 + excess / 120, 0.52);
+        const triSize = Math.min(3 + excess / 22, 6.5);
+        const gap     = 3; // pixels between dot edge and triangle base
+
+        const triColor = isSteal ? "#22c55e" : "#f59e0b";
+
+        let points: string;
+        if (isSteal) {
+          // ▲ above the dot: tip up, base below
+          const tipY  = actualY - r - gap - triSize * 1.4;
+          const baseY = actualY - r - gap;
+          points = `${x},${tipY} ${x - triSize},${baseY} ${x + triSize},${baseY}`;
+        } else {
+          // ▼ below the dot: tip down, base above
+          const baseY = actualY + r + gap;
+          const tipY  = actualY + r + gap + triSize * 1.4;
+          points = `${x},${tipY} ${x - triSize},${baseY} ${x + triSize},${baseY}`;
+        }
+
+        return (
+          <polygon
+            key={`ind-${player.id}-${i}`}
+            points={points}
+            fill={triColor}
+            opacity={opacity}
+            style={{ pointerEvents: "none" }}
           />
         );
       })}
