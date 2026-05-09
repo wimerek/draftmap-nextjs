@@ -1,26 +1,10 @@
-import type { Metadata } from "next";
-import DraftChart from "@/components/DraftChart";
+import { redirect } from "next/navigation";
+import { CURRENT_DRAFT_YEAR } from "@/lib/airtable";
 
-export const metadata: Metadata = {
-  title: "2026 NFL Draft Map",
-  description:
-    "2026 NFL Draft chart — visualize every prospect by position, round, and tier. Spot depth cliffs and find sleepers.",
-  openGraph: {
-    title: "2026 NFL Draft Map | DraftMap",
-    description:
-      "Visual 2026 NFL Draft analysis. Every prospect charted by position and tier.",
-  },
-};
-
+/**
+ * /draft — redirects to the most recent draft year.
+ * Keeps the URL canonical at /draft/[year] for SEO and shareability.
+ */
 export default function DraftPage() {
-  return (
-    <main className="min-h-screen bg-dm-bg">
-      {/*
-        Chart does not render yet — scaffold only.
-        DraftChart.tsx will be the useRef wrapper around the existing JS chart.
-        Data will be fetched client-side from /api/draft.
-      */}
-      <DraftChart year={2026} />
-    </main>
-  );
+  redirect(`/draft/${CURRENT_DRAFT_YEAR}`);
 }

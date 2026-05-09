@@ -72,6 +72,26 @@ interface AirtableResponse {
   offset?: string;
 }
 
+// ── Multi-year table routing ───────────────────────────────────────────────────
+
+/**
+ * Airtable table IDs per draft year.
+ * Each year is a separate table in the same base, with identical field structure.
+ * To add a new year: create the Airtable table, add its ID here.
+ */
+const TABLE_IDS: Record<number, string> = {
+  2024: "tblZ1xWC3kpT4tWFZ",
+  2025: "tblfzgwZhDq8uvN1a",
+  2026: "tblwqv6lrfmREuVt4",
+};
+
+/** Years with available data, most-recent first. */
+export const VALID_DRAFT_YEARS = [2026, 2025, 2024] as const;
+export type DraftYear = (typeof VALID_DRAFT_YEARS)[number];
+
+/** Most recent year — used as the default when no year is specified. */
+export const CURRENT_DRAFT_YEAR = VALID_DRAFT_YEARS[0];
+
 // ── Field name mapping: Airtable → internal ───────────────────────────────────
 
 const FIELD_MAP: Record<string, keyof Player> = {
@@ -201,12 +221,11 @@ function mapRecord(record: AirtableRecord): Player {
  * Fetch all players from Airtable with full pagination.
  *
  * Intended for use in server-side Route Handlers only.
- * Set year to override which table is queried (future: multi-year support).
+ * Pass year to select the correct table (2024, 2025, 2026).
  */
-export async function fetchPlayers(year: number = 2026): Promise<Player[]> {
+export async function fetchPlayers(year: number = CURRENT_DRAFT_YEAR): Promise<Player[]> {
   const token = process.env.AIRTABLE_API_TOKEN;
   const baseId = process.env.AIRTABLE_BASE_ID ?? "apphHlEBLATe8hrII";
-  const tableId = process.env.AIRTABLE_TABLE_ID ?? "tblwqv6lrfmREuVt4";
 
   if (!token) {
     throw new Error(
@@ -214,8 +233,15 @@ export async function fetchPlayers(year: number = 2026): Promise<Player[]> {
     );
   }
 
-  // year param reserved for future multi-year table routing
-  void year;
+  // Resolve table ID: prefer the year-keyed map, fall back to env var (for legacy/override).
+  const tableId =
+    TABLE_IDS[year] ??
+    process.env.AIRTABLE_TABLE_ID ??
+    TABLE_IDS[CURRENT_DRAFT_YEAR];
+
+  if (!TABLE_IDS[year]) {
+    console.warn(`[airtable] No table ID for year ${year} — falling back to ${CURRENT_DRAFT_YEAR}`);
+  }
 
   const baseUrl = `https://api.airtable.com/v0/${baseId}/${tableId}`;
   const headers = {

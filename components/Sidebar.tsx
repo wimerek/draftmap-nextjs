@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 /**
  * components/Sidebar.tsx
  *
@@ -11,9 +12,13 @@ import Link from "next/link";
  *   3. Map Display — Labels toggle, dot size legend
  *   4. How to Read — collapsed by default; help text
  * All zones collapsible by the user. Only "How to Read" starts closed.
+ *
+ * Multi-year update: Year selector navigates to /draft/[year].
+ * Live Draft Mode only shown for the most current year.
  */
 
 import { useState, useCallback } from "react";
+import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/airtable";
 
 // ── Types passed in from DraftChart ──────────────────────────────────────────
 
@@ -200,6 +205,15 @@ export default function Sidebar(props: SidebarProps) {
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
+
+  const handleYearChange = useCallback((selectedYear: number) => {
+    if (selectedYear !== year) {
+      router.push(`/draft/${selectedYear}`);
+    }
+  }, [year, router]);
+
+  const isCurrentYear = year === CURRENT_DRAFT_YEAR;
 
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
@@ -261,7 +275,17 @@ export default function Sidebar(props: SidebarProps) {
       <SidebarSection label="Draft Context" icon="📋" collapsed={collapsed}>
         <div className="sb-field-group">
           <label className="sb-field-label">Year</label>
-          <div className="sb-field-value">{year} Draft Class</div>
+          <div className="sb-btn-group">
+            {[...VALID_DRAFT_YEARS].reverse().map(y => (
+              <button
+                key={y}
+                className={`sb-filter-btn${year === y ? " active" : ""}`}
+                onClick={() => handleYearChange(y)}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="sb-field-group">
           <label className="sb-field-label">Position Group</label>
@@ -277,16 +301,18 @@ export default function Sidebar(props: SidebarProps) {
             ))}
           </div>
         </div>
-        <div className="sb-field-group">
-          <button
-            className={`sb-live-btn${liveMode ? " active" : ""}`}
-            onClick={onLiveModeToggle}
-          >
-            <span className="sb-live-dot" />
-            Live Draft Mode
-          </button>
-          <div className="sb-field-hint">Greys out players as they're picked</div>
-        </div>
+        {isCurrentYear && (
+          <div className="sb-field-group">
+            <button
+              className={`sb-live-btn${liveMode ? " active" : ""}`}
+              onClick={onLiveModeToggle}
+            >
+              <span className="sb-live-dot" />
+              Live Draft Mode
+            </button>
+            <div className="sb-field-hint">Greys out players as they're picked</div>
+          </div>
+        )}
       </SidebarSection>
 
       {/* ── Zone 3: Map Display ── */}

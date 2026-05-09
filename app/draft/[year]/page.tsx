@@ -1,25 +1,24 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DraftChart from "@/components/DraftChart";
+import { VALID_DRAFT_YEARS } from "@/lib/airtable";
 
 interface Props {
   params: { year: string };
 }
 
-// Valid historical years we have data for
-const VALID_YEARS = [2023, 2024, 2025, 2026];
-
 export async function generateStaticParams() {
-  return VALID_YEARS.map((year) => ({ year: String(year) }));
+  return VALID_DRAFT_YEARS.map((year) => ({ year: String(year) }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const year = parseInt(params.year, 10);
-  if (!VALID_YEARS.includes(year)) return {};
+  const validYears: readonly number[] = VALID_DRAFT_YEARS;
+  if (!validYears.includes(year)) return {};
 
   return {
     title: `${year} NFL Draft Map`,
-    description: `${year} NFL Draft chart — visualize every prospect by position, round, and tier.`,
+    description: `${year} NFL Draft chart — visualize every prospect by position, round, and tier. Spot depth cliffs and find sleepers.`,
     openGraph: {
       title: `${year} NFL Draft Map | DraftMap`,
       description: `Visual ${year} NFL Draft analysis. Every prospect charted by position and tier.`,
@@ -29,8 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default function DraftYearPage({ params }: Props) {
   const year = parseInt(params.year, 10);
+  const validYears: readonly number[] = VALID_DRAFT_YEARS;
 
-  if (!VALID_YEARS.includes(year)) {
+  if (!validYears.includes(year)) {
     notFound();
   }
 
