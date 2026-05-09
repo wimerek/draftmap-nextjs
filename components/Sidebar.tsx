@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
  */
 
 import { useState, useCallback } from "react";
-import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/airtable";
+import { VALID_DRAFT_YEARS } from "@/lib/airtable";
 
 // ── Types passed in from DraftChart ──────────────────────────────────────────
 
@@ -213,7 +213,6 @@ export default function Sidebar(props: SidebarProps) {
     }
   }, [year, router]);
 
-  const isCurrentYear = year === CURRENT_DRAFT_YEAR;
 
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
@@ -238,7 +237,7 @@ export default function Sidebar(props: SidebarProps) {
       {/* ── Nav link: Player List ── */}
       <div className="sb-nav-link-row">
         <Link
-          href="/players"
+          href={`/players?year=${year}`}
           className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
           title="Player List"
         >
@@ -301,8 +300,7 @@ export default function Sidebar(props: SidebarProps) {
             ))}
           </div>
         </div>
-        {isCurrentYear && (
-          <div className="sb-field-group">
+        <div className="sb-field-group">
             <button
               className={`sb-live-btn${liveMode ? " active" : ""}`}
               onClick={onLiveModeToggle}
@@ -312,7 +310,6 @@ export default function Sidebar(props: SidebarProps) {
             </button>
             <div className="sb-field-hint">Greys out players as they're picked</div>
           </div>
-        )}
       </SidebarSection>
 
       {/* ── Zone 3: Map Display ── */}

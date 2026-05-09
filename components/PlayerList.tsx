@@ -11,9 +11,11 @@
  *   - Sortable headers
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Player } from "@/lib/airtable";
+import { VALID_DRAFT_YEARS } from "@/lib/airtable";
 import { fmtHeight, ALL_POSITIONS } from "@/lib/utils";
 import { cardPositionalRangeData } from "@/lib/chartConstants";
 
@@ -101,6 +103,11 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortAsc, setSortAsc] = useState(true);
 
+  const router = useRouter();
+  const handleYearChange = useCallback((y: number) => {
+    if (y !== year) router.push(`/players?year=${y}`);
+  }, [year, router]);
+
   useEffect(() => {
     fetch(`/api/players?year=${year}`)
       .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
@@ -180,7 +187,7 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
       {/* ── Back to map nav ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <Link
-          href="/draft"
+          href={`/draft/${year}`}
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             color: "#D4A017", fontWeight: 700, fontSize: 13,
@@ -194,6 +201,29 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
         <span style={{ color: "#9a8a7a", fontSize: 13 }}>
           {visible.length} prospects
         </span>
+      </div>
+
+      {/* ── Year selector ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ color: "#9a8a7a", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>Draft Year</span>
+        {[...VALID_DRAFT_YEARS].reverse().map(y => (
+          <button
+            key={y}
+            onClick={() => handleYearChange(y)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 6,
+              border: `1px solid ${year === y ? "#D4A017" : "rgba(180,160,120,0.4)"}`,
+              background: year === y ? "rgba(212,160,23,0.12)" : "transparent",
+              color: year === y ? "#7A5000" : "#9a8a7a",
+              fontWeight: year === y ? 700 : 500,
+              fontSize: 13,
+              cursor: year === y ? "default" : "pointer",
+            }}
+          >
+            {y}
+          </button>
+        ))}
       </div>
 
       {/* ── Filters ── */}
