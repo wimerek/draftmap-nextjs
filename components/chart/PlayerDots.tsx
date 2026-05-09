@@ -72,7 +72,7 @@ export default function PlayerDots({
             y1={Math.min(hoveredDot.actualY, hoveredDot.projectedY)}
             x2={hoveredDot.x}
             y2={Math.max(hoveredDot.actualY, hoveredDot.projectedY)}
-            stroke={hoveredDot.actualY < hoveredDot.projectedY ? "#4ade80" : "#f87171"}
+            stroke="#D4A017"
             strokeWidth={1.5}
             opacity={0.72}
           />
@@ -82,7 +82,7 @@ export default function PlayerDots({
             cy={hoveredDot.projectedY}
             r={BASE_R}
             fill="none"
-            stroke={hoveredDot.actualY < hoveredDot.projectedY ? "#4ade80" : "#f87171"}
+            stroke="#D4A017"
             strokeWidth={1.5}
             strokeDasharray="3,2"
             opacity={0.52}
