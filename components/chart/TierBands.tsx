@@ -2,11 +2,10 @@
 /**
  * components/chart/TierBands.tsx
  *
- * Session W: Compact fixed-height annotation label.
- *   - No pill background — tier tints do the spatial work
- *   - 3px gold left accent bar, fixed 28px height, centered in tier
- *   - Text: navy #1A2D42 at 0.60 opacity — readable on near-white chart bg
- *   - Label is same size regardless of tier band height
+ * Session X: Bracket annotation shape.
+ *   - Left vertical bar + top cap + bottom cap spanning full label width
+ *   - No background fill — bracket frames the label zone
+ *   - Text: navy #1A2D42 at 0.60 opacity on near-white chart bg
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -20,10 +19,12 @@ export default function TierBands({ layout }: Props) {
   return (
     <g>
       {tierBandDefs.map((t, i) => {
-        // Fixed label height — never scales with tier band
         const labelH   = t.name === "Role Player / Project" ? 36 : 24;
         const tierMidY = (t.y1 + t.y2) / 2;
         const py       = tierMidY - labelH / 2;
+        const bx       = pillX;       // left edge of bracket
+        const bw       = pillW;       // full label zone width
+        const capW     = bw;          // caps span full width
 
         const labelLines =
           t.name === "Role Player / Project"
@@ -35,25 +36,37 @@ export default function TierBands({ layout }: Props) {
 
         return (
           <g key={i}>
-            {/* Tier background fill — subtle tint, does the spatial work */}
+            {/* Tier background fill */}
             <rect
               x={margin.left} y={t.y1}
               width={chartW} height={t.y2 - t.y1}
               fill={t.bg}
             />
-            {/* Gold left accent bar — fixed height, centered in tier */}
+            {/* Bracket: left vertical bar */}
             <rect
-              x={pillX} y={py}
-              width={3} height={labelH}
-              rx={1.5}
+              x={bx} y={py}
+              width={2} height={labelH}
+              rx={1}
               fill="#D4A017"
               opacity={0.80}
             />
-            {/* Label text — navy on near-white, no background needed */}
+            {/* Bracket: top cap */}
+            <line
+              x1={bx} y1={py}
+              x2={bx + capW} y2={py}
+              stroke="#D4A017" strokeWidth={1.5} opacity={0.55}
+            />
+            {/* Bracket: bottom cap */}
+            <line
+              x1={bx} y1={py + labelH}
+              x2={bx + capW} y2={py + labelH}
+              stroke="#D4A017" strokeWidth={1.5} opacity={0.55}
+            />
+            {/* Label text */}
             {labelLines.map((line, li) => (
               <text
                 key={li}
-                x={pillX + 9} y={startY + li * lineH}
+                x={bx + 8} y={startY + li * lineH}
                 textAnchor="start"
                 fontSize={10} fontWeight={700}
                 fill="#1A2D42"
