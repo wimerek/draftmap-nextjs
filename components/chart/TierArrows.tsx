@@ -22,7 +22,7 @@ export default function TierArrows({ layout }: Props) {
   const arrowTopY = tierBandDefs[0].y1;
   // Arrow stops at the pick-256 line; UDFA zone is a separate element.
   const arrowBotY = margin.top + totalChartH;
-  const aHead = 7;
+  const aHead = 5;
 
   // Fixed x=40 — sits comfortably left of round labels
   // (round labels end at margin.left - 10 ≈ x=90, arrow is at x=40, gap=50px).
@@ -34,23 +34,23 @@ export default function TierArrows({ layout }: Props) {
         x1={arrowX} y1={arrowTopY}
         x2={arrowX} y2={arrowBotY}
         stroke="url(#tierPillGradient)"
-        strokeWidth={4}
+        strokeWidth={2}
         strokeLinecap="round"
       />
       <polygon
         points={`${arrowX},${arrowTopY - aHead} ${arrowX - aHead},${arrowTopY + 2} ${arrowX + aHead},${arrowTopY + 2}`}
         fill={GOLD}
-        stroke="rgba(0,0,0,0.30)"
-        strokeWidth={1}
+        opacity={0.85}
+        stroke="none"
         strokeLinejoin="round"
       />
       {/* "Top Prospects" — two lines, centred over the arrowhead */}
       <text
         x={arrowX} y={arrowTopY - aHead - 14}
         textAnchor="middle"
-        fontSize={9} fontWeight={800}
+        fontSize={9} fontWeight={600}
         fill={GOLD}
-        stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} paintOrder="stroke fill"
+        opacity={0.80}
       >
         <tspan x={arrowX} dy="0">Top</tspan>
         <tspan x={arrowX} dy="11">Prospects</tspan>

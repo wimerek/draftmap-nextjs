@@ -36,23 +36,21 @@ export default function TierBands({ layout }: Props) {
               width={chartW} height={t.y2 - t.y1}
               fill={t.bg}
             />
-            {/* Pill — filled by the continuous gold gradient defined in <defs> */}
+            {/* Gold left accent bar — 3px, no background */}
             <rect
               x={pillX} y={py}
-              width={pillW} height={pH}
-              rx={8}
-              fill="url(#tierPillGradient)"
-              stroke="rgba(212,160,23,0.30)" strokeWidth={1}
+              width={3} height={pH}
+              rx={1.5}
+              fill="#D4A017"
+              opacity={0.75}
             />
             {labelLines.map((line, li) => (
               <text
                 key={li}
-                x={cx} y={startY + li * lineH}
-                textAnchor="middle"
-                fontSize={10} fontWeight={800}
-                fill="#FFFFFF"
-                stroke="rgba(0,0,0,0.30)" strokeWidth={0.5}
-                paintOrder="stroke fill"
+                x={pillX + 9} y={startY + li * lineH}
+                textAnchor="start"
+                fontSize={10} fontWeight={700}
+                fill="rgba(245,240,232,0.65)"
               >
                 {line}
               </text>

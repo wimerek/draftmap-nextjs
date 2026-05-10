@@ -116,14 +116,7 @@ export default function PositionColumns({ layout }: Props) {
         const gapCenterX = colXMap[firstOffPos] - sepW / 2;
         return (
           <>
-            <rect
-              x={gapCenterX - sepW / 2}
-              y={margin.top}
-              width={sepW}
-              height={totalChartH}
-              fill="rgba(212,160,23,0.05)"
-            />
-            <line
+<line
               x1={gapCenterX} y1={margin.top}
               x2={gapCenterX} y2={margin.top + totalChartH}
               stroke="#D4A017"
