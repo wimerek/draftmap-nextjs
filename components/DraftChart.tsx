@@ -128,6 +128,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
   const [liveMode,   setLiveMode]   = useState(false);
+  const [showLines,  setShowLines]  = useState(false);
   const [view,       setView]       = useState<ChartView>("all");
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
@@ -227,14 +228,15 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     (player: Player, clientX: number, clientY: number) => {
       // Smart positioning: upper-right by default, upper-left near right edge
       const nearRight = typeof window !== "undefined" && clientX > window.innerWidth - 280;
-      setTooltip({ player, x: nearRight ? clientX - 240 : clientX + 16, y: clientY - 115 });
+      setTooltip({ player, x: nearRight ? clientX - 248 : clientX + 40, y: clientY - 115 });
     },
     [],
   );
 
   const handleDotLeave   = useCallback(() => setTooltip(null), []);
   const dismissTooltip   = useCallback(() => setTooltip(null), []);
-  const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
+  const handleLiveToggle      = useCallback(() => setLiveMode(l => !l), []);
+  const handleShowLinesToggle = useCallback(() => setShowLines(l => !l), []);
 
   // ── Drag-to-scroll on chart frame ────────────────────────────────────────
   const chartFrameRef = useRef<HTMLDivElement>(null);
@@ -282,6 +284,8 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
         year={year}
         liveMode={liveMode}
         onLiveModeToggle={handleLiveToggle}
+        showLines={showLines}
+        onShowLinesToggle={handleShowLinesToggle}
       />
 
       {/* ── Main chart area ── */}
@@ -331,6 +335,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 liveMode={liveMode}
                 viewMode={viewMode}
                 isAnimating={isAnimating}
+                showLines={showLines}
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}

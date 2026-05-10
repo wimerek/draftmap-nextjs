@@ -5,37 +5,28 @@ import { useRouter } from "next/navigation";
 /**
  * components/Sidebar.tsx
  *
- * Session G: Map-control-panel sidebar.
- * Left side, collapsible. Expanded 280px / collapsed 56px (icons + tooltips).
- * Four zones:
- *   1. View Mode — Projected / Drafted segmented control + animation player
- *   2. Draft Context — Year selector, Team filter
- *   3. Map Display — Labels toggle, dot size legend
- *   4. How to Read — collapsed by default; help text
- * All zones collapsible by the user. Only "How to Read" starts closed.
- *
- * Multi-year update: Year selector navigates to /draft/[year].
- * Live Draft Mode only shown for the most current year.
+ * Session S restructure:
+ *   - Collapse button moved below brand header (small right-aligned pill)
+ *   - "Draft Context" renamed to "Filters"
+ *   - "Mark Picked Players" renamed to "Drafted Players"
+ *   - Section order: View Mode -> Filters -> [spacer] -> Player List -> Map Display -> How to Read
+ *   - "Show Movement Lines" toggle added to Map Display
+ *   - showLines / onShowLinesToggle props added
  */
 
 import { useState, useCallback } from "react";
 import { VALID_DRAFT_YEARS } from "@/lib/airtable";
 
-// ── Types passed in from DraftChart ──────────────────────────────────────────
-
 export type ViewMode = "projected" | "drafted";
 
 export interface AnimationState {
   playing: boolean;
-  /** 0 = at projected positions, 1 = at drafted positions. */
   step: number;
 }
 
 export interface SidebarProps {
-  // View
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  // Animation player
   animState: AnimationState;
   onPlay: () => void;
   onPause: () => void;
@@ -43,31 +34,24 @@ export interface SidebarProps {
   onStepBack: () => void;
   onStepForward: () => void;
   onJumpEnd: () => void;
-  // Filters
   view: "all" | "offense" | "defense";
   onViewChange: (v: "all" | "offense" | "defense") => void;
   year: number;
   liveMode: boolean;
   onLiveModeToggle: () => void;
+  showLines: boolean;
+  onShowLinesToggle: () => void;
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── SidebarSection ────────────────────────────────────────────────────────────
 
 function SidebarSection({
-  label,
-  icon,
-  defaultOpen = true,
-  collapsed: sidebarCollapsed,
-  children,
+  label, icon, defaultOpen = true, collapsed: sidebarCollapsed, children,
 }: {
-  label: string;
-  icon: string;
-  defaultOpen?: boolean;
-  collapsed: boolean;
-  children: React.ReactNode;
+  label: string; icon: string; defaultOpen?: boolean;
+  collapsed: boolean; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-
   if (sidebarCollapsed) {
     return (
       <div className="sb-section sb-section--icon-only" title={label}>
@@ -75,14 +59,9 @@ function SidebarSection({
       </div>
     );
   }
-
   return (
     <div className={`sb-section${open ? " sb-section--open" : ""}`}>
-      <button
-        className="sb-section-header"
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
-      >
+      <button className="sb-section-header" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <span className="sb-section-icon">{icon}</span>
         <span className="sb-section-label">{label}</span>
         <span className="sb-section-chevron">{open ? "▾" : "▸"}</span>
@@ -92,16 +71,11 @@ function SidebarSection({
   );
 }
 
-// Segmented control for View Mode
+// ── Segmented control ─────────────────────────────────────────────────────────
+
 function SegmentedControl({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-}) {
+  value, options, onChange,
+}: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
   return (
     <div className="sb-segmented">
       {options.map(opt => (
@@ -109,88 +83,31 @@ function SegmentedControl({
           key={opt.value}
           className={`sb-seg-btn${value === opt.value ? " active" : ""}`}
           onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </button>
+        >{opt.label}</button>
       ))}
     </div>
   );
 }
 
-// Animation player controls
+// ── Animation player ──────────────────────────────────────────────────────────
+
 function AnimPlayer({
-  animState,
-  viewMode,
-  onPlay,
-  onPause,
-  onReset,
-  onStepBack,
-  onStepForward,
-  onJumpEnd,
+  animState, viewMode, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd,
 }: Pick<SidebarProps, "animState" | "viewMode" | "onPlay" | "onPause" | "onReset" | "onStepBack" | "onStepForward" | "onJumpEnd">) {
-  // In "projected" mode there is only one step so < and > are greyed out.
   const stepsDisabled = viewMode === "projected";
   const { playing, step } = animState;
   const atStart = step === 0;
   const atEnd   = step === 1;
-
   return (
     <div className="sb-player">
-      {/* Reset — always enabled */}
-      <button
-        className="sb-player-btn"
-        onClick={onReset}
-        title="Reset to projected"
-        disabled={atStart}
-      >
-        &#x23EE;
-      </button>
-      {/* Step back */}
-      <button
-        className="sb-player-btn"
-        onClick={onStepBack}
-        title="Step back"
-        disabled={stepsDisabled || atStart}
-      >
-        &#x23EA;
-      </button>
-      {/* Play / Pause */}
-      {playing ? (
-        <button
-          className="sb-player-btn sb-player-btn--primary"
-          onClick={onPause}
-          title="Pause"
-        >
-          &#x23F8;
-        </button>
-      ) : (
-        <button
-          className="sb-player-btn sb-player-btn--primary"
-          onClick={onPlay}
-          title="Play"
-          disabled={atEnd}
-        >
-          &#x23F5;
-        </button>
-      )}
-      {/* Step forward */}
-      <button
-        className="sb-player-btn"
-        onClick={onStepForward}
-        title="Step forward"
-        disabled={stepsDisabled || atEnd}
-      >
-        &#x23E9;
-      </button>
-      {/* Jump to end */}
-      <button
-        className="sb-player-btn"
-        onClick={onJumpEnd}
-        title="Jump to end"
-        disabled={atEnd}
-      >
-        &#x23ED;
-      </button>
+      <button className="sb-player-btn" onClick={onReset} title="Reset to projected" disabled={atStart}>&#x23EE;</button>
+      <button className="sb-player-btn" onClick={onStepBack} title="Step back" disabled={stepsDisabled || atStart}>&#x23EA;</button>
+      {playing
+        ? <button className="sb-player-btn sb-player-btn--primary" onClick={onPause} title="Pause">&#x23F8;</button>
+        : <button className="sb-player-btn sb-player-btn--primary" onClick={onPlay} title="Play" disabled={atEnd}>&#x23F5;</button>
+      }
+      <button className="sb-player-btn" onClick={onStepForward} title="Step forward" disabled={stepsDisabled || atEnd}>&#x23E9;</button>
+      <button className="sb-player-btn" onClick={onJumpEnd} title="Jump to end" disabled={atEnd}>&#x23ED;</button>
     </div>
   );
 }
@@ -203,31 +120,20 @@ export default function Sidebar(props: SidebarProps) {
     animState, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd,
     view, onViewChange,
     year, liveMode, onLiveModeToggle,
+    showLines, onShowLinesToggle,
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
 
   const handleYearChange = useCallback((selectedYear: number) => {
-    if (selectedYear !== year) {
-      router.push(`/draft/${selectedYear}`);
-    }
+    if (selectedYear !== year) router.push(`/draft/${selectedYear}`);
   }, [year, router]);
-
 
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
-      {/* Collapse toggle */}
-      <button
-        className="sb-collapse-btn"
-        onClick={() => setCollapsed(c => !c)}
-        title={collapsed ? "Expand panel" : "Collapse panel"}
-        aria-label={collapsed ? "Expand panel" : "Collapse panel"}
-      >
-        {collapsed ? "›" : "‹"}
-      </button>
 
-      {/* Brand header — always visible, dark navy with logo mark */}
+      {/* ── Brand header ── */}
       <div className={`sb-brand${collapsed ? " sb-brand--collapsed" : ""}`}>
         <Image
           src="/brand/draftmap-mark.svg"
@@ -244,16 +150,16 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {/* ── Nav link: Player List ── */}
-      <div className="sb-nav-link-row">
-        <Link
-          href={`/players?year=${year}`}
-          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
-          title="Player List"
+      {/* ── Collapse button — small pill below brand header ── */}
+      <div className="sb-collapse-row">
+        <button
+          className="sb-collapse-btn"
+          onClick={() => setCollapsed(c => !c)}
+          title={collapsed ? "Expand panel" : "Collapse panel"}
+          aria-label={collapsed ? "Expand panel" : "Collapse panel"}
         >
-          <span className="sb-nav-link-icon">☰</span>
-          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
-        </Link>
+          {collapsed ? "›" : "‹"}
+        </button>
       </div>
 
       {/* ── Zone 1: View Mode ── */}
@@ -267,21 +173,17 @@ export default function Sidebar(props: SidebarProps) {
           onChange={v => onViewModeChange(v as ViewMode)}
         />
         <div className="sb-view-hint">
-          {viewMode === "projected"
-            ? "Derek's pre-draft board"
-            : "Where players were actually picked"}
+          {viewMode === "projected" ? "Derek's pre-draft board" : "Where players were actually picked"}
         </div>
         <AnimPlayer
-          animState={animState}
-          viewMode={viewMode}
+          animState={animState} viewMode={viewMode}
           onPlay={onPlay} onPause={onPause} onReset={onReset}
-          onStepBack={onStepBack} onStepForward={onStepForward}
-          onJumpEnd={onJumpEnd}
+          onStepBack={onStepBack} onStepForward={onStepForward} onJumpEnd={onJumpEnd}
         />
       </SidebarSection>
 
-      {/* ── Zone 2: Draft Context ── */}
-      <SidebarSection label="Draft Context" icon="📋" collapsed={collapsed}>
+      {/* ── Zone 2: Filters (was Draft Context) ── */}
+      <SidebarSection label="Filters" icon="📋" collapsed={collapsed}>
         <div className="sb-field-group">
           <label className="sb-field-label">Year</label>
           <div className="sb-btn-group">
@@ -290,9 +192,7 @@ export default function Sidebar(props: SidebarProps) {
                 key={y}
                 className={`sb-filter-btn${year === y ? " active" : ""}`}
                 onClick={() => handleYearChange(y)}
-              >
-                {y}
-              </button>
+              >{y}</button>
             ))}
           </div>
         </div>
@@ -304,26 +204,51 @@ export default function Sidebar(props: SidebarProps) {
                 key={v}
                 className={`sb-filter-btn${view === v ? " active" : ""}`}
                 onClick={() => onViewChange(v)}
-              >
-                {v === "all" ? "All" : v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
+              >{v === "all" ? "All" : v.charAt(0).toUpperCase() + v.slice(1)}</button>
             ))}
           </div>
         </div>
         <div className="sb-field-group">
-            <button
-              className={`sb-live-btn${liveMode ? " active" : ""}`}
-              onClick={onLiveModeToggle}
-            >
-              <span className="sb-live-dot" />
-              Mark Picked Players
-            </button>
-            <div className="sb-field-hint">Greys out drafted players in Projected view</div>
-          </div>
+          <button
+            className={`sb-live-btn${liveMode ? " active" : ""}`}
+            onClick={onLiveModeToggle}
+          >
+            <span className="sb-live-dot" />
+            Drafted Players
+          </button>
+          <div className="sb-field-hint">Greys out drafted players in Projected view</div>
+        </div>
       </SidebarSection>
+
+      {/* ── Spacer — pushes remaining sections to bottom ── */}
+      <div className="sb-spacer" />
+
+      {/* ── Player List link (bottom) ── */}
+      <div className="sb-nav-link-row">
+        <Link
+          href={`/players?year=${year}`}
+          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
+          title="Player List"
+        >
+          <span className="sb-nav-link-icon">☰</span>
+          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
+        </Link>
+      </div>
 
       {/* ── Zone 3: Map Display ── */}
       <SidebarSection label="Map Display" icon="🗺" collapsed={collapsed}>
+        {/* Show Movement Lines toggle */}
+        <div className="sb-field-group">
+          <button
+            className={`sb-toggle-btn${showLines ? " active" : ""}`}
+            onClick={onShowLinesToggle}
+          >
+            <span className={`sb-toggle-dot${showLines ? " active" : ""}`} />
+            Show Movement Lines
+          </button>
+          <div className="sb-field-hint">Display all projection-to-actual lines</div>
+        </div>
+
         {viewMode === "drafted" && (
           <div className="sb-legend">
             <div className="sb-legend-title">Dot Size</div>
@@ -350,20 +275,16 @@ export default function Sidebar(props: SidebarProps) {
       {/* ── Zone 4: How to Read (collapsed by default) ── */}
       <SidebarSection label="How to Read" icon="?" defaultOpen={false} collapsed={collapsed}>
         <p className="sb-help-text">
-          <strong>Y-axis:</strong> Draft position — top picks are highest, late rounds
-          are lowest. The gap between dots in a position column is a talent cliff.
+          <strong>Y-axis:</strong> Draft position — top picks are highest, late rounds are lowest.
         </p>
         <p className="sb-help-text">
           <strong>X-axis:</strong> Position groups, sized by class depth.
         </p>
         <p className="sb-help-text">
-          <strong>Projected view:</strong> Each dot sits at Derek's pre-draft ranking.
-          Dot color = player's college.
+          <strong>Projected view:</strong> Derek's pre-draft ranking. Dot color = college.
         </p>
         <p className="sb-help-text">
-          <strong>Drafted view:</strong> Dots animate to where each player was actually
-          picked. Color transitions from college to NFL team. Larger dots = bigger surprise.
-          UDFA zone shows players who went undrafted.
+          <strong>Drafted view:</strong> Where each player was actually picked. Color = NFL team. Larger dots = bigger surprise. Hover a dot to see projected vs. actual movement.
         </p>
       </SidebarSection>
     </aside>
