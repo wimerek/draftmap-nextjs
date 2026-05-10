@@ -39,10 +39,10 @@ export default function RoundZones({ layout }: Props) {
           x={margin.left - 10}
           y={roundLabelYs[rd] + 4}
           textAnchor="end"
-          fontSize={11}
+          fontSize={14}
           fontWeight={700}
           fontFamily="Oswald, sans-serif"
-          fill="#6A7E8E"
+          fill="#5A6E7E"
           letterSpacing={0.5}
         >
           R{rd}

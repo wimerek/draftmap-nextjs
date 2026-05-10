@@ -144,7 +144,7 @@ export default function Sidebar(props: SidebarProps) {
         />
         {!collapsed && (
           <div className="sb-brand-text">
-            <span className="sb-brand-name">DRAFTMAP</span>
+            <span className="sb-brand-name">DraftMap</span>
             <span className="sb-brand-tagline">NFL Draft at a glance.</span>
           </div>
         )}

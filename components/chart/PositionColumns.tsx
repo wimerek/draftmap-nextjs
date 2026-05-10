@@ -115,12 +115,22 @@ export default function PositionColumns({ layout }: Props) {
         if (!firstOffPos) return null;
         const gapCenterX = colXMap[firstOffPos] - sepW / 2;
         return (
-          <line
-            x1={gapCenterX} y1={margin.top}
-            x2={gapCenterX} y2={margin.top + totalChartH}
-            stroke="#9AAAB8"
-            strokeWidth={2}
-          />
+          <>
+            <rect
+              x={gapCenterX - sepW / 2}
+              y={margin.top}
+              width={sepW}
+              height={totalChartH}
+              fill="rgba(212,160,23,0.05)"
+            />
+            <line
+              x1={gapCenterX} y1={margin.top}
+              x2={gapCenterX} y2={margin.top + totalChartH}
+              stroke="#D4A017"
+              strokeWidth={1.5}
+              opacity={0.30}
+            />
+          </>
         );
       })()}
     </g>
