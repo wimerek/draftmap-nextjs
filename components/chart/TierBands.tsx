@@ -31,7 +31,7 @@ export default function TierBands({ layout }: Props) {
         const lineH  = 13;
         const totalH = labelLines.length * lineH;
         const startY = midY - totalH / 2 + lineH - 2;
-        const textX  = barX + 8 + (pillW - 8) / 2;
+        const textX  = barX + 6;
 
         return (
           <g key={i}>
@@ -67,7 +67,7 @@ export default function TierBands({ layout }: Props) {
                 key={li}
                 x={textX}
                 y={startY + li * lineH}
-                textAnchor="middle"
+                textAnchor="start"
                 fontSize={10} fontWeight={700}
                 fill="#1A2D42"
                 opacity={0.60}
