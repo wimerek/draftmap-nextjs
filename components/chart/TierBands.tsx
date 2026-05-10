@@ -1,9 +1,10 @@
 "use client";
 /**
  * components/chart/TierBands.tsx
- * Renders the horizontal tier background fills and the pill labels in the left margin.
- * Pills use the shared tierPillGradient defined in DraftChart.tsx <defs>.
- * Tier band background tints are retained for interior spatial cues.
+ *
+ * Session V: Gold pill + navy text (was no-fill annotation).
+ *   - Pill background: gold #D4A017 at 0.92 opacity
+ *   - Text: navy #0B2239, bold — inverts sidebar navy/gold for contrast
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -19,38 +20,37 @@ export default function TierBands({ layout }: Props) {
       {tierBandDefs.map((t, i) => {
         const pH  = Math.max(28, (t.y2 - t.y1) - 8);
         const py  = t.y1 + 4;
-        const cx  = pillX + pillW / 2;
         const labelLines =
           t.name === "Role Player / Project"
-            ? ["Role Player", "or", "Project"]
+            ? ["Role Player", "/ Project"]
             : [t.name];
-        const lineH   = 12;
+        const lineH   = 13;
         const totalH  = labelLines.length * lineH;
-        const startY  = py + (pH - totalH) / 2 + lineH - 2;
+        const startY  = py + (pH - totalH) / 2 + lineH - 3;
 
         return (
           <g key={i}>
-            {/* Tier background fill — subtle tint, retained for spatial cuing */}
+            {/* Tier background fill — subtle tint */}
             <rect
               x={margin.left} y={t.y1}
               width={chartW} height={t.y2 - t.y1}
               fill={t.bg}
             />
-            {/* Gold left accent bar — 3px, no background */}
+            {/* Gold pill */}
             <rect
               x={pillX} y={py}
-              width={3} height={pH}
-              rx={1.5}
+              width={pillW} height={pH}
+              rx={4}
               fill="#D4A017"
-              opacity={0.75}
+              opacity={0.92}
             />
             {labelLines.map((line, li) => (
               <text
                 key={li}
-                x={pillX + 9} y={startY + li * lineH}
-                textAnchor="start"
+                x={pillX + pillW / 2} y={startY + li * lineH}
+                textAnchor="middle"
                 fontSize={10} fontWeight={700}
-                fill="rgba(245,240,232,0.65)"
+                fill="#0B2239"
               >
                 {line}
               </text>

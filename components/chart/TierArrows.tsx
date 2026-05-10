@@ -2,10 +2,10 @@
 /**
  * components/chart/TierArrows.tsx
  *
- * Session I: Arrow repositioned to fixed x=40, clear of round labels.
- * Text labels now sit to the LEFT of the arrow (textAnchor="end").
- * Gradient boosted to 0.88 top opacity for better pop.
- * strokeWidth bumped to 4.
+ * Session V: "Top Prospects" rotated to vertical axis label (bottom-to-top).
+ *   - Text centered along the arrow's Y span, 14px left of arrow line
+ *   - Reads as a proper axis label, not a decorative callout
+ *   - "Lower Prospects" removed (arrow direction is self-explanatory)
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -13,20 +13,18 @@ interface Props {
   layout: ChartLayout;
 }
 
-const GOLD      = "#D4A017";
-const GOLD_PALE = "rgba(212,160,23,0.28)";
+const GOLD = "#D4A017";
 
 export default function TierArrows({ layout }: Props) {
   const { tierBandDefs, margin, totalChartH } = layout;
 
   const arrowTopY = tierBandDefs[0].y1;
-  // Arrow stops at the pick-256 line; UDFA zone is a separate element.
   const arrowBotY = margin.top + totalChartH;
   const aHead = 5;
-
-  // Fixed x=40 — sits comfortably left of round labels
-  // (round labels end at margin.left - 10 ≈ x=90, arrow is at x=40, gap=50px).
   const arrowX = 40;
+
+  // Center the vertical label along the full arrow span
+  const midY = (arrowTopY + arrowBotY) / 2;
 
   return (
     <g>
@@ -44,26 +42,16 @@ export default function TierArrows({ layout }: Props) {
         stroke="none"
         strokeLinejoin="round"
       />
-      {/* "Top Prospects" — two lines, centred over the arrowhead */}
+      {/* "Top Prospects" — vertical axis label, centered along arrow */}
       <text
-        x={arrowX} y={arrowTopY - aHead - 14}
+        transform={`translate(${arrowX - 14}, ${midY}) rotate(-90)`}
         textAnchor="middle"
         fontSize={9} fontWeight={600}
         fill={GOLD}
         opacity={0.80}
+        letterSpacing={0.8}
       >
-        <tspan x={arrowX} dy="0">Top</tspan>
-        <tspan x={arrowX} dy="11">Prospects</tspan>
-      </text>
-      {/* "Lower" label — ends just left of the arrow */}
-      <text
-        x={arrowX - 10} y={arrowBotY + 13}
-        textAnchor="end"
-        fontSize={9} fontWeight={800}
-        fill={GOLD_PALE}
-        stroke="rgba(255,255,255,0.7)" strokeWidth={1.2} paintOrder="stroke fill"
-      >
-        Lower Prospects
+        Top Prospects
       </text>
     </g>
   );
