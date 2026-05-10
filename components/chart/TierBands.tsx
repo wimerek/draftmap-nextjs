@@ -2,10 +2,10 @@
 /**
  * components/chart/TierBands.tsx
  *
- * Session X: Bracket annotation shape.
- *   - Left vertical bar + top cap + bottom cap spanning full label width
- *   - No background fill — bracket frames the label zone
- *   - Text: navy #1A2D42 at 0.60 opacity on near-white chart bg
+ * Session Y: True ] bracket annotation.
+ *   - Right vertical bar spanning full tier height
+ *   - Short top/bottom caps extending left from the bar
+ *   - Label text centered inside the bracket zone
  */
 import type { ChartLayout } from "@/lib/chartMath";
 
@@ -19,55 +19,56 @@ export default function TierBands({ layout }: Props) {
   return (
     <g>
       {tierBandDefs.map((t, i) => {
-        const labelH   = t.name === "Role Player / Project" ? 36 : 24;
-        const tierMidY = (t.y1 + t.y2) / 2;
-        const py       = tierMidY - labelH / 2;
-        const bx       = pillX;       // left edge of bracket
-        const bw       = pillW;       // full label zone width
-        const capW     = bw;          // caps span full width
+        const tierH  = t.y2 - t.y1;
+        const midY   = (t.y1 + t.y2) / 2;
+        const barX   = pillX + pillW - 2;   // right vertical bar x
+        const capLen = 14;                  // cap extends 14px left from bar
 
         const labelLines =
           t.name === "Role Player / Project"
-            ? ["Role Player", "/ Project"]
+            ? ["Role", "Player"]
             : [t.name];
         const lineH  = 13;
         const totalH = labelLines.length * lineH;
-        const startY = py + (labelH - totalH) / 2 + lineH - 2;
+        const startY = midY - totalH / 2 + lineH - 2;
 
         return (
           <g key={i}>
             {/* Tier background fill */}
             <rect
               x={margin.left} y={t.y1}
-              width={chartW} height={t.y2 - t.y1}
+              width={chartW} height={tierH}
               fill={t.bg}
             />
-            {/* Bracket: left vertical bar */}
+
+            {/* ] bracket: right vertical bar — full tier height */}
             <rect
-              x={bx} y={py}
-              width={2} height={labelH}
+              x={barX} y={t.y1}
+              width={2} height={tierH}
               rx={1}
               fill="#D4A017"
-              opacity={0.80}
+              opacity={0.50}
             />
-            {/* Bracket: top cap */}
+            {/* ] bracket: top cap */}
             <line
-              x1={bx} y1={py}
-              x2={bx + capW} y2={py}
-              stroke="#D4A017" strokeWidth={1.5} opacity={0.55}
+              x1={barX + 2} y1={t.y1}
+              x2={barX + 2 - capLen} y2={t.y1}
+              stroke="#D4A017" strokeWidth={1.5} opacity={0.50}
             />
-            {/* Bracket: bottom cap */}
+            {/* ] bracket: bottom cap */}
             <line
-              x1={bx} y1={py + labelH}
-              x2={bx + capW} y2={py + labelH}
-              stroke="#D4A017" strokeWidth={1.5} opacity={0.55}
+              x1={barX + 2} y1={t.y2}
+              x2={barX + 2 - capLen} y2={t.y2}
+              stroke="#D4A017" strokeWidth={1.5} opacity={0.50}
             />
-            {/* Label text */}
+
+            {/* Label — centered inside bracket zone */}
             {labelLines.map((line, li) => (
               <text
                 key={li}
-                x={bx + 8} y={startY + li * lineH}
-                textAnchor="start"
+                x={pillX + (pillW - 6) / 2}
+                y={startY + li * lineH}
+                textAnchor="middle"
                 fontSize={10} fontWeight={700}
                 fill="#1A2D42"
                 opacity={0.60}
