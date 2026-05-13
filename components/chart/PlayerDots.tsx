@@ -45,7 +45,7 @@ export default function PlayerDots({
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const hoveredDot = inDraftedView && hoveredId
-    ? dotPositions.find(d => d.player.id === hoveredId) ?? null
+    ? dotPositions.find(d => d.player.player_id === hoveredId) ?? null
     : null;
 
   return (
@@ -58,7 +58,7 @@ export default function PlayerDots({
           const opacity = Math.min(0.10 + pickValueDelta / 200, 0.38);
           return (
             <line
-              key={`all-conn-${player.id}-${i}`}
+              key={`all-conn-${player.player_id}-${i}`}
               x1={x} y1={Math.min(actualY, projectedY)}
               x2={x} y2={Math.max(actualY, projectedY)}
               stroke="#D4A017"
@@ -127,13 +127,13 @@ export default function PlayerDots({
 
         return (
           <circle
-            key={`${player.id}-${i}`}
+            key={`${player.player_id}-${i}`}
             cx={x} cy={cy} r={r}
             stroke={stroke}
             strokeWidth={inDraftedView ? 2.5 : 1.5}
             style={{ fill, cursor: "pointer", transition }}
             onClick={e => { e.stopPropagation(); onDotClick(player); }}
-            onMouseEnter={e => { setHoveredId(player.id); onDotHover(player, e.clientX, e.clientY); }}
+            onMouseEnter={e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); }}
             onMouseLeave={() => { setHoveredId(null); onDotLeave(); }}
           />
         );

@@ -49,7 +49,7 @@ export default function PlayerLabels({ dotPositions, zoomLevel, liveMode }: Prop
     const strengths = [player.s1, player.s2, player.s3].filter((s): s is string => !!s && s !== "N/A");
 
     labels.push(
-      <g key={`label-${player.id}-${idx}`} pointerEvents="none">
+      <g key={`label-${player.player_id}-${idx}`} pointerEvents="none">
         <text x={lx} y={baseY} textAnchor={anchor} fontSize={9} fontWeight={600} fill="#1A2720">
           {player.name}
         </text>

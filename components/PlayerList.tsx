@@ -306,7 +306,7 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
             {visible.map((p, rowIdx) => {
               const rowBg = rowIdx % 2 === 0 ? "#FDFAF5" : "#F5EFE4";
               return (
-                <tr key={p.id} style={{ background: rowBg }}>
+                <tr key={p.player_id} style={{ background: rowBg }}>
                   {/* # */}
                   <td style={{ ...tdBase, position: "sticky", left: 0, background: rowBg, color: "#9a8a7a", zIndex: 1 }}>
                     {p.rank ?? "—"}

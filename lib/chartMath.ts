@@ -530,7 +530,7 @@ export function computeAllDotPositions(
         const isRanked = (player.rank ?? 0) > 0;
 
         // Stable hash seed: ranked -> rank integer, unranked -> hash of Airtable ID.
-        const hashSeed = isRanked ? player.rank! : hashStr(player.id);
+        const hashSeed = isRanked ? player.rank! : hashStr(player.player_id);
 
         // Deterministic horizontal jitter (triangular, centre-weighted).
         const JITTER_PAD = 10;
