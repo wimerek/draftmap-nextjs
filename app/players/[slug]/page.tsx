@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { fetchPlayers, findBySlug, toSlug } from "@/lib/airtable";
+import { fetchPlayers, findBySlug, toSlug } from "@/lib/sheets";
 import { fmtHeight } from "@/lib/utils";
 
 interface Props {

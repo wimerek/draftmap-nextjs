@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchPlayers } from "@/lib/airtable";
+import { fetchPlayers } from "@/lib/sheets";
 
 export const revalidate = 300;
 

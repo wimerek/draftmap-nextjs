@@ -19,7 +19,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Player } from "@/lib/airtable";
+import type { Player } from "@/lib/sheets";
 import { SCHOOL_COLORS, cardPositionalRangeData } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
 

@@ -10,7 +10,7 @@
  * Connector color: brand gold #D4A017 (neutral, no value judgment).
  */
 import { useState } from "react";
-import type { Player } from "@/lib/airtable";
+import type { Player } from "@/lib/sheets";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
 import { SCHOOL_COLORS } from "@/lib/chartConstants";

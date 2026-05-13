@@ -14,8 +14,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { Player } from "@/lib/airtable";
-import { VALID_DRAFT_YEARS } from "@/lib/airtable";
+import type { Player } from "@/lib/sheets";
+import { VALID_DRAFT_YEARS } from "@/lib/sheets";
 import { fmtHeight, ALL_POSITIONS } from "@/lib/utils";
 import { cardPositionalRangeData } from "@/lib/chartConstants";
 

@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import type { Player } from "@/lib/airtable";
+import type { Player } from "@/lib/sheets";
 import {
   computeChartLayout,
   computeAllDotPositions,

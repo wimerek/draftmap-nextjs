@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
  */
 
 import { useState, useCallback } from "react";
-import { VALID_DRAFT_YEARS } from "@/lib/airtable";
+import { VALID_DRAFT_YEARS } from "@/lib/sheets";
 
 export type ViewMode = "projected" | "drafted";
 

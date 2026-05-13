@@ -1,5 +1,5 @@
 import PlayerList from "@/components/PlayerList";
-import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/airtable";
+import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/sheets";
 import type { Metadata } from "next";
 
 interface Props {

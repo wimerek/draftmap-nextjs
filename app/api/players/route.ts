@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchPlayers } from "@/lib/airtable";
+import { fetchPlayers } from "@/lib/sheets";
 
 // Default revalidation for ISR — 5 minutes
 export const revalidate = 300;

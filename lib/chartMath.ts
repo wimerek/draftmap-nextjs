@@ -15,7 +15,7 @@
  * for PlayerCard.tsx and future features (force simulation, results view).
  */
 
-import type { Player } from './airtable';
+import type { Player } from './sheets';
 import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, TIER_DEFS } from './chartConstants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

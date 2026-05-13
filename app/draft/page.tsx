@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CURRENT_DRAFT_YEAR } from "@/lib/airtable";
+import { CURRENT_DRAFT_YEAR } from "@/lib/sheets";
 
 /**
  * /draft — redirects to the most recent draft year.

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DraftChart from "@/components/DraftChart";
-import { VALID_DRAFT_YEARS } from "@/lib/airtable";
+import { VALID_DRAFT_YEARS } from "@/lib/sheets";
 
 interface Props {
   params: { year: string };
