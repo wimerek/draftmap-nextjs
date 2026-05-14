@@ -45,6 +45,7 @@ interface PlayerCardProps {
   player: Player | null;
   players: Player[];
   onClose: () => void;
+  isMobile?: boolean;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -383,7 +384,7 @@ const METRIC_HEADER = (
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PlayerCard({ player, players, onClose }: PlayerCardProps) {
+export default function PlayerCard({ player, players, onClose, isMobile = false }: PlayerCardProps) {
   if (!player) return null;
 
   const teamColorVars = useMemo(
@@ -425,6 +426,13 @@ export default function PlayerCard({ player, players, onClose }: PlayerCardProps
     >
       {/* Card */}
       <div id="pcm-wrap" style={teamColorVars} onClick={(e) => e.stopPropagation()}>
+        {/* Drag handle — mobile bottom sheet only */}
+        {isMobile && (
+          <div className="pcm-drag-handle" onClick={onClose} aria-label="Close">
+            <div className="pcm-drag-handle-pill" />
+          </div>
+        )}
+
         <button id="pcm-close" aria-label="Close player card" onClick={onClose}>
           &#x2715;
         </button>

@@ -2,19 +2,17 @@
 /**
  * components/chart/PlayerDots.tsx
  *
- * Session S: showLines prop added.
- *   - showLines=false (default): connector + ghost only on hover.
- *   - showLines=true: connectors rendered for ALL dots in Drafted view
- *     (scaled opacity by delta, no threshold). Hover still works on top.
- *
- * Connector color: brand gold #D4A017 (neutral, no value judgment).
+ * Phase Beta: isMobile prop added.
+ *   - Mobile: 44×44px invisible touch targets over each dot; tap opens card directly.
+ *     No tooltip on mobile. No entrance animation on mobile (isAnimating only fires
+ *     during the opening animation sequence).
+ *   - showLines / connector on hover: desktop only.
  */
 import { useState } from "react";
 import type { Player } from "@/lib/sheets";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
-import { SCHOOL_COLORS } from "@/lib/chartConstants";
-import { TEAM_COLORS } from "@/lib/chartConstants";
+import { SCHOOL_COLORS, TEAM_COLORS } from "@/lib/chartConstants";
 
 interface Props {
   dotPositions: DotPosition[];
@@ -22,12 +20,14 @@ interface Props {
   viewMode: ViewMode;
   isAnimating: boolean;
   showLines: boolean;
+  isMobile?: boolean;
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
 }
 
 const BASE_R = 6;
+const TOUCH_TARGET = 22; // half of 44px touch target
 
 function deltaToRadius(delta: number): number {
   return BASE_R + 10 * (1 - Math.exp(-delta / 25));
@@ -35,6 +35,7 @@ function deltaToRadius(delta: number): number {
 
 export default function PlayerDots({
   dotPositions, liveMode, viewMode, isAnimating, showLines,
+  isMobile = false,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
   const inDraftedView = viewMode === "drafted";
@@ -44,64 +45,51 @@ export default function PlayerDots({
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const hoveredDot = inDraftedView && hoveredId
+  const hoveredDot = !isMobile && inDraftedView && hoveredId
     ? dotPositions.find(d => d.player.player_id === hoveredId) ?? null
     : null;
 
   return (
     <g>
-      {/* ── All-lines mode (showLines toggle) — rendered first ───────────── */}
-      {inDraftedView && !isAnimating && showLines && dotPositions.map(
+      {/* ── All-lines mode (desktop only) ─────────────────────────────── */}
+      {!isMobile && inDraftedView && !isAnimating && showLines && dotPositions.map(
         ({ player, x, actualY, projectedY, pickValueDelta }, i) => {
           if (actualY === projectedY) return null;
-          // Scale opacity with delta so tiny moves are whisper-quiet
           const opacity = Math.min(0.10 + pickValueDelta / 200, 0.38);
           return (
             <line
               key={`all-conn-${player.player_id}-${i}`}
               x1={x} y1={Math.min(actualY, projectedY)}
               x2={x} y2={Math.max(actualY, projectedY)}
-              stroke="#D4A017"
-              strokeWidth={1.2}
-              opacity={opacity}
+              stroke="#D4A017" strokeWidth={1.2} opacity={opacity}
               style={{ pointerEvents: "none" }}
             />
           );
         }
       )}
 
-      {/* ── Hover connector + ghost circle — rendered second ─────────────── */}
+      {/* ── Hover connector (desktop only) ───────────────────────────── */}
       {hoveredDot && hoveredDot.actualY !== hoveredDot.projectedY && (
         <g style={{ pointerEvents: "none" }}>
           <line
-            x1={hoveredDot.x}
-            y1={Math.min(hoveredDot.actualY, hoveredDot.projectedY)}
-            x2={hoveredDot.x}
-            y2={Math.max(hoveredDot.actualY, hoveredDot.projectedY)}
-            stroke="#D4A017"
-            strokeWidth={1.8}
-            opacity={0.85}
+            x1={hoveredDot.x} y1={Math.min(hoveredDot.actualY, hoveredDot.projectedY)}
+            x2={hoveredDot.x} y2={Math.max(hoveredDot.actualY, hoveredDot.projectedY)}
+            stroke="#D4A017" strokeWidth={1.8} opacity={0.85}
           />
           <circle
-            cx={hoveredDot.x}
-            cy={hoveredDot.projectedY}
-            r={BASE_R}
-            fill="none"
-            stroke="#D4A017"
-            strokeWidth={1.5}
-            strokeDasharray="3,2"
-            opacity={0.65}
+            cx={hoveredDot.x} cy={hoveredDot.projectedY} r={BASE_R}
+            fill="none" stroke="#D4A017" strokeWidth={1.5}
+            strokeDasharray="3,2" opacity={0.65}
           />
         </g>
       )}
 
-      {/* ── Circles ─────────────────────────────────────────────────────── */}
+      {/* ── Circles ──────────────────────────────────────────────────── */}
       {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
         const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
         const isDrafted = liveMode && player.drafted && !inDraftedView;
 
-        let fill: string;
-        let stroke: string;
+        let fill: string, stroke: string;
         if (isDrafted) {
           fill   = "rgba(210,200,185,0.35)";
           stroke = "rgba(160,150,135,0.45)";
@@ -117,25 +105,41 @@ export default function PlayerDots({
         const cy = inDraftedView ? actualY : projectedY;
         const r  = inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R;
 
-        const tDuration = isAnimating ? (prefersReducedMotion ? 100 : 550) : 0;
-        const tDelay    = isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0;
+        // On mobile: no entrance animation (isMobile + not in opening sequence)
+        const skipAnim = isMobile && !isAnimating;
+        const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
+        const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
         const transition = tDuration > 0
-          ? [`cy ${tDuration}ms ease-out ${tDelay}ms`,
-             `r ${tDuration}ms ease-out ${tDelay}ms`,
-             `fill ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+          ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
         return (
-          <circle
-            key={`${player.player_id}-${i}`}
-            cx={x} cy={cy} r={r}
-            stroke={stroke}
-            strokeWidth={inDraftedView ? 2.5 : 1.5}
-            style={{ fill, cursor: "pointer", transition }}
-            onClick={e => { e.stopPropagation(); onDotClick(player); }}
-            onMouseEnter={e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); }}
-            onMouseLeave={() => { setHoveredId(null); onDotLeave(); }}
-          />
+          <g key={`${player.player_id}-${i}`}>
+            {/* Visible dot */}
+            <circle
+              cx={x} cy={cy} r={r}
+              stroke={stroke}
+              strokeWidth={inDraftedView ? 2.5 : 1.5}
+              style={{ fill, cursor: "pointer", transition }}
+              onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
+              onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
+              onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
+            />
+
+            {/* 44×44px invisible touch target (mobile only) */}
+            {isMobile && (
+              <rect
+                x={x - TOUCH_TARGET}
+                y={cy - TOUCH_TARGET}
+                width={TOUCH_TARGET * 2}
+                height={TOUCH_TARGET * 2}
+                fill="transparent"
+                stroke="none"
+                style={{ cursor: "pointer" }}
+                onClick={e => { e.stopPropagation(); onDotClick(player); }}
+              />
+            )}
+          </g>
         );
       })}
     </g>

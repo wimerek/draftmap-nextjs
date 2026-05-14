@@ -1023,3 +1023,306 @@ a { color: inherit; text-decoration: none; }
   background: #D4A017;
   box-shadow: 0 0 0 3px rgba(212,160,23,0.20);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase Beta — Mobile layout (<768px)
+   Desktop/tablet (≥768px) is completely unchanged.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar */
+  .dm-sidebar { display: none !important; }
+
+  /* App shell: full-screen fixed column */
+  .dm-app-layout {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #F7F9FA;
+  }
+
+  /* Main chart area fills remaining space between top bar and handle bar */
+  .dm-main {
+    flex: 1 1 0%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+    position: relative;
+  }
+
+  /* Chart frame: no horizontal scroll on mobile, width drives SVG scaling */
+  .dm-chart-frame {
+    overflow-x: hidden;
+    overflow-y: visible;
+    cursor: default;
+    padding-top: 0 !important;
+  }
+  .dm-chart-frame:active { cursor: default; }
+
+  /* The SVG fills the container width; height is computed from viewBox ratio */
+  .dm-chart-frame svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    touch-action: pan-y; /* allow vertical scroll; swipe-left/right captured by JS */
+  }
+
+  /* Suppress desktop tooltip on mobile */
+  .dm-tooltip { display: none !important; }
+}
+
+/* ── Mobile top bar ──────────────────────────────────────────────────────── */
+.mb-top-bar {
+  display: none; /* shown only on mobile via JS class */
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  background: #0B2239;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  flex-shrink: 0;
+  z-index: 20;
+  padding: 0 8px;
+  gap: 4px;
+}
+
+@media (max-width: 767px) {
+  .mb-top-bar { display: flex; }
+}
+
+/* Mini-map thumbnail */
+.mb-minimap-btn {
+  width: 56px;
+  height: 40px;
+  padding: 0;
+  border: 1.5px solid rgba(212,160,23,0.40);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.mb-minimap-btn:active { border-color: #D4A017; background: rgba(212,160,23,0.10); }
+.mb-minimap-btn svg { display: block; width: 100%; height: 100%; }
+
+/* Position navigator: < EDGE > */
+.mb-pos-nav {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+.mb-chevron {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(245,240,232,0.70);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.mb-chevron:active { color: #D4A017; }
+.mb-chevron:disabled { color: rgba(245,240,232,0.25); cursor: default; }
+.mb-pos-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #F5F0E8;
+  text-align: center;
+  min-width: 52px;
+}
+
+/* Overview badge (shown in overview state instead of chevron nav) */
+.mb-overview-label {
+  flex: 1;
+  text-align: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(245,240,232,0.50);
+  text-transform: uppercase;
+}
+
+/* ── Pagination dots ─────────────────────────────────────────────────────── */
+.mb-pagination {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  flex-shrink: 0;
+  background: #F7F9FA;
+  padding: 0 8px;
+}
+
+@media (max-width: 767px) {
+  .mb-pagination { display: flex; }
+}
+
+.mb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0B2239;
+  opacity: 0.12;
+  transition: opacity 200ms;
+  flex-shrink: 0;
+}
+.mb-dot--active {
+  opacity: 1;
+  background: #D4A017;
+}
+.mb-dot--swiping {
+  opacity: 0.7;
+}
+
+/* ── Bottom handle bar ───────────────────────────────────────────────────── */
+.mb-handle-bar {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  background: #0B2239;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  flex-shrink: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 30;
+}
+
+@media (max-width: 767px) {
+  .mb-handle-bar { display: flex; }
+}
+
+.mb-handle-pill {
+  width: 36px;
+  height: 4px;
+  background: rgba(245,240,232,0.35);
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+.mb-handle-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(245,240,232,0.50);
+}
+
+/* ── Bottom drawer ───────────────────────────────────────────────────────── */
+.mb-drawer-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 40;
+}
+.mb-drawer-backdrop--open { display: block; }
+
+.mb-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0B2239;
+  border-radius: 14px 14px 0 0;
+  z-index: 50;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+  transform: translateY(100%);
+  transition: transform 300ms ease;
+  -webkit-overflow-scrolling: touch;
+}
+.mb-drawer--open {
+  transform: translateY(0);
+}
+.mb-drawer-handle {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 8px;
+}
+.mb-drawer-handle-pill {
+  width: 36px;
+  height: 4px;
+  background: rgba(245,240,232,0.30);
+  border-radius: 2px;
+}
+.mb-drawer-content {
+  padding: 0 0 16px;
+}
+
+/* ── Mobile player card: bottom sheet ───────────────────────────────────── */
+@media (max-width: 767px) {
+  #pcm-bd {
+    align-items: flex-end;
+    padding: 0;
+  }
+  #pcm-wrap {
+    width: 100%;
+    max-height: 96vh;
+    height: 96vh;
+    border-radius: 14px 14px 0 0;
+    border: none;
+    outline: none;
+    padding: 0 16px 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #pcm-close {
+    top: 56px; /* below drag handle */
+    right: 12px;
+  }
+  .pcm-drag-handle {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0 8px;
+    cursor: grab;
+  }
+  .pcm-player-name {
+    font-size: clamp(24px, 7vw, 40px);
+    margin: 4px 48px 8px;
+  }
+}
+
+.pcm-drag-handle { display: none; } /* hidden on desktop */
+
+@media (max-width: 767px) {
+  .pcm-drag-handle { display: flex; }
+}
+
+.pcm-drag-handle-pill {
+  width: 36px;
+  height: 4px;
+  background: rgba(30, 26, 22, 0.25);
+  border-radius: 2px;
+}
+
+/* prefers-reduced-motion: disable all animations */
+@media (prefers-reduced-motion: reduce) {
+  .mb-drawer { transition: none; }
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
