@@ -12,6 +12,40 @@
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** Raw string fields from the Google Sheets CSV export, before type coercion. */
+export interface SheetsRawRow {
+  player_id?: string;
+  draft_year?: string;
+  name?: string;
+  pos?: string;
+  school?: string;
+  rd?: string;
+  rank?: string;
+  consensus_source?: string;
+  height?: string;
+  weight?: string;
+  hand?: string;
+  arm?: string;
+  forty?: string;
+  split10?: string;
+  vertical?: string;
+  broad?: string;
+  cone3?: string;
+  shuttle?: string;
+  bench?: string;
+  notes?: string;
+  role?: string;
+  s1?: string;
+  s2?: string;
+  s3?: string;
+  rd_drafted?: string;
+  pick_drafted?: string;
+  team_drafted?: string;
+}
+
+/** Shape returned by the /api/draft and /api/players route handlers. */
+export type SheetsApiResponse = Player[];
+
 export interface Player {
   /** Stable cross-source identifier: firstname-lastname-pos-school3-draftyear */
   player_id: string;
@@ -104,7 +138,7 @@ function parseCSVLine(line: string): string[] {
  * Parse full CSV text into an array of row objects keyed by header.
  * Skips blank lines. Returns [] if fewer than 2 lines.
  */
-function parseCSV(text: string): Record<string, string>[] {
+function parseCSV(text: string): SheetsRawRow[] {
   const lines = text
     .split("\n")
     .map((l) => l.replace(/\r$/, ""))
@@ -113,7 +147,7 @@ function parseCSV(text: string): Record<string, string>[] {
   if (lines.length < 2) return [];
 
   const headers = parseCSVLine(lines[0]);
-  const rows: Record<string, string>[] = [];
+  const rows: SheetsRawRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
@@ -121,7 +155,7 @@ function parseCSV(text: string): Record<string, string>[] {
     headers.forEach((h, j) => {
       row[h] = values[j] ?? "";
     });
-    rows.push(row);
+    rows.push(row as SheetsRawRow);
   }
 
   return rows;
@@ -147,7 +181,7 @@ function toStr(value: string | undefined): string | null {
 
 // ── Row → Player mapper ───────────────────────────────────────────────────────
 
-function mapRow(row: Record<string, string>): Player {
+function mapRow(row: SheetsRawRow): Player {
   const pos = (row.pos ?? "").trim().toUpperCase();
   const normalizedPos = pos === "DL" ? "DT" : pos;
 
