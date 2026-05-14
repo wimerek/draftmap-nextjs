@@ -9,6 +9,9 @@ on:
     - cron: '0 6 * * 1'  # Every Monday at 06:00 UTC
   workflow_dispatch:       # Allow manual runs from the Actions tab
 
+permissions:
+  contents: write
+
 jobs:
   backup:
     runs-on: ubuntu-latest
