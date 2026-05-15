@@ -73,6 +73,25 @@ export default async function PlayerPage({ params }: Props) {
   const player = await getPlayerForSlug(params.slug);
   if (!player) notFound();
 
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: player.name,
+    url: `https://draftmap.app/players/${params.slug}`,
+    description: `${player.name} — ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}, Rank #${player.rank} in the ${player.draft_year} NFL Draft.`}`,
+    affiliation: {
+      '@type': 'Organization',
+      name: player.school,
+    },
+    ...(player.team_drafted ? {
+      memberOf: {
+        '@type': 'SportsTeam',
+        name: player.team_drafted,
+        sport: 'American Football',
+      }
+    } : {}),
+  }
+
   const measurables = [
     { label: 'Height',       value: fmtHeight(player.height) },
     { label: 'Weight',       value: player.weight    ? `${player.weight} lbs`  : '—' },
@@ -88,6 +107,10 @@ export default async function PlayerPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-dm-bg px-4 py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      />
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="space-y-1">
           <p className="text-dm-text-secondary text-sm uppercase tracking-wider font-semibold">
