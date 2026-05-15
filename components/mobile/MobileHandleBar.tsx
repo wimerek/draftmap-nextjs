@@ -70,14 +70,22 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
       {/* Handle bar */}
       <div
         className="mb-handle-bar"
-        onClick={onOpen}
+        onClick={open ? onClose : onOpen}
         role="button"
-        aria-label="Open filters and options"
+        aria-label={open ? "Close filters and options" : "Open filters and options"}
+        aria-expanded={open}
         tabIndex={0}
-        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") open ? onClose() : onOpen(); }}
       >
         <div className="mb-handle-pill" />
-        <span className="mb-handle-label">Filters &amp; Options</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            className="mb-handle-chevron"
+            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+            aria-hidden="true"
+          >∧</span>
+          <span className="mb-handle-label">Filters &amp; Options</span>
+        </div>
       </div>
 
       {/* Backdrop */}
@@ -94,8 +102,13 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
         aria-modal="true"
         aria-label="Filters and Options"
       >
-        <div className="mb-drawer-handle">
+        <div className="mb-drawer-handle" style={{ position: "relative" }}>
           <div className="mb-drawer-handle-pill" />
+          <button
+            className="mb-drawer-done-btn"
+            onClick={onClose}
+            aria-label="Close filters"
+          >Done</button>
         </div>
 
         {/* Brand row inside drawer */}
