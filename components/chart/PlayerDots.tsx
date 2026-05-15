@@ -120,18 +120,40 @@ export default function PlayerDots({
           ? (isZoomedMobile ? 0.8 : 2.5)
           : (inDraftedView ? 2.5 : 1.5);
 
+        const showTwoTone = isMobile && inDraftedView && !isDrafted && player.team_drafted && !!TEAM_COLORS[player.team_drafted];
+
         return (
           <g key={`${player.player_id}-${i}`}>
             {/* Visible dot */}
-            <circle
-              cx={x} cy={cy} r={r}
-              stroke={dotStroke}
-              strokeWidth={dotStrokeWidth}
-              style={{ fill, cursor: "pointer", transition }}
-              onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
-              onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
-              onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
-            />
+            {showTwoTone ? (
+              <>
+                {/* Outer ring: secondary team color fill + white stroke */}
+                <circle
+                  cx={x} cy={cy} r={r + 2.5}
+                  fill={stroke}
+                  stroke="#ffffff"
+                  strokeWidth={1}
+                  style={{ pointerEvents: "none" }}
+                />
+                {/* Inner: primary team color fill */}
+                <circle
+                  cx={x} cy={cy} r={r}
+                  fill={fill}
+                  stroke="none"
+                  style={{ pointerEvents: "none" }}
+                />
+              </>
+            ) : (
+              <circle
+                cx={x} cy={cy} r={r}
+                stroke={dotStroke}
+                strokeWidth={dotStrokeWidth}
+                style={{ fill, cursor: "pointer", transition }}
+                onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
+                onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
+                onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
+              />
+            )}
 
             {/* 44×44px invisible touch target (mobile only) */}
             {isMobile && (

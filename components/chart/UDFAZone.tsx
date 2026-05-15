@@ -14,11 +14,14 @@ import type { ViewMode } from "@/components/Sidebar";
 interface Props {
   layout: ChartLayout;
   viewMode: ViewMode;
+  isZoomedMobile?: boolean;
 }
 
-export default function UDFAZone({ layout, viewMode }: Props) {
+export default function UDFAZone({ layout, viewMode, isZoomedMobile = false }: Props) {
   const [hover, setHover] = useState(false);
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
+
+  if (isZoomedMobile) return null;
 
   // Fade the zone in Projected view; full opacity in Drafted view.
   const opacity = viewMode === "drafted" ? 1 : 0.45;

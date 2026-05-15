@@ -1053,6 +1053,8 @@ a { color: inherit; text-decoration: none; }
     -webkit-overflow-scrolling: touch;
     min-height: 0;
     position: relative;
+    margin-top: 0;
+    padding-top: 0;
   }
 
   /* Chart frame: no horizontal scroll on mobile, full viewport width */
@@ -1060,6 +1062,7 @@ a { color: inherit; text-decoration: none; }
     overflow-x: hidden;
     overflow-y: visible;
     cursor: default;
+    margin-top: 0;
     padding-top: 0 !important;
     width: 100vw;
     max-width: 100vw;
@@ -1150,6 +1153,24 @@ a { color: inherit; text-decoration: none; }
   color: #F5F0E8;
   text-align: center;
   min-width: 52px;
+}
+
+/* Center stack: position name + subtitle */
+.mb-pos-nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* View mode subtitle below position name or overview label */
+.mb-pos-subtitle {
+  font-size: 11px;
+  font-family: "Inter", sans-serif;
+  color: rgba(245,240,232,0.40);
+  letter-spacing: 0.03em;
+  text-align: center;
+  line-height: 1;
 }
 
 /* Overview badge (shown in overview state instead of chevron nav) */

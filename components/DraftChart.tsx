@@ -499,6 +499,8 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           posIdx={mobilePosIdx}
           totalPositions={visiblePositions.length}
           mobileView={mobileView}
+          viewMode={viewMode}
+          year={year}
           onPrev={goToPrev}
           onNext={goToNext}
           onMiniMapTap={mobileView === "zoomed" ? goToOverview : () => goToPos(0)}
@@ -543,7 +545,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               <TierArrows layout={layout} />
               <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} />
-              <UDFAZone layout={layout} viewMode={viewMode} />
+              <UDFAZone layout={layout} viewMode={viewMode} isZoomedMobile={isZoomedMobile} />
               <PlayerDots
                 dotPositions={dotPositions}
                 liveMode={liveMode}
@@ -595,15 +597,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
         </div>
       )}
 
-      {/* ── Mobile handle bar + drawer ── */}
-      {isMobile && (
-        <MobileHandleBar
-          open={drawerOpen}
-          onOpen={() => setDrawerOpen(true)}
-          onClose={() => setDrawerOpen(false)}
-          sidebarProps={sidebarProps}
-        />
-      )}
+      {/* ── Mobile handle bar + drawer (always in DOM; CSS hides on desktop) ── */}
+      <MobileHandleBar
+        open={drawerOpen}
+        onOpen={() => setDrawerOpen(true)}
+        onClose={() => setDrawerOpen(false)}
+        sidebarProps={sidebarProps}
+      />
 
       {/* ── Desktop floating tooltip ── */}
       {!isMobile && tooltip && <ChartTooltip {...tooltip} />}

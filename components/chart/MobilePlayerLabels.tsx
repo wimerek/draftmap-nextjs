@@ -32,15 +32,22 @@ export default function MobilePlayerLabels({
     }))
     .sort((a, b) => a.cy - b.cy);
 
-  // Suppress labels for dots that have any neighbor within CLUSTER_THRESHOLD px
+  // Within each cluster (dots within CLUSTER_THRESHOLD of each other),
+  // show only the top-ranked player (lowest rank number).
+  // Isolated dots (no neighbors within threshold) always show.
   const suppressedIds = new Set<string>();
   for (let i = 0; i < dots.length; i++) {
+    const neighbors: typeof dots = [];
     for (let j = 0; j < dots.length; j++) {
-      if (i === j) continue;
-      if (Math.abs(dots[i].cy - dots[j].cy) < CLUSTER_THRESHOLD) {
-        suppressedIds.add(dots[i].player.player_id);
-        break;
+      if (i !== j && Math.abs(dots[i].cy - dots[j].cy) < CLUSTER_THRESHOLD) {
+        neighbors.push(dots[j]);
       }
+    }
+    if (neighbors.length === 0) continue;
+    const allInCluster = [dots[i], ...neighbors];
+    const bestRank = Math.min(...allInCluster.map(d => d.player.rank ?? 9999));
+    if ((dots[i].player.rank ?? 9999) !== bestRank) {
+      suppressedIds.add(dots[i].player.player_id);
     }
   }
 
