@@ -67,25 +67,25 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
 
   return (
     <>
-      {/* Handle bar */}
-      <div
-        className="mb-handle-bar"
-        onClick={open ? onClose : onOpen}
-        role="button"
-        aria-label={open ? "Close filters and options" : "Open filters and options"}
-        aria-expanded={open}
-        tabIndex={0}
-        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") open ? onClose() : onOpen(); }}
-      >
-        <div className="mb-handle-pill" />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            className="mb-handle-chevron"
-            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-            aria-hidden="true"
-          >∧</span>
-          <span className="mb-handle-label">Filters &amp; Options</span>
-        </div>
+      {/* Filter pill button */}
+      <div className="mb-handle-bar">
+        <button
+          className="mb-filter-pill-btn"
+          onClick={open ? onClose : onOpen}
+          aria-label={open ? "Close filters and options" : "Open filters and options"}
+          aria-expanded={open}
+        >
+          <svg
+            className="mb-filter-funnel-icon"
+            width="16" height="16" viewBox="0 0 20 20"
+            fill="none" aria-hidden="true"
+          >
+            <line x1="2" y1="5" x2="18" y2="5" stroke="#D4A017" strokeWidth="1.8" strokeLinecap="round"/>
+            <line x1="5" y1="10" x2="15" y2="10" stroke="#D4A017" strokeWidth="1.8" strokeLinecap="round"/>
+            <line x1="8" y1="15" x2="12" y2="15" stroke="#D4A017" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+          <span className="mb-filter-pill-label">FILTERS &amp; OPTIONS</span>
+        </button>
       </div>
 
       {/* Backdrop */}
@@ -102,13 +102,12 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
         aria-modal="true"
         aria-label="Filters and Options"
       >
-        <div className="mb-drawer-handle" style={{ position: "relative" }}>
-          <div className="mb-drawer-handle-pill" />
+        <div className="mb-drawer-header">
           <button
-            className="mb-drawer-done-btn"
+            className="mb-drawer-close-btn"
             onClick={onClose}
             aria-label="Close filters"
-          >Done</button>
+          >✕ Close</button>
         </div>
 
         {/* Brand row inside drawer */}
