@@ -113,13 +113,16 @@ export default function PlayerDots({
           ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
+        const dotStroke      = isMobile ? "#ffffff" : stroke;
+        const dotStrokeWidth = isMobile ? 2.5 : (inDraftedView ? 2.5 : 1.5);
+
         return (
           <g key={`${player.player_id}-${i}`}>
             {/* Visible dot */}
             <circle
               cx={x} cy={cy} r={r}
-              stroke={stroke}
-              strokeWidth={inDraftedView ? 2.5 : 1.5}
+              stroke={dotStroke}
+              strokeWidth={dotStrokeWidth}
               style={{ fill, cursor: "pointer", transition }}
               onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
               onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
