@@ -545,7 +545,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               <TierArrows layout={layout} />
               <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} />
-              <UDFAZone layout={layout} viewMode={viewMode} isZoomedMobile={isZoomedMobile} />
+              <UDFAZone
+                layout={layout}
+                viewMode={viewMode}
+                isZoomedMobile={isZoomedMobile}
+                viewBoxX={mobileZoomedX}
+                viewBoxW={mobileZoomedViewBoxW || undefined}
+              />
               <PlayerDots
                 dotPositions={dotPositions}
                 liveMode={liveMode}

@@ -11,9 +11,9 @@ export default function MobileRoundTicks({ layout, viewBoxX, viewBoxW }: Props) 
   const { roundLabelYs } = layout;
 
   const scale    = viewBoxW / 390;
-  const fontSize = Math.round(11 * scale * 10) / 10;
+  const fontSize = Math.round(12 * scale * 10) / 10;
 
-  const mutedColor = "rgba(11,34,57,0.55)";
+  const mutedColor = "#94a3b8";
 
   const labels = [1, 2, 3, 4, 5, 6, 7].map(rd => ({
     rd,

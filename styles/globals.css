@@ -1041,8 +1041,9 @@ a { color: inherit; text-decoration: none; }
     position: fixed;
     inset: 0;
     overflow: hidden;
-    background: #F7F9FA;
+    background: #0B2239;
     align-items: stretch;
+    padding-bottom: calc(65px + env(safe-area-inset-bottom));
   }
 
   /* Main chart area fills remaining space between top bar and handle bar */
@@ -1193,7 +1194,7 @@ a { color: inherit; text-decoration: none; }
   gap: 5px;
   height: 20px;
   flex-shrink: 0;
-  background: #F7F9FA;
+  background: #0B2239;
   padding: 0 8px;
 }
 
@@ -1205,8 +1206,8 @@ a { color: inherit; text-decoration: none; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #0B2239;
-  opacity: 0.12;
+  background: #F5F0E8;
+  opacity: 0.30;
   transition: opacity 200ms;
   flex-shrink: 0;
 }
@@ -1234,7 +1235,13 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (max-width: 767px) {
-  .mb-handle-bar { display: flex; }
+  .mb-handle-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
 }
 
 .mb-filter-pill-btn {

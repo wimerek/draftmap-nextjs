@@ -441,8 +441,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false 
         <div style={{ position: "relative", padding: "4px 2px 0" }}>
           <div className="pcm-card-id">{cardId}</div>
 
-          {/* Draft result badge */}
-          {player.drafted && (
+          {/* Draft result badge — desktop only */}
+          {player.drafted && !isMobile && (
             <div id="pcmDraftResult" style={{ display: "block" }}>
               <div className="pcm-draft-badge-label">Drafted</div>
               <table className="pcm-draft-table">
@@ -464,6 +464,13 @@ export default function PlayerCard({ player, players, onClose, isMobile = false 
             <span className="pcm-meta-divider" />
             <span>{player.school ?? ""}</span>
           </div>
+
+          {/* Mobile: static drafted info line */}
+          {isMobile && player.drafted && (player.rd_drafted != null || player.team_drafted) && (
+            <div style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "var(--pcm-text-muted, rgba(30,26,22,0.55))", paddingTop: 4, paddingBottom: 2 }}>
+              {`Drafted${player.rd_drafted != null ? `: Rd ${player.rd_drafted}` : ""}${player.pick_drafted != null ? `, Pick #${player.pick_drafted}` : ""}${player.team_drafted ? ` — ${player.team_drafted}` : ""}`}
+            </div>
+          )}
         </div>
 
         {/* ── Player Profile ──────────────────────────────────────── */}

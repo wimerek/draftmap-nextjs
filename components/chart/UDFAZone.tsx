@@ -15,13 +15,35 @@ interface Props {
   layout: ChartLayout;
   viewMode: ViewMode;
   isZoomedMobile?: boolean;
+  viewBoxX?: number;
+  viewBoxW?: number;
 }
 
-export default function UDFAZone({ layout, viewMode, isZoomedMobile = false }: Props) {
+export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, viewBoxX, viewBoxW }: Props) {
   const [hover, setHover] = useState(false);
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
 
-  if (isZoomedMobile) return null;
+  if (isZoomedMobile) {
+    const cx = viewBoxX !== undefined && viewBoxW !== undefined
+      ? viewBoxX + viewBoxW / 2
+      : margin.left + chartW / 2;
+    return (
+      <g pointerEvents="none">
+        <text
+          x={cx}
+          y={udfaZoneY + udfaZoneH / 2 + 4}
+          fontSize={10}
+          fontWeight={700}
+          fontFamily="Oswald, sans-serif"
+          fill="#64748b"
+          letterSpacing={1.5}
+          textAnchor="middle"
+        >
+          UDFA
+        </text>
+      </g>
+    );
+  }
 
   // Fade the zone in Projected view; full opacity in Drafted view.
   const opacity = viewMode === "drafted" ? 1 : 0.45;
