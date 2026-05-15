@@ -420,7 +420,10 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   const handleDotHover = useCallback((player: Player, clientX: number, clientY: number) => {
     if (isMobile) return;
-    const nearRight = typeof window !== "undefined" && clientX > window.innerWidth - 280;
+    // Safety net: check matchMedia directly in case isMobile state is still false
+    // during the brief window between mount and the first useEffect run.
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) return;
+    const nearRight = clientX > window.innerWidth - 280;
     setTooltip({ player, x: nearRight ? clientX - 248 : clientX + 40, y: clientY - 115 });
   }, [isMobile]);
 
