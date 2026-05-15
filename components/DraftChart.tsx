@@ -195,13 +195,12 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   );
 
   // ── Detect mobile ─────────────────────────────────────────────────────────
+  // Use matchMedia for both initial check and resize — same source as CSS, immune
+  // to Brave fingerprint-resistance spoofing of window.innerWidth.
   useLayoutEffect(() => {
-    setIsMobile(window.innerWidth < 768);
-  }, []);
-
-  useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     prefersReduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setIsMobile(mq.matches);
     const update = () => setIsMobile(mq.matches);
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
