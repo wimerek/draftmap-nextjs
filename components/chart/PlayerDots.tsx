@@ -21,6 +21,7 @@ interface Props {
   isAnimating: boolean;
   showLines: boolean;
   isMobile?: boolean;
+  isZoomedMobile?: boolean;
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
@@ -36,6 +37,7 @@ function deltaToRadius(delta: number): number {
 export default function PlayerDots({
   dotPositions, liveMode, viewMode, isAnimating, showLines,
   isMobile = false,
+  isZoomedMobile = false,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
   const inDraftedView = viewMode === "drafted";
@@ -114,7 +116,9 @@ export default function PlayerDots({
           : "none";
 
         const dotStroke      = isMobile ? "#ffffff" : stroke;
-        const dotStrokeWidth = isMobile ? 2.5 : (inDraftedView ? 2.5 : 1.5);
+        const dotStrokeWidth = isMobile
+          ? (isZoomedMobile ? 0.8 : 2.5)
+          : (inDraftedView ? 2.5 : 1.5);
 
         return (
           <g key={`${player.player_id}-${i}`}>

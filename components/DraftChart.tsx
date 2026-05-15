@@ -548,6 +548,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 isAnimating={isAnimating}
                 showLines={showLines}
                 isMobile={isMobile}
+                isZoomedMobile={isZoomedMobile}
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
