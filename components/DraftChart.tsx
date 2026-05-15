@@ -23,6 +23,7 @@ import Sidebar, {
 import MobileTopBar from "@/components/mobile/MobileTopBar";
 import MobileHandleBar from "@/components/mobile/MobileHandleBar";
 import MobilePlayerLabels from "@/components/chart/MobilePlayerLabels";
+import MobileRoundTicks from "@/components/chart/MobileRoundTicks";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -562,6 +563,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                   viewBoxX={mobileZoomedX ?? 0}
                   viewBoxW={mobileZoomedViewBoxW}
                   viewBoxTop={layout.margin.top}
+                />
+              )}
+              {isZoomedMobile && (
+                <MobileRoundTicks
+                  layout={layout}
+                  viewBoxX={mobileZoomedX ?? 0}
+                  viewBoxW={mobileZoomedViewBoxW}
                 />
               )}
               <ChartBorders layout={layout} />
