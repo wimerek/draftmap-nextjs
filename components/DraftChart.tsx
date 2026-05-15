@@ -486,6 +486,15 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     ? (layout.colXMap[currentMobilePos] ?? layout.margin.left) - MOBILE_PAD_L
     : undefined;
 
+  // Live viewBox x parsed from the animated mobileVB string so round-tick
+  // labels stay at the left edge even during the 300ms column-pan animation
+  // (mobileZoomedX only updates after animation completes).
+  const mobileVBX = useMemo(() => {
+    if (!mobileVB) return mobileZoomedX ?? 0;
+    const x = parseFloat(mobileVB);
+    return isNaN(x) ? (mobileZoomedX ?? 0) : x;
+  }, [mobileVB, mobileZoomedX]);
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="dm-app-layout">
@@ -577,7 +586,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               {isZoomedMobile && (
                 <MobileRoundTicks
                   layout={layout}
-                  viewBoxX={mobileZoomedX ?? 0}
+                  viewBoxX={mobileVBX}
                   viewBoxW={mobileZoomedViewBoxW}
                 />
               )}

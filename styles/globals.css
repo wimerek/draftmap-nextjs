@@ -1041,7 +1041,7 @@ a { color: inherit; text-decoration: none; }
     position: fixed;
     inset: 0;
     overflow: hidden;
-    background: #0B2239;
+    background: #F7F9FA;
     align-items: stretch;
     padding-bottom: calc(65px + env(safe-area-inset-bottom));
   }
@@ -1194,7 +1194,7 @@ a { color: inherit; text-decoration: none; }
   gap: 5px;
   height: 20px;
   flex-shrink: 0;
-  background: #0B2239;
+  background: transparent;
   padding: 0 8px;
 }
 
