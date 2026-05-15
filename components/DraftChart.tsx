@@ -133,8 +133,9 @@ function posViewBox(
 ): [number, number, number, number] {
   const x0 = (layout.colXMap[posName] ?? layout.margin.left) - MOBILE_PAD_L;
   const w  = (layout.colWidths[posName] ?? 120) + MOBILE_PAD_L + MOBILE_PAD_R;
-  // Start 64px above margin.top so R1 dots and their labels clear the top bar.
-  const EXTRA_TOP = 64;
+  // Start 144px above margin.top: 64px original + 80px extra breathing room for R1
+  // after the position header and divider labels are hidden in zoomed view.
+  const EXTRA_TOP = 144;
   return [x0, layout.margin.top - EXTRA_TOP, w, layout.svgH - layout.margin.top + EXTRA_TOP];
 }
 

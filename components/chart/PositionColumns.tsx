@@ -37,47 +37,54 @@ export default function PositionColumns({ layout, isZoomedMobile = false }: Prop
               width={cW} height={totalChartH}
               fill={colBg} opacity={0.55}
             />
-            {/* Header background — dark navy */}
-            <rect x={colX} y={0} width={cW} height={margin.top} fill="#0B2239" />
 
-            {/* Position name — Oswald, warm white */}
-            <text
-              x={colX + cW / 2}
-              y={margin.top * 0.52}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={17}
-              fontWeight={700}
-              fontFamily="Oswald, sans-serif"
-              fill="#F5F0E8"
-              letterSpacing={1.4}
-            >
-              {pos}
-            </text>
+            {/* Header and separator elements — hidden in zoomed mobile */}
+            {!isZoomedMobile && (
+              <>
+                {/* Header background — dark navy */}
+                <rect x={colX} y={0} width={cW} height={margin.top} fill="#0B2239" />
 
-            {/* Gold underline — brand moment at header/chart boundary */}
-            <line
-              x1={colX} y1={margin.top}
-              x2={colX + cW} y2={margin.top}
-              stroke="#D4A017" strokeWidth={1.8}
-            />
-            {/* Column divider — subtle on dark header, light on chart body */}
-            <line
-              x1={colX + cW} y1={0}
-              x2={colX + cW} y2={margin.top}
-              stroke="rgba(255,255,255,0.10)" strokeWidth={1}
-            />
-            <line
-              x1={colX + cW} y1={margin.top}
-              x2={colX + cW} y2={margin.top + totalChartH}
-              stroke="#C4C8CC" strokeWidth={0.8}
-            />
+                {/* Position name — Oswald, warm white */}
+                <text
+                  x={colX + cW / 2}
+                  y={margin.top * 0.52}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={17}
+                  fontWeight={700}
+                  fontFamily="Oswald, sans-serif"
+                  fill="#F5F0E8"
+                  letterSpacing={1.4}
+                >
+                  {pos}
+                </text>
+
+                {/* Gold underline — brand moment at header/chart boundary */}
+                <line
+                  x1={colX} y1={margin.top}
+                  x2={colX + cW} y2={margin.top}
+                  stroke="#D4A017" strokeWidth={1.8}
+                />
+                {/* Column divider in header */}
+                <line
+                  x1={colX + cW} y1={0}
+                  x2={colX + cW} y2={margin.top}
+                  stroke="rgba(255,255,255,0.10)" strokeWidth={1}
+                />
+                {/* Column divider in chart body */}
+                <line
+                  x1={colX + cW} y1={margin.top}
+                  x2={colX + cW} y2={margin.top + totalChartH}
+                  stroke="#C4C8CC" strokeWidth={0.8}
+                />
+              </>
+            )}
           </g>
         );
       })}
 
-      {/* OFFENSE section label */}
-      {hasOffense && (() => {
+      {/* OFFENSE / DEFENSE section labels — hidden in zoomed mobile */}
+      {!isZoomedMobile && hasOffense && (() => {
         const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
         return firstOffPos ? (
           <text
@@ -93,8 +100,7 @@ export default function PositionColumns({ layout, isZoomedMobile = false }: Prop
         ) : null;
       })()}
 
-      {/* DEFENSE section label */}
-      {hasDefense && (() => {
+      {!isZoomedMobile && hasDefense && (() => {
         const firstDefPos = visiblePositions.find(p => (POSITIONS.defense as readonly string[]).includes(p));
         return firstDefPos ? (
           <text
