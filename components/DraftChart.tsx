@@ -133,9 +133,9 @@ function posViewBox(
 ): [number, number, number, number] {
   const x0 = (layout.colXMap[posName] ?? layout.margin.left) - MOBILE_PAD_L;
   const w  = (layout.colWidths[posName] ?? 120) + MOBILE_PAD_L + MOBILE_PAD_R;
-  // Start at margin.top to cut the position header (name + dark nav bar) out of
-  // the zoomed view — the top bar already shows the position name.
-  return [x0, layout.margin.top, w, layout.svgH - layout.margin.top];
+  // Start 64px above margin.top so R1 dots and their labels clear the top bar.
+  const EXTRA_TOP = 64;
+  return [x0, layout.margin.top - EXTRA_TOP, w, layout.svgH - layout.margin.top + EXTRA_TOP];
 }
 
 function overviewViewBox(layout: ChartLayout): [number, number, number, number] {
