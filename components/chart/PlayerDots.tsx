@@ -103,7 +103,7 @@ export default function PlayerDots({
         }
 
         const cy = inDraftedView ? actualY : projectedY;
-        const r  = inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R;
+        const r  = isMobile ? BASE_R : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
         // On mobile: no entrance animation (isMobile + not in opening sequence)
         const skipAnim = isMobile && !isAnimating;
