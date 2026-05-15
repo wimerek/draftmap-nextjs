@@ -143,6 +143,7 @@ a { color: inherit; text-decoration: none; }
   overflow-x: auto;
   cursor: grab;
   user-select: none;
+  padding-top: 20px;
 }
 .dm-chart-frame:active {
   cursor: grabbing;
@@ -1041,6 +1042,7 @@ a { color: inherit; text-decoration: none; }
     inset: 0;
     overflow: hidden;
     background: #F7F9FA;
+    align-items: stretch;
   }
 
   /* Main chart area fills remaining space between top bar and handle bar */
@@ -1059,6 +1061,7 @@ a { color: inherit; text-decoration: none; }
     overflow-y: visible;
     cursor: default;
     padding-top: 0 !important;
+    width: 100%;
   }
   .dm-chart-frame:active { cursor: default; }
 
@@ -1194,6 +1197,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Bottom handle bar ───────────────────────────────────────────────────── */
 .mb-handle-bar {
+  width: 100%;
   display: none;
   flex-direction: column;
   align-items: center;

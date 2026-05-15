@@ -498,7 +498,6 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           <div
             className="dm-chart-frame"
             ref={chartFrameRef}
-            style={{ paddingTop: isMobile ? 0 : 20 }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
