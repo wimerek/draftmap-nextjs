@@ -23,6 +23,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${year} NFL Draft Map | DraftMap`,
       description: `Visual ${year} NFL Draft analysis. Every prospect charted by position and tier.`,
     },
+    alternates: {
+      canonical: `https://draftmap.app/draft/${year}`,
+    },
   };
 }
 
