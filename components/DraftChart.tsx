@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import type { Player } from "@/lib/sheets";
 import {
   computeChartLayout,
@@ -195,11 +195,14 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   );
 
   // ── Detect mobile ─────────────────────────────────────────────────────────
+  useLayoutEffect(() => {
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     prefersReduced.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const update = () => setIsMobile(mq.matches);
-    update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
