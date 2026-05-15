@@ -13,9 +13,10 @@ import { POSITIONS } from "@/lib/chartConstants";
 
 interface Props {
   layout: ChartLayout;
+  isZoomedMobile?: boolean;
 }
 
-export default function PositionColumns({ layout }: Props) {
+export default function PositionColumns({ layout, isZoomedMobile = false }: Props) {
   const {
     visiblePositions, colXMap, colWidths,
     margin, totalChartH, hasDefense, hasOffense, sepW,
@@ -109,8 +110,8 @@ export default function PositionColumns({ layout }: Props) {
         ) : null;
       })()}
 
-      {/* D/O separator — gap in dark header reads naturally; solid line in chart body only */}
-      {hasDefense && hasOffense && (() => {
+      {/* D/O separator — hidden in zoomed mobile view (single-position, divider is irrelevant) */}
+      {!isZoomedMobile && hasDefense && hasOffense && (() => {
         const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
         if (!firstOffPos) return null;
         const gapCenterX = colXMap[firstOffPos] - sepW / 2;

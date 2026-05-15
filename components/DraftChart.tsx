@@ -22,6 +22,7 @@ import Sidebar, {
 } from "@/components/Sidebar";
 import MobileTopBar from "@/components/mobile/MobileTopBar";
 import MobileHandleBar from "@/components/mobile/MobileHandleBar";
+import MobilePlayerLabels from "@/components/chart/MobilePlayerLabels";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,9 @@ function posViewBox(
 ): [number, number, number, number] {
   const x0 = (layout.colXMap[posName] ?? layout.margin.left) - MOBILE_PAD_L;
   const w  = (layout.colWidths[posName] ?? 120) + MOBILE_PAD_L + MOBILE_PAD_R;
-  return [x0, 0, w, layout.svgH];
+  // Start at margin.top to cut the position header (name + dark nav bar) out of
+  // the zoomed view — the top bar already shows the position name.
+  return [x0, layout.margin.top, w, layout.svgH - layout.margin.top];
 }
 
 function overviewViewBox(layout: ChartLayout): [number, number, number, number] {
@@ -467,6 +470,16 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     return `${x} ${y} ${w} ${h}`;
   }, [layout, visiblePositions]);
 
+  // ── Zoomed-mobile derived values (Group 2: chart structure) ──────────────
+  const isZoomedMobile = isMobile && mobileView === "zoomed";
+  const currentMobilePos = isZoomedMobile ? (visiblePositions[mobilePosIdx] ?? null) : null;
+  const mobileZoomedViewBoxW = currentMobilePos
+    ? (layout.colWidths[currentMobilePos] ?? 120) + MOBILE_PAD_L + MOBILE_PAD_R
+    : 0;
+  const mobileZoomedX = currentMobilePos !== null
+    ? (layout.colXMap[currentMobilePos] ?? layout.margin.left) - MOBILE_PAD_L
+    : undefined;
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="dm-app-layout">
@@ -476,9 +489,6 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       {/* ── Mobile top bar ── */}
       {isMobile && !loading && !error && (
         <MobileTopBar
-          layout={layout}
-          dotPositions={dotPositions}
-          viewMode={viewMode}
           posLabel={visiblePositions[mobilePosIdx] ?? ""}
           posIdx={mobilePosIdx}
           totalPositions={visiblePositions.length}
@@ -525,8 +535,8 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               </defs>
               <TierBands layout={layout} />
               <TierArrows layout={layout} />
-              <PositionColumns layout={layout} />
-              <RoundZones layout={layout} />
+              <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
+              <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} />
               <UDFAZone layout={layout} viewMode={viewMode} />
               <PlayerDots
                 dotPositions={dotPositions}
@@ -539,6 +549,16 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
               />
+              {isZoomedMobile && currentMobilePos && (
+                <MobilePlayerLabels
+                  dotPositions={dotPositions}
+                  currentPos={currentMobilePos}
+                  viewMode={viewMode}
+                  viewBoxX={mobileZoomedX ?? 0}
+                  viewBoxW={mobileZoomedViewBoxW}
+                  viewBoxTop={layout.margin.top}
+                />
+              )}
               <ChartBorders layout={layout} />
             </svg>
           </div>
