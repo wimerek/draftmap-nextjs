@@ -19,6 +19,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import type { Player } from "@/lib/sheets";
 import { SCHOOL_COLORS, cardPositionalRangeData } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
@@ -46,6 +47,7 @@ interface PlayerCardProps {
   players: Player[];
   onClose: () => void;
   isMobile?: boolean;
+  playerSlug?: string;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -384,7 +386,7 @@ const METRIC_HEADER = (
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PlayerCard({ player, players, onClose, isMobile = false }: PlayerCardProps) {
+export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug }: PlayerCardProps) {
   if (!player) return null;
 
   const teamColorVars = useMemo(
@@ -548,6 +550,17 @@ export default function PlayerCard({ player, players, onClose, isMobile = false 
             </div>
           </div>
         </div>
+
+        {playerSlug && (
+          <div style={{ textAlign: 'right', paddingTop: 12, paddingRight: 16, paddingBottom: 8, borderTop: '1px solid rgba(148,163,184,0.15)' }}>
+            <Link
+              href={`/players/${playerSlug}`}
+              style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none' }}
+            >
+              View full profile →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

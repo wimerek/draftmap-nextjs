@@ -17,6 +17,7 @@ import Link from "next/link";
 import type { Player } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/sheets";
 import { fmtHeight, ALL_POSITIONS } from "@/lib/utils";
+import { generateBaseSlug } from "@/lib/slugs";
 import { cardPositionalRangeData } from "@/lib/chartConstants";
 
 interface PlayerListProps {
@@ -313,7 +314,9 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
                   </td>
                   {/* Player name — sticky */}
                   <td style={{ ...tdBase, position: "sticky", left: 46, background: rowBg, fontWeight: 700, zIndex: 1 }}>
-                    {p.name}
+                    <Link href={`/players/${generateBaseSlug(p.name)}`} style={{ color: "inherit", textDecoration: "none" }}>
+                      {p.name}
+                    </Link>
                   </td>
                   {/* Pos */}
                   <td style={{ ...tdBase, color: "#6a5a4a", fontWeight: 600 }}>{p.pos}</td>

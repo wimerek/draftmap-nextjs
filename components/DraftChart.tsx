@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
+import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
   computeAllDotPositions,
@@ -145,18 +147,27 @@ function overviewViewBox(layout: ChartLayout): [number, number, number, number] 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DraftChart({ year = 2026 }: DraftChartProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // ── Data ─────────────────────────────────────────────────────────────────
   const [players,   setPlayers]   = useState<Player[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
-  const [view,      setView]      = useState<ChartView>("all");
+  const [view,      setView]      = useState<ChartView>(() => {
+    const pos = searchParams.get('pos');
+    if (pos === 'offense' || pos === 'defense') return pos;
+    return 'all';
+  });
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
   // ── View/animation state ─────────────────────────────────────────────────
-  const [viewMode,    setViewMode]    = useState<ViewMode>("projected");
+  const [viewMode,    setViewMode]    = useState<ViewMode>(() =>
+    searchParams.get('mode') === 'drafted' ? 'drafted' : 'projected'
+  );
   const [isAnimating, setIsAnimating] = useState(false);
   const [animState,   setAnimState]   = useState<AnimationState>({ playing: false, step: 0 });
 
@@ -236,6 +247,16 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       .then(d => { setPlayers(d.players ?? []); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [year, liveMode]);
+
+  // Auto-open player card if ?player= param is present on load
+  useEffect(() => {
+    if (players.length === 0) return;
+    const playerParam = searchParams.get('player');
+    if (!playerParam) return;
+    const match = players.find(p => generateBaseSlug(p.name) === playerParam);
+    if (match) setOpenPlayer(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players]);
 
   // ── Opening animation (first visit, mobile only) ─────────────────────────
   useEffect(() => {
@@ -408,17 +429,47 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const handleStepBack    = useCallback(() => { setIsAnimating(false); setViewMode("projected"); setAnimState({ playing: false, step: 0 }); }, []);
   const handleJumpEnd     = useCallback(() => { setIsAnimating(false); setViewMode("drafted");   setAnimState({ playing: false, step: 1 }); }, []);
 
+  const updateURL = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === '') {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    const newSearch = params.toString();
+    const path = window.location.pathname;
+    router.replace(`${path}${newSearch ? `?${newSearch}` : ''}`, { scroll: false });
+  }, [router, searchParams]);
+
+  const handleSetView = useCallback((v: ChartView) => {
+    setView(v);
+    updateURL({ pos: v === 'all' ? null : v });
+  }, [updateURL]);
+
+  const handleOpenPlayer = useCallback((player: Player) => {
+    setOpenPlayer(player);
+    updateURL({ player: generateBaseSlug(player.name) });
+  }, [updateURL]);
+
+  const handleClosePlayer = useCallback(() => {
+    setOpenPlayer(null);
+    updateURL({ player: null });
+  }, [updateURL]);
+
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setIsAnimating(false);
     setViewMode(mode);
     setAnimState(s => ({ ...s, step: mode === "drafted" ? 1 : 0, playing: false }));
-  }, []);
+    updateURL({ mode: mode === 'projected' ? null : mode });
+  }, [updateURL]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
     setTooltip(null);
-    setOpenPlayer(player);
-  }, []);
+    handleOpenPlayer(player);
+  }, [handleOpenPlayer]);
 
   const handleDotHover = useCallback((player: Player, clientX: number, clientY: number) => {
     if (isMobile) return;
@@ -462,7 +513,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     viewMode, onViewModeChange: handleViewModeChange,
     animState, onPlay: handlePlay, onPause: handlePause, onReset: handleReset,
     onStepBack: handleStepBack, onStepForward: handleStepForward, onJumpEnd: handleJumpEnd,
-    view, onViewChange: setView,
+    view, onViewChange: handleSetView,
     year, liveMode, onLiveModeToggle: handleLiveToggle,
     showLines, onShowLinesToggle: handleShowLinesToggle,
   };
@@ -626,8 +677,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       <PlayerCard
         player={openPlayer}
         players={players}
-        onClose={() => setOpenPlayer(null)}
+        onClose={handleClosePlayer}
         isMobile={isMobile}
+        playerSlug={openPlayer ? generateBaseSlug(openPlayer.name) : undefined}
       />
     </div>
   );

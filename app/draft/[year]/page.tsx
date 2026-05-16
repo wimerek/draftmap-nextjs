@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import DraftChart from "@/components/DraftChart";
@@ -39,7 +40,9 @@ export default function DraftYearPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-dm-bg">
-      <DraftChart year={year} />
+      <Suspense fallback={null}>
+        <DraftChart year={year} />
+      </Suspense>
     </main>
   );
 }
