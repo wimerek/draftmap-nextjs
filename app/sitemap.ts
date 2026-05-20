@@ -18,7 +18,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       return {
         url: `https://draftmap.app/players/${slug}`,
         priority: 0.6,
-        lastModified: new Date(),
       };
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);
