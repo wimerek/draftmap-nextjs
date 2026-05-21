@@ -1,17 +1,12 @@
 import type { MetadataRoute } from 'next';
-import { fetchPlayers, VALID_DRAFT_YEARS, type Player } from '@/lib/sheets';
+import { fetchPlayers, VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from '@/lib/sheets';
 import { buildSlugMap } from '@/lib/slugs';
 
-async function fetchAllPlayers(): Promise<Player[]> {
-  const results = await Promise.all(VALID_DRAFT_YEARS.map(y => fetchPlayers(y)));
-  return results.flat();
-}
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const allPlayers = await fetchAllPlayers();
-  const slugMap = buildSlugMap(allPlayers);
+  const currentPlayers = await fetchPlayers(CURRENT_DRAFT_YEAR);
+  const slugMap = buildSlugMap(currentPlayers);
 
-  const playerEntries: MetadataRoute.Sitemap = allPlayers
+  const playerEntries: MetadataRoute.Sitemap = currentPlayers
     .map(p => {
       const slug = slugMap.get(p.player_id);
       if (!slug) return null;

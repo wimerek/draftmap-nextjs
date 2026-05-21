@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchPlayers, VALID_DRAFT_YEARS, type Player } from '@/lib/sheets';
+import { fetchPlayers, VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets';
 import { buildSlugMap } from '@/lib/slugs';
 import { fmtHeight } from '@/lib/utils';
 
@@ -32,9 +32,9 @@ async function getPlayerForSlug(slug: string): Promise<Player | null> {
 
 export async function generateStaticParams() {
   try {
-    const allPlayers = await fetchAllPlayers();
-    const slugMap = buildSlugMap(allPlayers);
-    return allPlayers
+    const players = await fetchPlayers(CURRENT_DRAFT_YEAR);
+    const slugMap = buildSlugMap(players);
+    return players
       .map(p => ({ slug: slugMap.get(p.player_id) }))
       .filter((p): p is { slug: string } => p.slug !== undefined);
   } catch {
