@@ -7,17 +7,26 @@
  *     No tooltip on mobile. No entrance animation on mobile (isAnimating only fires
  *     during the opening animation sequence).
  *   - showLines / connector on hover: desktop only.
+ *
+ * Delta-2: chartMode prop added.
+ *   - projection mode: school colors (unchanged from Phase Beta).
+ *   - draft-results / player-production / career: tier colors via getDotColor().
+ *     Team color two-tone rings removed from non-projection modes.
+ *   - showLines only rendered in draft-results and player-production modes.
  */
 import { useState } from "react";
 import type { Player } from "@/lib/sheets";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
+import type { ChartMode } from "@/lib/dataAvailability";
 import { SCHOOL_COLORS, TEAM_COLORS } from "@/lib/chartConstants";
+import { getDotColor } from "@/lib/dotColor";
 
 interface Props {
   dotPositions: DotPosition[];
   liveMode: boolean;
   viewMode: ViewMode;
+  chartMode?: ChartMode;
   isAnimating: boolean;
   showLines: boolean;
   isMobile?: boolean;
@@ -28,19 +37,22 @@ interface Props {
 }
 
 const BASE_R = 6;
-const TOUCH_TARGET = 22; // half of 44px touch target
+const TOUCH_TARGET = 22;
 
 function deltaToRadius(delta: number): number {
   return BASE_R + 10 * (1 - Math.exp(-delta / 25));
 }
 
 export default function PlayerDots({
-  dotPositions, liveMode, viewMode, isAnimating, showLines,
+  dotPositions, liveMode, viewMode, chartMode = "projection",
+  isAnimating, showLines,
   isMobile = false,
   isZoomedMobile = false,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
-  const inDraftedView = viewMode === "drafted";
+  const inDraftedView   = viewMode === "drafted";
+  const isResultsMode   = chartMode !== "projection";
+  const showTrailingLines = chartMode === "draft-results" || chartMode === "player-production";
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const prefersReducedMotion =
@@ -53,8 +65,8 @@ export default function PlayerDots({
 
   return (
     <g>
-      {/* ── All-lines mode (desktop only) ─────────────────────────────── */}
-      {!isMobile && inDraftedView && !isAnimating && showLines && dotPositions.map(
+      {/* ── All-lines mode — only in draft-results / player-production ─── */}
+      {!isMobile && showTrailingLines && !isAnimating && showLines && dotPositions.map(
         ({ player, x, actualY, projectedY, pickValueDelta }, i) => {
           if (actualY === projectedY) return null;
           const opacity = Math.min(0.10 + pickValueDelta / 200, 0.38);
@@ -70,7 +82,7 @@ export default function PlayerDots({
         }
       )}
 
-      {/* ── Hover connector (desktop only) ───────────────────────────── */}
+      {/* ── Hover connector (desktop, drafted view only) ──────────────── */}
       {hoveredDot && hoveredDot.actualY !== hoveredDot.projectedY && (
         <g style={{ pointerEvents: "none" }}>
           <line
@@ -92,7 +104,12 @@ export default function PlayerDots({
         const isDrafted = liveMode && player.drafted && !inDraftedView;
 
         let fill: string, stroke: string;
-        if (isDrafted) {
+
+        if (isResultsMode) {
+          // Delta-2: tier color based on outcome score (null until scoring integrated)
+          fill   = getDotColor(chartMode, null, player.rd);
+          stroke = "rgba(255,255,255,0.25)";
+        } else if (isDrafted) {
           fill   = "rgba(210,200,185,0.35)";
           stroke = "rgba(160,150,135,0.45)";
         } else if (inDraftedView && player.team_drafted) {
@@ -107,7 +124,6 @@ export default function PlayerDots({
         const cy = inDraftedView ? actualY : projectedY;
         const r  = isMobile ? BASE_R : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
-        // On mobile: no entrance animation (isMobile + not in opening sequence)
         const skipAnim = isMobile && !isAnimating;
         const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
         const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
@@ -120,14 +136,19 @@ export default function PlayerDots({
           ? (isZoomedMobile ? 0.8 : 2.5)
           : (inDraftedView ? 2.5 : 1.5);
 
-        const showTwoTone = isMobile && inDraftedView && !isDrafted && player.team_drafted && !!TEAM_COLORS[player.team_drafted];
+        // Two-tone team rings: projection mode only on mobile
+        const showTwoTone =
+          !isResultsMode &&
+          isMobile &&
+          inDraftedView &&
+          !isDrafted &&
+          !!player.team_drafted &&
+          !!TEAM_COLORS[player.team_drafted];
 
         return (
           <g key={`${player.player_id}-${i}`}>
-            {/* Visible dot */}
             {showTwoTone ? (
               <>
-                {/* Outer ring: secondary team color fill + white stroke */}
                 <circle
                   cx={x} cy={cy} r={r + 2.5}
                   fill={stroke}
@@ -135,7 +156,6 @@ export default function PlayerDots({
                   strokeWidth={1}
                   style={{ pointerEvents: "none" }}
                 />
-                {/* Inner: primary team color fill */}
                 <circle
                   cx={x} cy={cy} r={r}
                   fill={fill}
@@ -155,7 +175,6 @@ export default function PlayerDots({
               />
             )}
 
-            {/* 44×44px invisible touch target (mobile only) */}
             {isMobile && (
               <rect
                 x={x - TOUCH_TARGET}

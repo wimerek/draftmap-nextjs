@@ -12,10 +12,15 @@ import { useRouter } from "next/navigation";
  *   - Section order: View Mode -> Filters -> [spacer] -> Player List -> Map Display -> How to Read
  *   - "Show Movement Lines" toggle added to Map Display
  *   - showLines / onShowLinesToggle props added
+ *
+ * Delta-2: chartMode prop added. Trails toggle only shown in draft-results
+ *   and player-production modes. ViewMode / animation controls remain for
+ *   backward compat (complemented by HeaderZone journey bar).
  */
 
 import { useState, useCallback } from "react";
 import { VALID_DRAFT_YEARS } from "@/lib/sheets";
+import type { ChartMode } from "@/lib/dataAvailability";
 
 export type ViewMode = "projected" | "drafted";
 
@@ -41,6 +46,7 @@ export interface SidebarProps {
   onLiveModeToggle: () => void;
   showLines: boolean;
   onShowLinesToggle: () => void;
+  chartMode?: ChartMode;
 }
 
 // ── SidebarSection ────────────────────────────────────────────────────────────
@@ -121,7 +127,13 @@ export default function Sidebar(props: SidebarProps) {
     view, onViewChange,
     year, liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
+    chartMode,
   } = props;
+
+  const showTrailsToggle =
+    chartMode === undefined ||
+    chartMode === "draft-results" ||
+    chartMode === "player-production";
 
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
@@ -237,17 +249,19 @@ export default function Sidebar(props: SidebarProps) {
 
       {/* ── Zone 3: Map Display ── */}
       <SidebarSection label="Map Display" icon="🗺" collapsed={collapsed}>
-        {/* Show Movement Lines toggle */}
-        <div className="sb-field-group">
-          <button
-            className={`sb-toggle-btn${showLines ? " active" : ""}`}
-            onClick={onShowLinesToggle}
-          >
-            <span className={`sb-toggle-dot${showLines ? " active" : ""}`} />
-            Show Movement Lines
-          </button>
-          <div className="sb-field-hint">Display all projection-to-actual lines</div>
-        </div>
+        {/* Trails toggle — only visible in draft-results / player-production modes */}
+        {showTrailsToggle && (
+          <div className="sb-field-group">
+            <button
+              className={`sb-toggle-btn${showLines ? " active" : ""}`}
+              onClick={onShowLinesToggle}
+            >
+              <span className={`sb-toggle-dot${showLines ? " active" : ""}`} />
+              Show Movement Lines
+            </button>
+            <div className="sb-field-hint">Display all projection-to-actual lines</div>
+          </div>
+        )}
 
         {viewMode === "drafted" && (
           <div className="sb-legend">

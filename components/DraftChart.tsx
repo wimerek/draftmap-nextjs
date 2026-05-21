@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
+import { VALID_DRAFT_YEARS } from "@/lib/sheets";
 import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
@@ -11,13 +12,16 @@ import {
   type DotPosition,
   type ChartView,
 } from "@/lib/chartMath";
+import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import PlayerCard from "@/components/PlayerCard";
 import TierBands from "@/components/chart/TierBands";
 import TierArrows from "@/components/chart/TierArrows";
+import TierAxisLabels from "@/components/chart/TierAxisLabels";
 import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
 import PlayerDots from "@/components/chart/PlayerDots";
 import UDFAZone from "@/components/chart/UDFAZone";
+import HeaderZone from "@/components/HeaderZone";
 import Sidebar, {
   type ViewMode,
   type AnimationState,
@@ -150,12 +154,79 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // ── Delta-2: Journey navigation state ────────────────────────────────────
+  const [selectedYear,  setSelectedYear]  = useState<number>(year);
+  const [currentStepId, setCurrentStepId] = useState<string>(() =>
+    searchParams.get('step') ?? 'projection'
+  );
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Sync selectedYear when the URL year prop changes (e.g. back-button)
+  useEffect(() => {
+    setSelectedYear(year);
+    setCurrentStepId('projection');
+    setIsPlaying(false);
+  }, [year]);
+
+  // Derive current journey step and chart mode
+  const journeySteps = useMemo(() => getJourneySteps(selectedYear), [selectedYear]);
+  const currentStep  = useMemo(
+    () => journeySteps.find(s => s.id === currentStepId) ?? journeySteps[0],
+    [journeySteps, currentStepId],
+  );
+  const chartMode: ChartMode = currentStep?.mode ?? 'projection';
+
+  // Derived viewMode for backward compat with existing chart/sidebar
+  const legacyViewMode: ViewMode = chartMode === 'projection' ? 'projected' : 'drafted';
+
+  // ── Y-axis animation phase ────────────────────────────────────────────────
+  type YAxisPhase = 'projection' | 'results';
+  const [yAxisPhase, setYAxisPhase] = useState<YAxisPhase>('projection');
+  const yAxisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const isResults = chartMode !== 'projection';
+    if (isResults && yAxisPhase === 'projection') {
+      setYAxisPhase('results');
+    } else if (!isResults && yAxisPhase === 'results') {
+      if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
+      yAxisTimerRef.current = setTimeout(() => setYAxisPhase('projection'), 400);
+    }
+    return () => {
+      if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartMode]);
+
+  // ── Play button auto-advance ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      setCurrentStepId(prev => {
+        const currentIdx = journeySteps.findIndex(s => s.id === prev);
+        if (currentIdx === journeySteps.length - 1) {
+          setIsPlaying(false);
+          return 'projection';
+        }
+        return journeySteps[currentIdx + 1].id;
+      });
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [isPlaying, journeySteps]);
+
   // ── Data ─────────────────────────────────────────────────────────────────
   const [players,   setPlayers]   = useState<Player[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
+
+  // Reset showLines to true when entering a mode that supports trails
+  useEffect(() => {
+    if (chartMode === 'draft-results' || chartMode === 'player-production') {
+      setShowLines(true);
+    }
+  }, [chartMode]);
   const [view,      setView]      = useState<ChartView>(() => {
     const pos = searchParams.get('pos');
     if (pos === 'offense' || pos === 'defense') return pos;
@@ -164,12 +235,23 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
-  // ── View/animation state ─────────────────────────────────────────────────
+  // ── View/animation state (legacy — kept for Sidebar backward compat) ─────
   const [viewMode,    setViewMode]    = useState<ViewMode>(() =>
     searchParams.get('mode') === 'drafted' ? 'drafted' : 'projected'
   );
   const [isAnimating, setIsAnimating] = useState(false);
   const [animState,   setAnimState]   = useState<AnimationState>({ playing: false, step: 0 });
+
+  // Keep legacyViewMode in sync with chartMode for components that use viewMode
+  useEffect(() => {
+    setViewMode(legacyViewMode);
+    setAnimState(s => ({
+      ...s,
+      step: legacyViewMode === 'drafted' ? 1 : 0,
+      playing: false,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartMode]);
 
   // ── Mobile state ─────────────────────────────────────────────────────────
   const [isMobile,      setIsMobile]      = useState(false);
@@ -238,15 +320,15 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     }
   }, [isMobile, layout, mobilePosIdx, mobileView, visiblePositions, loading]);
 
-  // ── Data fetch ───────────────────────────────────────────────────────────
+  // ── Data fetch (uses selectedYear to support in-place year switching) ────
   useEffect(() => {
     setLoading(true);
-    const url = `/api/draft?year=${year}${liveMode ? "&live=1" : ""}`;
+    const url = `/api/draft?year=${selectedYear}${liveMode ? "&live=1" : ""}`;
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setPlayers(d.players ?? []); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
-  }, [year, liveMode]);
+  }, [selectedYear, liveMode]);
 
   // Auto-open player card if ?player= param is present on load
   useEffect(() => {
@@ -462,8 +544,37 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     setIsAnimating(false);
     setViewMode(mode);
     setAnimState(s => ({ ...s, step: mode === "drafted" ? 1 : 0, playing: false }));
+    // Mirror legacy viewMode change into journey step
+    setCurrentStepId(mode === 'drafted' ? 'draft' : 'projection');
+    setIsPlaying(false);
     updateURL({ mode: mode === 'projected' ? null : mode });
   }, [updateURL]);
+
+  // ── HeaderZone handlers ───────────────────────────────────────────────────
+  const handleYearChange = useCallback((newYear: number) => {
+    setSelectedYear(newYear);
+    setCurrentStepId('projection');
+    setIsPlaying(false);
+    router.replace(`/draft/${newYear}`, { scroll: false });
+  }, [router]);
+
+  const handleStepChange = useCallback((stepId: string) => {
+    setCurrentStepId(stepId);
+    setIsPlaying(false);
+  }, []);
+
+  const handlePlayToggle = useCallback(() => {
+    setIsPlaying(p => {
+      if (!p) {
+        // If at last step, reset to start before playing
+        const steps = getJourneySteps(selectedYear);
+        if (currentStepId === steps[steps.length - 1]?.id) {
+          setCurrentStepId('projection');
+        }
+      }
+      return !p;
+    });
+  }, [selectedYear, currentStepId]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -514,8 +625,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     animState, onPlay: handlePlay, onPause: handlePause, onReset: handleReset,
     onStepBack: handleStepBack, onStepForward: handleStepForward, onJumpEnd: handleJumpEnd,
     view, onViewChange: handleSetView,
-    year, liveMode, onLiveModeToggle: handleLiveToggle,
+    year: selectedYear, liveMode, onLiveModeToggle: handleLiveToggle,
     showLines, onShowLinesToggle: handleShowLinesToggle,
+    chartMode,
   };
 
   // ── Default mobile viewBox (EDGE zoomed) before state settles ────────────
@@ -545,6 +657,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     return isNaN(x) ? (mobileZoomedX ?? 0) : x;
   }, [mobileVB, mobileZoomedX]);
 
+  const tierAxisVisible = yAxisPhase === 'results';
+  const tierBandsHiding = yAxisPhase === 'results';
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="dm-app-layout">
@@ -559,7 +674,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           totalPositions={visiblePositions.length}
           mobileView={mobileView}
           viewMode={viewMode}
-          year={year}
+          year={selectedYear}
           onPrev={goToPrev}
           onNext={goToNext}
           onMiniMapTap={mobileView === "zoomed" ? goToOverview : () => goToPos(0)}
@@ -568,6 +683,18 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
       {/* ── Main chart area ── */}
       <main className="dm-main" onClick={dismissTooltip}>
+
+        {/* ── HeaderZone: year scrubber + journey bar ── */}
+        <HeaderZone
+          selectedYear={selectedYear}
+          onYearChange={handleYearChange}
+          currentStepId={currentStepId}
+          onStepChange={handleStepChange}
+          availableYears={[...VALID_DRAFT_YEARS]}
+          isPlaying={isPlaying}
+          onPlayToggle={handlePlayToggle}
+        />
+
         {loading && <div className="dm-state-msg"><p>Loading draft data…</p></div>}
         {error && <div className="dm-state-msg dm-state-error"><p>Failed to load chart: {error}</p></div>}
 
@@ -600,8 +727,17 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                   <stop offset="100%" stopColor="#D4A017" stopOpacity={0.08} />
                 </linearGradient>
               </defs>
-              <TierBands layout={layout} />
+              <TierBands
+                layout={layout}
+                labelsHiding={tierBandsHiding}
+                prefersReducedMotion={prefersReduced.current}
+              />
               <TierArrows layout={layout} />
+              <TierAxisLabels
+                layout={layout}
+                visible={tierAxisVisible}
+                prefersReducedMotion={prefersReduced.current}
+              />
               <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} />
               <UDFAZone
@@ -615,6 +751,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 dotPositions={dotPositions}
                 liveMode={liveMode}
                 viewMode={viewMode}
+                chartMode={chartMode}
                 isAnimating={isAnimating}
                 showLines={showLines}
                 isMobile={isMobile}

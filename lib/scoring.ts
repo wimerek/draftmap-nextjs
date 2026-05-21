@@ -51,7 +51,7 @@ export type TierLabel =
   | 'Starter'       // 28-41   consistent starter
   | 'Contributor'   // 14-27   role player (not used for QB -- see getTier)
   | 'Depth/ST'      // 5-13    depth / special teams
-  | 'Miss'          // 0-4     bust / out of league
+  | 'Bust'          // 0-4     bust / out of league
 
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 
@@ -192,7 +192,7 @@ export const TIER_THRESHOLDS: Record<TierLabel, [number, number]> = {
   Starter:       [28, 41],
   Contributor:   [14, 27],
   'Depth/ST':    [5,  13],
-  Miss:          [0,  4],
+  Bust:          [0,  4],
 }
 
 /** Minimum scores applied when a player earned a career award. */
@@ -415,7 +415,7 @@ export function computeWeightedScore(
  * Map a score (0-100) to the appropriate tier label.
  *
  * QB special case: no 'Contributor' tier -- a QB with some involvement
- * but below Starter thresholds scores 'Depth/ST'. Miss only for QBs with
+ * but below Starter thresholds scores 'Depth/ST'. Bust only for QBs with
  * essentially no NFL involvement.
  */
 export function getTier(score: number, position?: ScoringPosition): TierLabel {
@@ -428,7 +428,7 @@ export function getTier(score: number, position?: ScoringPosition): TierLabel {
     return 'Contributor'
   }
   if (score >= 5) return 'Depth/ST'
-  return 'Miss'
+  return 'Bust'
 }
 
 /**
@@ -457,7 +457,7 @@ export function applyAwardFloor(
  * Returns true if the player had any meaningful NFL involvement:
  * at least one snap in any season, or any non-zero career counting stat.
  *
- * Zero involvement -> guaranteed Miss regardless of position.
+ * Zero involvement -> guaranteed Bust regardless of position.
  * Any involvement  -> minimum Depth/ST (score >= 5).
  */
 export function hasNFLInvolvement(stats: CareerStats): boolean {
@@ -524,11 +524,11 @@ export function scoreFromCareerStats(
   player: CareerStats,
   cohort: CareerStats[],
 ): PlayerOutcomeScore {
-  // Miss: no NFL involvement at all
+  // Bust: no NFL involvement at all
   if (!hasNFLInvolvement(player)) {
     return {
       pfrId: player.pfrId, position: player.position,
-      score: 0, rawScore: 0, tier: 'Miss',
+      score: 0, rawScore: 0, tier: 'Bust',
       careerAvgScore: null, peakScore: null, combinedScore: null,
       rangeMin: null, rangeMax: null,
       scoresByYear: {},
@@ -676,7 +676,7 @@ export function scoreFromSeasonStats(
 
   const empty: PlayerOutcomeScore = {
     pfrId, position,
-    score: 0, rawScore: 0, tier: 'Miss',
+    score: 0, rawScore: 0, tier: 'Bust',
     careerAvgScore: null, peakScore: null, combinedScore: null,
     rangeMin: null, rangeMax: null,
     scoresByYear: {},

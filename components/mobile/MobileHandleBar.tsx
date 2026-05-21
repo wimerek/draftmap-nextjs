@@ -50,7 +50,13 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
     view, onViewChange,
     year, liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
+    chartMode,
   } = sidebarProps;
+
+  const showTrailsToggle =
+    chartMode === undefined ||
+    chartMode === "draft-results" ||
+    chartMode === "player-production";
 
   const router = useRouter();
 
@@ -171,16 +177,18 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
             </div>
           </DrawerSection>
 
-          {/* Map Display */}
-          <DrawerSection label="Map Display">
-            <div className="sb-field-group">
-              <button className={`sb-toggle-btn${showLines ? " active" : ""}`} onClick={onShowLinesToggle}>
-                <span className={`sb-toggle-dot${showLines ? " active" : ""}`} />
-                Show Movement Lines
-              </button>
-              <div className="sb-field-hint">Display all projection-to-actual lines</div>
-            </div>
-          </DrawerSection>
+          {/* Map Display — trails toggle only in draft-results / player-production modes */}
+          {showTrailsToggle && (
+            <DrawerSection label="Map Display">
+              <div className="sb-field-group">
+                <button className={`sb-toggle-btn${showLines ? " active" : ""}`} onClick={onShowLinesToggle}>
+                  <span className={`sb-toggle-dot${showLines ? " active" : ""}`} />
+                  Show Movement Lines
+                </button>
+                <div className="sb-field-hint">Display all projection-to-actual lines</div>
+              </div>
+            </DrawerSection>
+          )}
 
           {/* How to Read */}
           <DrawerSection label="How to Read">

@@ -97,7 +97,7 @@ export interface Player {
 // ── Year constants ─────────────────────────────────────────────────────────────
 
 /** Years with data in the Google Sheet, most-recent first. Expand as data is added. */
-export const VALID_DRAFT_YEARS = [2026, 2025, 2024] as const;
+export const VALID_DRAFT_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016] as const;
 export type DraftYear = (typeof VALID_DRAFT_YEARS)[number];
 
 /** Most recent year — used as the default when no year is specified. */
