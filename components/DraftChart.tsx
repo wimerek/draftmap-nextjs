@@ -8,6 +8,7 @@ import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
   computeAllDotPositions,
+  scoreToProductionY,
   type ChartLayout,
   type DotPosition,
   type ChartView,
@@ -293,6 +294,28 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     () => computeAllDotPositions(players, layout),
     [players, layout],
   );
+
+  // Per-dot production Y positions and opacities for the current journey step.
+  // Recomputed whenever the step or chart mode changes.
+  const productionPositions = useMemo<Map<string, { y: number; opacity: number }>>(() => {
+    const isProductionStep = chartMode === 'player-production' || chartMode === 'career';
+    if (!isProductionStep) return new Map();
+    const map = new Map<string, { y: number; opacity: number }>();
+    for (const dp of dotPositions) {
+      let score: number | null = null;
+      if (chartMode === 'career') {
+        score = dp.player.outcomeScore;
+      } else {
+        const entry = (dp.player.stepScores ?? []).find(s => s.stepId === currentStepId);
+        score = entry?.score ?? null;
+      }
+      map.set(dp.player.player_id, {
+        y:       scoreToProductionY(score, layout),
+        opacity: score === null ? 0.35 : 1.0,
+      });
+    }
+    return map;
+  }, [dotPositions, currentStepId, chartMode, layout]);
 
   // Positions that have data and are currently visible
   const visiblePositions = useMemo(
@@ -643,8 +666,22 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       return;
     }
 
+    // Production steps (year-N or career): animate dots vertically to ARC score positions.
+    // Setting currentStepId triggers productionPositions recomputation → new cy values.
+    // CSS transitions on each dot handle the staggered animation.
+    const targetStep = journeySteps.find(s => s.id === stepId);
+    if (targetStep?.mode === 'player-production' || targetStep?.mode === 'career') {
+      setIsAnimating(true);
+      setCurrentStepId(stepId);
+      const longestDelay = dotPositions.length * 22 + 550;
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, longestDelay);
+      return;
+    }
+
     setCurrentStepId(stepId);
-  }, [viewMode, dotPositions.length]);
+  }, [viewMode, dotPositions.length, journeySteps]);
 
   // Manual step click — stops auto-play then delegates to animateToStep.
   const handleStepChange = useCallback((stepId: string) => {
@@ -851,6 +888,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 showLines={showLines}
                 isMobile={isMobile}
                 isZoomedMobile={isZoomedMobile}
+                productionPositions={productionPositions}
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}

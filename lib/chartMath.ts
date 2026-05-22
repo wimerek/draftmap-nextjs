@@ -406,6 +406,22 @@ export function computeChartLayout(
 /** Normalized pick-value curve entry — loaded from public/pick_value_curve.json. */
 export interface PickValueEntry { pick: number; normalized: number; }
 
+/**
+ * Map an ARC score (0–100) to a Y-coordinate within the chart's tier band layout.
+ *
+ * Score 100 → top of chart (margin.top)
+ * Score 0   → bottom of chart (margin.top + totalChartH)
+ * null      → center of the below-chart out-of-league zone
+ *
+ * Linear interpolation across the full chart height matches the tier band layout
+ * from lib/tierLabels.ts (thresholds at 75/55/35/12/0 map naturally into the range).
+ */
+export function scoreToProductionY(score: number | null, layout: ChartLayout): number {
+  if (score === null) return layout.udfaZoneY + layout.udfaZoneH / 2
+  const clamped = Math.max(0, Math.min(100, score))
+  return layout.margin.top + layout.totalChartH * (1 - clamped / 100)
+}
+
 export interface DotPosition {
   player: Player;
   x: number;

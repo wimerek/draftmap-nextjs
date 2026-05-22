@@ -10,7 +10,7 @@
  * Set SHEETS_SPREADSHEET_ID in .env.local and Vercel environment variables.
  */
 
-import { SeasonStats, normalizePosition, scoreAllFromSeasons } from './scoring'
+import { SeasonStats, StepScore, normalizePosition, scoreAllFromSeasons } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -98,6 +98,9 @@ export interface Player {
 
   /** Pre-computed outcome score (0–100) from lib/scoring.ts. Null for classes without data. */
   outcomeScore: number | null;
+
+  /** Per-step cumulative ARC scores for production animation. Null for classes without data. */
+  stepScores: StepScore[] | null;
 }
 
 // ── Year constants ─────────────────────────────────────────────────────────────
@@ -227,6 +230,7 @@ function mapRow(row: SheetsRawRow): Player {
       (team_drafted && team_drafted.length > 0)
     ),
     outcomeScore: null,
+    stepScores:   null,
   };
 }
 
@@ -368,18 +372,23 @@ function mapSeasonRow(row: Record<string, string>): {
   };
 }
 
+export interface PlayerOutcomeData {
+  arcScore:   number | null;
+  stepScores: StepScore[];
+}
+
 /**
  * Fetch player_seasons from Google Sheets, compute outcome scores via the
- * scoring engine, and return a map of player_id → score (0–100).
+ * scoring engine, and return a map of player_id → { arcScore, stepScores }.
  *
  * Reads the 'player_seasons' tab (9k+ rows, 2018–2024). Groups rows by player,
  * accumulates per-player award counts, then calls scoreAllFromSeasons() which
- * runs JAWS-based percentile scoring within each position cohort.
+ * runs ARC percentile scoring within each position cohort.
  *
  * Returns an empty Map on any fetch or parse failure so the API degrades
  * gracefully (dots render grey rather than erroring).
  */
-export async function fetchOutcomeScores(): Promise<Map<string, number>> {
+export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeData>> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) return new Map();
 
@@ -412,9 +421,12 @@ export async function fetchOutcomeScores(): Promise<Map<string, number>> {
 
     const scored = scoreAllFromSeasons(allSeasons, awards);
 
-    const result = new Map<string, number>();
+    const result = new Map<string, PlayerOutcomeData>();
     scored.forEach((outcome, playerId) => {
-      result.set(playerId, outcome.score);
+      result.set(playerId, {
+        arcScore:   outcome.score,
+        stepScores: outcome.stepScores,
+      });
     });
     return result;
   } catch {

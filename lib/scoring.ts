@@ -8,7 +8,7 @@
  *   1. Each stat → percentile rank within position group (0–100)
  *   2. Percentiles weighted by position-specific weights → raw 0–100 score
  *   3. Award floors applied post-scoring: All-Pro >= 75, 2x Pro Bowl >= 58
- *   4. JAWS-inspired combined score: (careerAvgScore + peak3yrScore) / 2
+ *   4. ARC combined score: (Apex×0.45) + (Rookie×0.35) + (Consistency×0.20)
  *
  * Graceful degradation:
  *   - Defensive detailed stats (tackles/sacks/INTs) are optional — missing fields
@@ -148,6 +148,12 @@ export interface SeasonStats {
 
 // ── Output type ───────────────────────────────────────────────────────────────
 
+/** Per-step cumulative score entry for journey bar animation (Delta-5). */
+export interface StepScore {
+  stepId: string        // matches journey step ID: String(season) e.g. '2021', or 'career'
+  score: number | null  // null if no data for this step
+}
+
 /** Scored outcome for a player -- output of the scoring engine. */
 export interface PlayerOutcomeScore {
   pfrId: string
@@ -158,18 +164,22 @@ export interface PlayerOutcomeScore {
   rawScore: number          // 0-100, pre-award-floor
   tier: TierLabel
 
-  // JAWS decomposition -- null when only career totals available (no seasonal data)
-  careerAvgScore: number | null   // mean of per-season scores
-  peakScore: number | null        // mean of top-3 season scores (JAWS peak)
-  combinedScore: number | null    // (careerAvgScore + peakScore) / 2
+  // ARC decomposition -- null when only career totals available (no seasonal data)
+  apexScore: number | null        // mean of top-3 season scores
+  rookieScore: number | null      // mean of rookie-window scores (draftYear through draftYear+3)
+  consistencyScore: number | null // mean of all season scores
+  arcScore: number | null         // (apex×0.45 + rookie×0.35 + consistency×0.20)
 
-  // Range for the static career range indicator (Delta-2 chart)
+  // Range for the static career range indicator
   rangeMin: number | null         // lowest single-season score
   rangeMax: number | null         // highest single-season score
 
   // Year-by-year scores for animation (Delta-3)
   // key = calendar year, e.g. { 2021: 42, 2022: 51, 2023: 58, 2024: 55 }
   scoresByYear: Record<number, number>
+
+  // Per-step cumulative ARC scores for production animation (Delta-5)
+  stepScores: StepScore[]
 
   // Metadata
   dataSeasons: number             // seasons with enough data to produce a score
@@ -530,9 +540,9 @@ export function scoreFromCareerStats(
     return {
       pfrId: player.pfrId, position: player.position,
       score: 0, rawScore: 0, tier: 'Bust',
-      careerAvgScore: null, peakScore: null, combinedScore: null,
+      apexScore: null, rookieScore: null, consistencyScore: null, arcScore: null,
       rangeMin: null, rangeMax: null,
-      scoresByYear: {},
+      scoresByYear: {}, stepScores: [],
       dataSeasons: 0, hasAwardFloor: false, dataSource: 'career',
     }
   }
@@ -555,18 +565,20 @@ export function scoreFromCareerStats(
   const score = Math.max(awarded, 5)
 
   return {
-    pfrId:          player.pfrId,
-    position:       player.position,
+    pfrId:           player.pfrId,
+    position:        player.position,
     score,
     rawScore,
-    tier:           getTier(score, player.position),
-    careerAvgScore: null,   // not decomposed in career-only path
-    peakScore:      null,
-    combinedScore:  null,
-    rangeMin:       null,
-    rangeMax:       null,
-    scoresByYear:   {},     // populated via scoreFromSeasonStats
-    dataSeasons:    countDataSeasons(player),
+    tier:            getTier(score, player.position),
+    apexScore:       null,  // not decomposed in career-only path
+    rookieScore:     null,
+    consistencyScore: null,
+    arcScore:        null,
+    rangeMin:        null,
+    rangeMax:        null,
+    scoresByYear:    {},
+    stepScores:      [],
+    dataSeasons:     countDataSeasons(player),
     hasAwardFloor,
     dataSource,
   }
@@ -678,13 +690,17 @@ export function scoreFromSeasonStats(
   const empty: PlayerOutcomeScore = {
     pfrId, position,
     score: 0, rawScore: 0, tier: 'Bust',
-    careerAvgScore: null, peakScore: null, combinedScore: null,
+    apexScore: null, rookieScore: null, consistencyScore: null, arcScore: null,
     rangeMin: null, rangeMax: null,
-    scoresByYear: {},
+    scoresByYear: {}, stepScores: [],
     dataSeasons: 0, hasAwardFloor: false, dataSource: 'seasonal',
   }
 
   if (playerSeasons.length === 0) return empty
+
+  // Parse draft year from player_id: e.g. 'jamarr-chase-wr-lsu-2021' → 2021
+  const idParts   = pfrId.split('-')
+  const draftYear = parseInt(idParts[idParts.length - 1], 10)
 
   const weights    = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS.ST
   const cohortVecs = allSeasons.map(buildSeasonStatVector)
@@ -722,8 +738,8 @@ export function scoreFromSeasonStats(
 
   const scores = seasonScores.map(s => s.score)
 
-  // JAWS-inspired combined score
-  const { careerAvg, peak3yr, combined } = computeJAWSScore(scores)
+  // ARC combined score
+  const { apex, rookie, consistency, arcScore: combined } = computeARCScore(seasonScores, draftYear)
 
   // Award floor applied to combined score, then involvement floor
   const { score: awarded, hasAwardFloor } = applyAwardFloor(
@@ -739,56 +755,77 @@ export function scoreFromSeasonStats(
   const dataSource: PlayerOutcomeScore['dataSource'] =
     isDefensive && !hasDetailedDefStats ? 'snaps-only' : 'seasonal'
 
+  // Per-step cumulative ARC scores: compute ARC from seasons 1..N for each step N
+  const stepScores: StepScore[] = seasonScores.map((entry, idx) => {
+    const cumulative = seasonScores.slice(0, idx + 1)
+    const { arcScore: stepRaw } = computeARCScore(cumulative, draftYear)
+    return {
+      stepId: String(entry.season),
+      score:  Math.max(stepRaw, 5),
+    }
+  })
+
   return {
     pfrId,
     position,
     score,
-    rawScore:       combined,
-    tier:           getTier(score, position),
-    careerAvgScore: careerAvg,
-    peakScore:      peak3yr,
-    combinedScore:  combined,
-    rangeMin:       Math.min(...scores),
-    rangeMax:       Math.max(...scores),
-    scoresByYear:   Object.fromEntries(seasonScores.map(s => [s.season, s.score])),
-    dataSeasons:    seasonScores.length,
+    rawScore:         combined,
+    tier:             getTier(score, position),
+    apexScore:        apex,
+    rookieScore:      rookie,
+    consistencyScore: consistency,
+    arcScore:         combined,
+    rangeMin:         Math.min(...scores),
+    rangeMax:         Math.max(...scores),
+    scoresByYear:     Object.fromEntries(seasonScores.map(s => [s.season, s.score])),
+    stepScores,
+    dataSeasons:      seasonScores.length,
     hasAwardFloor,
     dataSource,
   }
 }
 
-// ── JAWS combined score ───────────────────────────────────────────────────────
+// ── ARC combined score ────────────────────────────────────────────────────────
 
 /**
- * Compute a JAWS-inspired combined score from an array of per-season scores.
+ * Compute ARC Score (Apex · Rookie · Consistency) from season data and draft year.
  *
- * JAWS (Jaffe WAR Score System from baseball):
- *   combined = (career_stat + peak_stat) / 2
+ *   ARC = (Apex × 0.45) + (Rookie × 0.35) + (Consistency × 0.20)
+ *   Apex        = mean of top-3 season scores (non-consecutive)
+ *   Rookie      = mean of scores for seasons draftYear through draftYear+3
+ *   Consistency = mean of all season scores
  *
- * Applied here on a 0-100 percentile scale:
- *   careerAvg = mean of all seasons
- *   peak3yr   = mean of top-3 seasons (non-consecutive; handles short peaks)
- *   combined  = (careerAvg + peak3yr) / 2
- *
- * With < 3 seasons of data, peak = mean of all available seasons.
- * All values rounded to nearest integer.
+ * When no rookie-window seasons exist in the data, Rookie is null and the
+ * remaining weights re-normalize: Apex × (0.45/0.65), Consistency × (0.20/0.65).
+ * All output values are rounded to the nearest integer.
  */
-export function computeJAWSScore(
-  seasonScores: number[],
-): { careerAvg: number; peak3yr: number; combined: number } {
-  if (seasonScores.length === 0) return { careerAvg: 0, peak3yr: 0, combined: 0 }
+export function computeARCScore(
+  seasonData: Array<{ season: number; score: number }>,
+  draftYear: number,
+): { apex: number; rookie: number | null; consistency: number; arcScore: number } {
+  if (seasonData.length === 0) return { apex: 0, rookie: null, consistency: 0, arcScore: 0 }
 
-  const careerAvg = seasonScores.reduce((s, v) => s + v, 0) / seasonScores.length
+  const scores = seasonData.map(s => s.score)
 
-  const topN    = [...seasonScores].sort((a, b) => b - a).slice(0, Math.min(3, seasonScores.length))
-  const peak3yr = topN.reduce((s, v) => s + v, 0) / topN.length
+  const topN  = [...scores].sort((a, b) => b - a).slice(0, Math.min(3, scores.length))
+  const apex  = topN.reduce((s, v) => s + v, 0) / topN.length
 
-  const combined = (careerAvg + peak3yr) / 2
+  const rookieWindow = seasonData.filter(s => s.season >= draftYear && s.season <= draftYear + 3)
+  const rookie = rookieWindow.length > 0
+    ? rookieWindow.reduce((s, d) => s + d.score, 0) / rookieWindow.length
+    : null
+
+  const consistency = scores.reduce((s, v) => s + v, 0) / scores.length
+
+  const arcScore = rookie !== null
+    ? apex * 0.45 + rookie * 0.35 + consistency * 0.20
+    : apex * (0.45 / 0.65) + consistency * (0.20 / 0.65)
 
   return {
-    careerAvg: Math.round(careerAvg),
-    peak3yr:   Math.round(peak3yr),
-    combined:  Math.round(combined),
+    apex:        Math.round(apex),
+    rookie:      rookie !== null ? Math.round(rookie) : null,
+    consistency: Math.round(consistency),
+    arcScore:    Math.round(arcScore),
   }
 }
 

@@ -28,11 +28,15 @@ export async function GET(request: NextRequest) {
       fetchOutcomeScores(),
     ]);
 
-    // Attach outcome scores (null when the outcomes tab has no entry for this player)
-    const scored = players.map(p => ({
-      ...p,
-      outcomeScore: outcomeScores.get(p.player_id) ?? null,
-    }));
+    // Attach outcome scores and step scores (null when no data for this player)
+    const scored = players.map(p => {
+      const od = outcomeScores.get(p.player_id);
+      return {
+        ...p,
+        outcomeScore: od?.arcScore   ?? null,
+        stepScores:   od?.stepScores ?? null,
+      };
+    });
 
     // Sort: by round, then by rank within round (rank=0 treated as 9999)
     const sorted = [...scored].sort((a, b) => {

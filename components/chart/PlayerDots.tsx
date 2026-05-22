@@ -31,6 +31,8 @@ interface Props {
   showLines: boolean;
   isMobile?: boolean;
   isZoomedMobile?: boolean;
+  /** Per-player production Y and opacity for the current journey step. */
+  productionPositions?: Map<string, { y: number; opacity: number }>;
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
@@ -48,22 +50,23 @@ export default function PlayerDots({
   isAnimating, showLines,
   isMobile = false,
   isZoomedMobile = false,
+  productionPositions,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
   // player-production and career use tier colors (career outcome scoring).
-  // "team colors fully abandoned" in design spec referred to production/career only.
   const isDraftResultsMode = chartMode === "draft-results";
   const isProductionMode   = chartMode === "player-production" || chartMode === "career";
-  const showTrailingLines  = chartMode === "draft-results" || chartMode === "player-production";
+  // Leader lines (projection→actual connectors) only in draft-results; meaningless in production.
+  const showTrailingLines  = chartMode === "draft-results";
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const prefersReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const hoveredDot = !isMobile && inDraftedView && hoveredId
+  const hoveredDot = !isMobile && inDraftedView && !isProductionMode && hoveredId
     ? dotPositions.find(d => d.player.player_id === hoveredId) ?? null
     : null;
 
@@ -128,14 +131,20 @@ export default function PlayerDots({
           stroke = "#333333";
         }
 
-        const cy = inDraftedView ? actualY : projectedY;
-        const r  = isMobile ? BASE_R : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
+        // Production mode: use score-derived Y and opacity from productionPositions.
+        // Otherwise: drafted view uses actualY, projected view uses projectedY.
+        const prodPos = isProductionMode ? productionPositions?.get(player.player_id) : undefined;
+        const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
+        const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
+
+        // Production mode resets to base radius; draft-results sizes by pick delta.
+        const r = (isMobile || isProductionMode) ? BASE_R : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
         const skipAnim = isMobile && !isAnimating;
         const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
         const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
         const transition = tDuration > 0
-          ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+          ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
         const dotStroke      = isMobile ? "#ffffff" : stroke;
@@ -175,7 +184,7 @@ export default function PlayerDots({
                 cx={x} cy={cy} r={r}
                 stroke={dotStroke}
                 strokeWidth={dotStrokeWidth}
-                style={{ fill, cursor: "pointer", transition }}
+                style={{ fill, opacity: dotOpacity, cursor: "pointer", transition }}
                 onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
                 onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
                 onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
