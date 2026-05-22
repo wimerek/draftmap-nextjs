@@ -613,7 +613,10 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     // Don't set currentStepId until the animation completes — doing it early would
     // trigger the chartMode useEffect which instantly snaps viewMode to "drafted",
     // killing the CSS transition before it can run.
-    if (stepId === 'draft' && currentStepId === 'projection') {
+    //
+    // Check viewMode (not currentStepId) — the sidebar toggle can set currentStepId='draft'
+    // while viewMode stays 'projected', which would falsely skip the animation.
+    if (stepId === 'draft' && viewMode === 'projected') {
       setIsAnimating(false);
       setViewMode("projected");
       setAnimState({ playing: false, step: 0 });
@@ -635,7 +638,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     }
 
     setCurrentStepId(stepId);
-  }, [currentStepId, dotPositions.length]);
+  }, [viewMode, dotPositions.length]);
 
   const handlePlayToggle = useCallback(() => {
     setIsPlaying(p => {
