@@ -607,9 +607,35 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   }, [router]);
 
   const handleStepChange = useCallback((stepId: string) => {
-    setCurrentStepId(stepId);
     setIsPlaying(false);
-  }, []);
+
+    // Projection → Draft Results: animate dots from projected to actual positions.
+    // Don't set currentStepId until the animation completes — doing it early would
+    // trigger the chartMode useEffect which instantly snaps viewMode to "drafted",
+    // killing the CSS transition before it can run.
+    if (stepId === 'draft' && currentStepId === 'projection') {
+      setIsAnimating(false);
+      setViewMode("projected");
+      setAnimState({ playing: false, step: 0 });
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
+          setViewMode("drafted");
+          setAnimState({ playing: true, step: 1 });
+          const longestDelay = dotPositions.length * 22 + 550;
+          setTimeout(() => {
+            setAnimState(s => ({ ...s, playing: false }));
+            setIsAnimating(false);
+            setCurrentStepId('draft'); // now update journey bar + tier colors
+          }, longestDelay);
+        });
+      });
+      return;
+    }
+
+    setCurrentStepId(stepId);
+  }, [currentStepId, dotPositions.length]);
 
   const handlePlayToggle = useCallback(() => {
     setIsPlaying(p => {
