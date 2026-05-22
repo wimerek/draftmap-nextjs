@@ -204,20 +204,28 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   }, [currentStepId, journeySteps]);
 
   // ── Play button auto-advance ──────────────────────────────────────────────
+  // Use a ref so the interval closure stays stable (only depends on isPlaying).
+  // The ref is updated every render so it always sees current state without
+  // the interval needing to be torn down and recreated on every step change.
+  // isAnimating guard prevents advancing mid-animation (dot transition can take
+  // several seconds — don't skip to the next step while dots are still moving).
+  const advanceStepRef = useRef<(() => void) | null>(null);
+  advanceStepRef.current = () => {
+    if (isAnimating) return;
+    const currentIdx = journeySteps.findIndex(s => s.id === currentStepId);
+    if (currentIdx === journeySteps.length - 1) {
+      setIsPlaying(false);
+      setCurrentStepId('projection');
+      return;
+    }
+    handleStepChange(journeySteps[currentIdx + 1].id);
+  };
+
   useEffect(() => {
     if (!isPlaying) return;
-    const interval = setInterval(() => {
-      setCurrentStepId(prev => {
-        const currentIdx = journeySteps.findIndex(s => s.id === prev);
-        if (currentIdx === journeySteps.length - 1) {
-          setIsPlaying(false);
-          return 'projection';
-        }
-        return journeySteps[currentIdx + 1].id;
-      });
-    }, 1500);
+    const interval = setInterval(() => advanceStepRef.current?.(), 1500);
     return () => clearInterval(interval);
-  }, [isPlaying, journeySteps]);
+  }, [isPlaying]);
 
   // ── Data ─────────────────────────────────────────────────────────────────
   const [players,   setPlayers]   = useState<Player[]>([]);
