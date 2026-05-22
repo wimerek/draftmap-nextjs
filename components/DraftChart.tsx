@@ -185,19 +185,23 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const yAxisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Tier labels fire at Year 1 (player-production), not Draft Results
-    const isProduction = chartMode === 'player-production' || chartMode === 'career';
-    if (isProduction && yAxisPhase === 'projection') {
+    // Tier labels fire at Year 1 (player-production), not Draft Results.
+    // Depend directly on currentStepId so the effect re-runs on every step change.
+    const step = journeySteps.find(s => s.id === currentStepId);
+    const isProduction = step?.mode === 'player-production' || step?.mode === 'career';
+
+    if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
+
+    if (isProduction) {
       setYAxisPhase('results');
-    } else if (!isProduction && yAxisPhase === 'results') {
-      if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
+    } else {
       yAxisTimerRef.current = setTimeout(() => setYAxisPhase('projection'), 400);
     }
+
     return () => {
       if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartMode]);
+  }, [currentStepId, journeySteps]);
 
   // ── Play button auto-advance ──────────────────────────────────────────────
   useEffect(() => {

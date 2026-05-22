@@ -70,11 +70,6 @@ export default function HeaderZone({
     onStepChange("projection");
   };
 
-  // ── Journey bar filled-track width ──────────────────────────────────────────
-
-  // filledFraction: 0 when at first step, 1 when at last step
-  const filledFraction = steps.length <= 1 ? 0 : activeIdx / (steps.length - 1);
-
   // ── Career circle gold styling ──────────────────────────────────────────────
 
   function getCircleStyle(stepIdx: number) {
@@ -206,13 +201,6 @@ export default function HeaderZone({
       {/* ── Row 2: Journey Bar + Play Button ──────────────────────────── */}
       <div className="hz-journey-row">
         <div className="hz-journey-container">
-          {/* Base connector track */}
-          <div className="hz-journey-base-track" />
-          {/* Filled connector track */}
-          <div
-            className="hz-journey-filled-track"
-            style={{ width: `${filledFraction * 100}%` }}
-          />
           {/* Steps */}
           <div className="hz-journey-steps">
             {steps.map((step, i) => {

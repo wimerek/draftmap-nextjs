@@ -41,7 +41,6 @@ export interface SheetsRawRow {
   rd_drafted?: string;
   pick_drafted?: string;
   team_drafted?: string;
-  outcome_score?: string;
 }
 
 /** Shape returned by the /api/draft and /api/players route handlers. */
@@ -226,7 +225,7 @@ function mapRow(row: SheetsRawRow): Player {
       pick_drafted !== null ||
       (team_drafted && team_drafted.length > 0)
     ),
-    outcomeScore: toFloat(row.outcome_score),
+    outcomeScore: null,
   };
 }
 
@@ -298,4 +297,42 @@ export function findBySlug(players: Player[], slug: string): Player | undefined 
   return players
     .filter((p) => toSlug(p.name) === slug)
     .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))[0];
+}
+
+// ── Outcome scores ────────────────────────────────────────────────────────────
+
+/**
+ * Fetch pre-computed outcome scores from the 'outcomes' Google Sheets tab.
+ *
+ * The outcomes tab must have columns: player_id, outcome_score
+ * Scores are 0–100, computed externally via lib/scoring.ts and stored by Derek.
+ *
+ * Returns an empty Map (gracefully) if the tab doesn't exist or has no data.
+ * Intended for server-side use in API route handlers only.
+ */
+export async function fetchOutcomeScores(): Promise<Map<string, number>> {
+  const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) return new Map();
+
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=outcomes`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 300 } });
+    if (!res.ok) return new Map();
+
+    const csv = await res.text();
+    const rows = parseCSV(csv) as Array<{ player_id?: string; outcome_score?: string }>;
+
+    const scoreMap = new Map<string, number>();
+    for (const row of rows) {
+      const id    = toStr(row.player_id);
+      const score = toFloat(row.outcome_score);
+      if (id && score !== null) {
+        scoreMap.set(id, score);
+      }
+    }
+    return scoreMap;
+  } catch {
+    return new Map();
+  }
 }

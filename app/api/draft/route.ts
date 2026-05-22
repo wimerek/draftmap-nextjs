@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchPlayers } from "@/lib/sheets";
+import { fetchPlayers, fetchOutcomeScores } from "@/lib/sheets";
 
 export const revalidate = 300;
 
@@ -23,10 +23,19 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get("year") ?? "2026", 10);
     const isLive = searchParams.get("live") === "1";
 
-    const players = await fetchPlayers(year);
+    const [players, outcomeScores] = await Promise.all([
+      fetchPlayers(year),
+      fetchOutcomeScores(),
+    ]);
+
+    // Attach outcome scores (null when the outcomes tab has no entry for this player)
+    const scored = players.map(p => ({
+      ...p,
+      outcomeScore: outcomeScores.get(p.player_id) ?? null,
+    }));
 
     // Sort: by round, then by rank within round (rank=0 treated as 9999)
-    const sorted = [...players].sort((a, b) => {
+    const sorted = [...scored].sort((a, b) => {
       const rdA = a.rd ?? 99;
       const rdB = b.rd ?? 99;
       if (rdA !== rdB) return rdA - rdB;

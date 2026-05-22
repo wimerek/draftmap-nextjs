@@ -90,15 +90,6 @@ export default function TierAxisLabels({
 
   return (
     <g>
-      {/* ── Gradient defs ─────────────────────────────────────────────── */}
-      <defs>
-        <linearGradient id="draftmap-tier-field-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#f59e0b" stopOpacity={0.08} />
-          <stop offset="50%"  stopColor="#000000" stopOpacity={0} />
-          <stop offset="100%" stopColor="#f87171" stopOpacity={0.08} />
-        </linearGradient>
-      </defs>
-
       {/* ── Zone fills (5% opacity, one per tier band) ─────────────────── */}
       {bands.map(({ tier, topY, bottomY }) => (
         <rect
@@ -113,18 +104,6 @@ export default function TierAxisLabels({
           }}
         />
       ))}
-
-      {/* ── Gradient overlay ──────────────────────────────────────────── */}
-      <rect
-        x={lineX} y={margin.top}
-        width={chartW} height={totalChartH}
-        fill="url(#draftmap-tier-field-gradient)"
-        opacity={entering ? 1 : 0}
-        style={{
-          transition: prefersReducedMotion ? "none" : "opacity 400ms ease 400ms",
-          pointerEvents: "none",
-        }}
-      />
 
       {/* ── Hash marks at tier boundaries (bottom-to-top stagger) ─────── */}
       {TIER_BOUNDARY_SCORES.map((score, i) => {
@@ -159,9 +138,9 @@ export default function TierAxisLabels({
         return (
           <text
             key={tier.id}
-            x={lineX - LABEL_PAD_X}
+            x={lineX + LABEL_PAD_X}
             y={centerY}
-            textAnchor="end"
+            textAnchor="start"
             dominantBaseline="middle"
             fontSize={fontSize}
             fontWeight={700}
