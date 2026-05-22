@@ -305,15 +305,15 @@ export function findBySlug(players: Player[], slug: string): Player | undefined 
 /**
  * Map a raw player_seasons row to SeasonStats for the scoring engine.
  *
- * Column mapping from the player_seasons Google Sheets tab (nflverse naming):
- *   player_id      → pfrId
- *   season         → season
- *   pos/position   → position (normalized via normalizePosition)
- *   games_started  → gamesPlayed
- *   snap_pct       → offSnapPct (offense) or defSnapPct (defense), 0.0–1.0
- *   passing_yards/tds, rushing_yards/tds, receiving_yards/tds → offensive stats
- *   sacks, solo_tackles, interceptions → defensive detailed stats
- *   all_pro, pro_bowl   → accumulated separately for awards map
+ * Actual column names in the player_seasons Google Sheets tab:
+ *   player_id, season, team, games_played, games_started, snap_count, snap_pct,
+ *   pass_yards, pass_tds, interceptions (off), rush_yards, rush_tds,
+ *   rec_yards, rec_tds, receptions, targets,
+ *   sacks, tackles_solo, tackles_assist, tfl, qb_hits, forced_fumbles,
+ *   ints_def (def), pass_deflections, pro_bowl, all_pro
+ *
+ * NOTE: There is no pos/position column. Position is extracted from player_id,
+ * which follows the format: "firstname-lastname-{pos}-{school3}-{draftyear}".
  *
  * Returns null for rows missing player_id, season, or a scoreable position.
  */
@@ -324,14 +324,19 @@ function mapSeasonRow(row: Record<string, string>): {
 } | null {
   const playerId = toStr(row.player_id);
   const season   = toInt(row.season);
-  const posRaw   = toStr(row.pos) ?? toStr(row.position) ?? '';
+
+  if (!playerId || !season) return null;
+
+  // Extract position from player_id: last 3 segments are always pos-school3-year
+  const idParts  = playerId.split('-');
+  const posRaw   = idParts.length >= 3 ? idParts[idParts.length - 3] : '';
   const position = normalizePosition(posRaw);
 
-  if (!playerId || !season || !position) return null;
+  if (!position) return null;
 
-  const snapPct    = toFloat(row.snap_pct);
-  const isOffense  = ['QB', 'RB', 'WR', 'TE', 'FB', 'OT', 'IOL'].includes(position);
-  const isDefense  = ['EDGE', 'DT', 'LB', 'CB', 'S'].includes(position);
+  const snapPct   = toFloat(row.snap_pct);
+  const isOffense = ['QB', 'RB', 'WR', 'TE', 'FB', 'OT', 'IOL'].includes(position);
+  const isDefense = ['EDGE', 'DT', 'LB', 'CB', 'S'].includes(position);
 
   return {
     season: {
@@ -339,15 +344,20 @@ function mapSeasonRow(row: Record<string, string>): {
       team:        toStr(row.team),
       season,
       position,
-      gamesPlayed: toInt(row.games_started) ?? 0,
-      passYards:   toFloat(row.passing_yards),
-      passTDs:     toFloat(row.passing_tds),
-      rushYards:   toFloat(row.rushing_yards),
-      rushTDs:     toFloat(row.rushing_tds),
-      recYards:    toFloat(row.receiving_yards),
-      recTDs:      toFloat(row.receiving_tds),
-      soloTackles: toFloat(row.solo_tackles),
-      defInts:     toFloat(row.interceptions),
+      // games_played is total games; games_started is often empty — prefer games_played
+      gamesPlayed: toInt(row.games_played) ?? toInt(row.games_started) ?? 0,
+      // Offensive stats — actual column names use short forms (pass_ / rush_ / rec_)
+      passYards:   toFloat(row.pass_yards)   ?? toFloat(row.passing_yards),
+      passTDs:     toFloat(row.pass_tds)     ?? toFloat(row.passing_tds),
+      rushYards:   toFloat(row.rush_yards)   ?? toFloat(row.rushing_yards),
+      rushTDs:     toFloat(row.rush_tds)     ?? toFloat(row.rushing_tds),
+      recYards:    toFloat(row.rec_yards)    ?? toFloat(row.receiving_yards),
+      recTDs:      toFloat(row.rec_tds)      ?? toFloat(row.receiving_tds),
+      // Defensive stats — tackles_solo (not solo_tackles), ints_def for defensive INTs
+      soloTackles: toFloat(row.tackles_solo) ?? toFloat(row.solo_tackles),
+      defInts:     isDefense
+                     ? (toFloat(row.ints_def) ?? toFloat(row.interceptions))
+                     : null,
       sacks:       toFloat(row.sacks),
       offSnapPct:  isOffense ? snapPct : null,
       defSnapPct:  isDefense ? snapPct : null,

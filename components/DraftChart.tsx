@@ -500,21 +500,62 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   // ── Desktop animation controls ───────────────────────────────────────────
   const handlePlay = useCallback(() => {
-    setIsAnimating(true);
-    setViewMode("drafted");
-    setAnimState({ playing: true, step: 1 });
-    const longestDelay = dotPositions.length * 22 + 550;
+    // Step 1: Reset to projection (instant — no CSS transition yet)
+    setIsAnimating(false);
+    setViewMode("projected");
+    setCurrentStepId("projection");
+    setAnimState({ playing: false, step: 0 });
+    setIsPlaying(false);
+
+    // Step 2: On next tick, start the animated transition to drafted positions
+    // viewMode → "drafted" while chartMode stays "projection" so school colors
+    // animate along with the dot movement; tier colors apply after animation ends.
     setTimeout(() => {
-      setAnimState(s => ({ ...s, playing: false }));
-      setIsAnimating(false);
-    }, longestDelay);
+      setIsAnimating(true);
+      setViewMode("drafted");
+      setAnimState({ playing: true, step: 1 });
+      const longestDelay = dotPositions.length * 22 + 550;
+      setTimeout(() => {
+        setAnimState(s => ({ ...s, playing: false }));
+        setIsAnimating(false);
+        setCurrentStepId("draft"); // switch to draft-results for tier colors
+      }, longestDelay);
+    }, 0);
   }, [dotPositions.length]);
 
-  const handlePause       = useCallback(() => { setAnimState(s => ({ ...s, playing: false })); setIsAnimating(false); }, []);
-  const handleReset       = useCallback(() => { setIsAnimating(false); setViewMode("projected"); setAnimState({ playing: false, step: 0 }); }, []);
-  const handleStepForward = useCallback(() => { setIsAnimating(false); setViewMode("drafted");   setAnimState({ playing: false, step: 1 }); }, []);
-  const handleStepBack    = useCallback(() => { setIsAnimating(false); setViewMode("projected"); setAnimState({ playing: false, step: 0 }); }, []);
-  const handleJumpEnd     = useCallback(() => { setIsAnimating(false); setViewMode("drafted");   setAnimState({ playing: false, step: 1 }); }, []);
+  const handlePause = useCallback(() => {
+    setAnimState(s => ({ ...s, playing: false }));
+    setIsAnimating(false);
+    setIsPlaying(false);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setIsAnimating(false);
+    setIsPlaying(false);
+    setCurrentStepId("projection");
+    setAnimState({ playing: false, step: 0 });
+  }, []);
+
+  const handleStepForward = useCallback(() => {
+    setIsAnimating(false);
+    setIsPlaying(false);
+    setCurrentStepId("draft");
+    setAnimState({ playing: false, step: 1 });
+  }, []);
+
+  const handleStepBack = useCallback(() => {
+    setIsAnimating(false);
+    setIsPlaying(false);
+    setCurrentStepId("projection");
+    setAnimState({ playing: false, step: 0 });
+  }, []);
+
+  const handleJumpEnd = useCallback(() => {
+    setIsAnimating(false);
+    setIsPlaying(false);
+    setCurrentStepId("draft");
+    setAnimState({ playing: false, step: 1 });
+  }, []);
 
   const updateURL = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());

@@ -185,7 +185,7 @@ export default function Sidebar(props: SidebarProps) {
           onChange={v => onViewModeChange(v as ViewMode)}
         />
         <div className="sb-view-hint">
-          {viewMode === "projected" ? "Derek's pre-draft board" : "Where players were actually picked"}
+          {viewMode === "projected" ? "Pre-draft board — school colors" : "Actual picks — tier colors by NFL outcome"}
         </div>
         <AnimPlayer
           animState={animState} viewMode={viewMode}
