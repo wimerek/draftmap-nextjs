@@ -50,9 +50,13 @@ export default function PlayerDots({
   isZoomedMobile = false,
   onDotClick, onDotHover, onDotLeave,
 }: Props) {
-  const inDraftedView   = viewMode === "drafted";
-  const isResultsMode   = chartMode !== "projection";
-  const showTrailingLines = chartMode === "draft-results" || chartMode === "player-production";
+  const inDraftedView     = viewMode === "drafted";
+  // draft-results uses team colors (where the player was drafted to).
+  // player-production and career use tier colors (career outcome scoring).
+  // "team colors fully abandoned" in design spec referred to production/career only.
+  const isDraftResultsMode = chartMode === "draft-results";
+  const isProductionMode   = chartMode === "player-production" || chartMode === "career";
+  const showTrailingLines  = chartMode === "draft-results" || chartMode === "player-production";
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const prefersReducedMotion =
@@ -105,17 +109,21 @@ export default function PlayerDots({
 
         let fill: string, stroke: string;
 
-        if (isResultsMode) {
+        if (isProductionMode) {
+          // Year 1-N and Career: tier colors from outcome scoring
           fill   = getDotColor(chartMode, player.outcomeScore ?? null, player.rd);
           stroke = "rgba(255,255,255,0.25)";
         } else if (isDrafted) {
+          // Live mode: grey out already-drafted players in projected view
           fill   = "rgba(210,200,185,0.35)";
           stroke = "rgba(160,150,135,0.45)";
         } else if (inDraftedView && player.team_drafted) {
+          // Draft Results (and sidebar drafted view): NFL team colors
           const tc = TEAM_COLORS[player.team_drafted];
           if (tc) { fill = tc.fill; stroke = tc.secondary; }
           else    { fill = sc.fill; stroke = "#333333"; }
         } else {
+          // Projection: school/college colors
           fill   = sc.fill;
           stroke = "#333333";
         }
@@ -135,9 +143,9 @@ export default function PlayerDots({
           ? (isZoomedMobile ? 0.8 : 2.5)
           : (inDraftedView ? 2.5 : 1.5);
 
-        // Two-tone team rings: projection mode only on mobile
+        // Two-tone team rings: projection + draft-results modes on mobile (not production/career)
         const showTwoTone =
-          !isResultsMode &&
+          !isProductionMode &&
           isMobile &&
           inDraftedView &&
           !isDrafted &&
