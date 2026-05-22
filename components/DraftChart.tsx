@@ -218,7 +218,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       setCurrentStepId('projection');
       return;
     }
-    handleStepChange(journeySteps[currentIdx + 1].id);
+    animateToStep(journeySteps[currentIdx + 1].id);
   };
 
   useEffect(() => {
@@ -614,16 +614,14 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     router.replace(`/draft/${newYear}`, { scroll: false });
   }, [router]);
 
-  const handleStepChange = useCallback((stepId: string) => {
-    setIsPlaying(false);
-
+  // Shared step-animation logic — used by both manual clicks and auto-play.
+  // Does NOT touch isPlaying so auto-play can call it without killing itself.
+  const animateToStep = useCallback((stepId: string) => {
     // Projection → Draft Results: animate dots from projected to actual positions.
-    // Don't set currentStepId until the animation completes — doing it early would
-    // trigger the chartMode useEffect which instantly snaps viewMode to "drafted",
-    // killing the CSS transition before it can run.
-    //
-    // Check viewMode (not currentStepId) — the sidebar toggle can set currentStepId='draft'
-    // while viewMode stays 'projected', which would falsely skip the animation.
+    // Don't set currentStepId until animation completes — doing it early triggers
+    // the chartMode useEffect which instantly snaps viewMode, killing the transition.
+    // Check viewMode (not currentStepId) because the sidebar toggle can set
+    // currentStepId='draft' while viewMode stays 'projected'.
     if (stepId === 'draft' && viewMode === 'projected') {
       setIsAnimating(false);
       setViewMode("projected");
@@ -638,7 +636,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           setTimeout(() => {
             setAnimState(s => ({ ...s, playing: false }));
             setIsAnimating(false);
-            setCurrentStepId('draft'); // now update journey bar + tier colors
+            setCurrentStepId('draft');
           }, longestDelay);
         });
       });
@@ -647,6 +645,12 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
     setCurrentStepId(stepId);
   }, [viewMode, dotPositions.length]);
+
+  // Manual step click — stops auto-play then delegates to animateToStep.
+  const handleStepChange = useCallback((stepId: string) => {
+    setIsPlaying(false);
+    animateToStep(stepId);
+  }, [animateToStep]);
 
   const handlePlayToggle = useCallback(() => {
     setIsPlaying(p => {
