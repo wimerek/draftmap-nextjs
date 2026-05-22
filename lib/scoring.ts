@@ -27,7 +27,7 @@
  *   const scores = scoreAllFromCareer(allCareerStats)
  */
 
-import { getPlayerContext, LEAGUE_AVG_PRESSURE_RATE } from './teamContext'
+import { getTeamContext, LEAGUE_AVG_PRESSURE_RATE } from './teamContext'
 
 // ── Scoring position type ──────────────────────────────────────────────────────
 
@@ -122,6 +122,7 @@ export interface CareerStats {
  */
 export interface SeasonStats {
   pfrId: string
+  team?: string | null
   season: number            // calendar year (e.g. 2021)
   position: ScoringPosition
   gamesPlayed: number
@@ -579,13 +580,13 @@ export function scoreFromCareerStats(
 // tackle at 20% snaps gets partial credit, not the full signal.
 function applyOLineContext(
   baseScore: number,
-  pfrId: string,
+  team: string | null | undefined,
   season: number,
   snapPct: number,
 ): number {
   if (snapPct < 0.40) return baseScore
 
-  const ctx = getPlayerContext(pfrId, season)
+  const ctx = team ? getTeamContext(team, season) : null
   if (!ctx) return baseScore
 
   const snapWeight = Math.min(snapPct, 1.0)
@@ -598,11 +599,11 @@ function applyOLineContext(
 // Skips backup QBs (< 30% snap share) — context on tiny samples is noise.
 function applyQBContextAdjustment(
   baseScore: number,
-  pfrId: string,
+  team: string | null | undefined,
   season: number,
   snapPct: number,
 ): number {
-  const ctx = getPlayerContext(pfrId, season)
+  const ctx = team ? getTeamContext(team, season) : null
   if (!ctx || snapPct < 0.30) return baseScore
 
   const pressureDelta = ctx.pressure_rate_allowed - LEAGUE_AVG_PRESSURE_RATE
@@ -616,12 +617,12 @@ function applyQBContextAdjustment(
 // dominate and team context introduces scheme contamination.
 function snapsOnlyWithContext(
   snapPctPercentile: number,
-  pfrId: string,
+  team: string | null | undefined,
   season: number,
   snapPct: number,
   position: 'EDGE' | 'DT',
 ): number {
-  const ctx = getPlayerContext(pfrId, season)
+  const ctx = team ? getTeamContext(team, season) : null
   if (!ctx) return snapPctPercentile
 
   const snapWeight = Math.min(snapPct, 1.0)
@@ -703,13 +704,13 @@ export function scoreFromSeasonStats(
     let rawSeason  = computeWeightedScore(vec, cohortVecs, weights)
 
     if (position === 'OT' || position === 'IOL') {
-      rawSeason = applyOLineContext(rawSeason, s.pfrId, s.season, s.offSnapPct ?? 0)
+      rawSeason = applyOLineContext(rawSeason, s.team, s.season, s.offSnapPct ?? 0)
     } else if (position === 'QB') {
-      rawSeason = applyQBContextAdjustment(rawSeason, s.pfrId, s.season, s.offSnapPct ?? 0)
+      rawSeason = applyQBContextAdjustment(rawSeason, s.team, s.season, s.offSnapPct ?? 0)
     } else if (position === 'EDGE' || position === 'DT') {
       const isSnapsOnly = s.soloTackles === null && s.sacks === null && s.defInts === null
       if (isSnapsOnly) {
-        rawSeason = snapsOnlyWithContext(rawSeason, s.pfrId, s.season, s.defSnapPct ?? 0, position)
+        rawSeason = snapsOnlyWithContext(rawSeason, s.team, s.season, s.defSnapPct ?? 0, position)
       }
     }
 

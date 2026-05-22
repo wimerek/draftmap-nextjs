@@ -2,7 +2,7 @@
  * app/api/draft/route.ts
  *
  * Draft data endpoint — returns players filtered and shaped for the Draft Chart.
- * Internally calls the same Airtable data as /api/players, but this endpoint
+ * Internally calls the same Google Sheets data as /api/players, but this endpoint
  * can add chart-specific transformations (sorting, filtering, derived fields)
  * without coupling that logic to the generic players endpoint.
  *

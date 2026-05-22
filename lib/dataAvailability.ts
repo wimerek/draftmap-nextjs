@@ -4,7 +4,7 @@
  * Data availability model for each draft class.
  * Determines tick heights in the year scrubber and journey step counts.
  *
- * DATA_START_YEAR: first NFL season covered by the scoring CSVs (player_season_team_2021_2024).
+ * DATA_START_YEAR: first NFL season covered by the player_seasons Google Sheet tab.
  * DATA_END_YEAR:   last completed season in the dataset. Update when new season data is added.
  * TODO: update DATA_END_YEAR to 2025 once 2025-season stats are processed.
  */

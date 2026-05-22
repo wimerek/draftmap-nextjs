@@ -3,9 +3,7 @@
 // module load time. Returns null (not throws) on missing data so scoring
 // degrades gracefully for players or seasons outside the 2021-2024 range.
 //
-// Known gap: multi-team seasons use primary team only (~5% of player-seasons).
-// A player traded at week 12 gets their pre-trade team's context for the full
-// season. Low impact — flagged for a future data expansion pass.
+// Resolved: context functions now use team from player_seasons directly via getTeamContext()
 
 import fs from 'fs'
 import path from 'path'

@@ -10,6 +10,8 @@
  * Set SHEETS_SPREADSHEET_ID in .env.local and Vercel environment variables.
  */
 
+import { SeasonStats, normalizePosition, scoreAllFromSeasons } from './scoring'
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /** Raw string fields from the Google Sheets CSV export, before type coercion. */
@@ -302,36 +304,108 @@ export function findBySlug(players: Player[], slug: string): Player | undefined 
 // ── Outcome scores ────────────────────────────────────────────────────────────
 
 /**
- * Fetch pre-computed outcome scores from the 'outcomes' Google Sheets tab.
+ * Map a raw player_seasons row to SeasonStats for the scoring engine.
  *
- * The outcomes tab must have columns: player_id, outcome_score
- * Scores are 0–100, computed externally via lib/scoring.ts and stored by Derek.
+ * Column mapping from the player_seasons Google Sheets tab (nflverse naming):
+ *   player_id      → pfrId
+ *   season         → season
+ *   pos/position   → position (normalized via normalizePosition)
+ *   games_started  → gamesPlayed
+ *   snap_pct       → offSnapPct (offense) or defSnapPct (defense), 0.0–1.0
+ *   passing_yards/tds, rushing_yards/tds, receiving_yards/tds → offensive stats
+ *   sacks, solo_tackles, interceptions → defensive detailed stats
+ *   all_pro, pro_bowl   → accumulated separately for awards map
  *
- * Returns an empty Map (gracefully) if the tab doesn't exist or has no data.
- * Intended for server-side use in API route handlers only.
+ * Returns null for rows missing player_id, season, or a scoreable position.
+ */
+function mapSeasonRow(row: Record<string, string>): {
+  season: SeasonStats;
+  allPro: number;
+  proBowl: number;
+} | null {
+  const playerId = toStr(row.player_id);
+  const season   = toInt(row.season);
+  const posRaw   = toStr(row.pos) ?? toStr(row.position) ?? '';
+  const position = normalizePosition(posRaw);
+
+  if (!playerId || !season || !position) return null;
+
+  const snapPct    = toFloat(row.snap_pct);
+  const isOffense  = ['QB', 'RB', 'WR', 'TE', 'FB', 'OT', 'IOL'].includes(position);
+  const isDefense  = ['EDGE', 'DT', 'LB', 'CB', 'S'].includes(position);
+
+  return {
+    season: {
+      pfrId:       playerId,
+      team:        toStr(row.team),
+      season,
+      position,
+      gamesPlayed: toInt(row.games_started) ?? 0,
+      passYards:   toFloat(row.passing_yards),
+      passTDs:     toFloat(row.passing_tds),
+      rushYards:   toFloat(row.rushing_yards),
+      rushTDs:     toFloat(row.rushing_tds),
+      recYards:    toFloat(row.receiving_yards),
+      recTDs:      toFloat(row.receiving_tds),
+      soloTackles: toFloat(row.solo_tackles),
+      defInts:     toFloat(row.interceptions),
+      sacks:       toFloat(row.sacks),
+      offSnapPct:  isOffense ? snapPct : null,
+      defSnapPct:  isDefense ? snapPct : null,
+      stSnapPct:   null,
+    },
+    allPro:  toInt(row.all_pro)  ?? 0,
+    proBowl: toInt(row.pro_bowl) ?? 0,
+  };
+}
+
+/**
+ * Fetch player_seasons from Google Sheets, compute outcome scores via the
+ * scoring engine, and return a map of player_id → score (0–100).
+ *
+ * Reads the 'player_seasons' tab (9k+ rows, 2018–2024). Groups rows by player,
+ * accumulates per-player award counts, then calls scoreAllFromSeasons() which
+ * runs JAWS-based percentile scoring within each position cohort.
+ *
+ * Returns an empty Map on any fetch or parse failure so the API degrades
+ * gracefully (dots render grey rather than erroring).
  */
 export async function fetchOutcomeScores(): Promise<Map<string, number>> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) return new Map();
 
-  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=outcomes`;
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=player_seasons`;
 
   try {
     const res = await fetch(url, { next: { revalidate: 300 } });
     if (!res.ok) return new Map();
 
-    const csv = await res.text();
-    const rows = parseCSV(csv) as Array<{ player_id?: string; outcome_score?: string }>;
+    const csv  = await res.text();
+    const rows = parseCSV(csv) as unknown as Record<string, string>[];
 
-    const scoreMap = new Map<string, number>();
+    const allSeasons: SeasonStats[]                             = [];
+    const awards = new Map<string, { allPro: number; proBowls: number }>();
+
     for (const row of rows) {
-      const id    = toStr(row.player_id);
-      const score = toFloat(row.outcome_score);
-      if (id && score !== null) {
-        scoreMap.set(id, score);
-      }
+      const mapped = mapSeasonRow(row);
+      if (!mapped) continue;
+
+      allSeasons.push(mapped.season);
+
+      const prev = awards.get(mapped.season.pfrId) ?? { allPro: 0, proBowls: 0 };
+      awards.set(mapped.season.pfrId, {
+        allPro:   prev.allPro   + mapped.allPro,
+        proBowls: prev.proBowls + mapped.proBowl,
+      });
     }
-    return scoreMap;
+
+    const scored = scoreAllFromSeasons(allSeasons, awards);
+
+    const result = new Map<string, number>();
+    scored.forEach((outcome, playerId) => {
+      result.set(playerId, outcome.score);
+    });
+    return result;
   } catch {
     return new Map();
   }
