@@ -507,20 +507,22 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     setAnimState({ playing: false, step: 0 });
     setIsPlaying(false);
 
-    // Step 2: On next tick, start the animated transition to drafted positions
-    // viewMode → "drafted" while chartMode stays "projection" so school colors
-    // animate along with the dot movement; tier colors apply after animation ends.
-    setTimeout(() => {
-      setIsAnimating(true);
-      setViewMode("drafted");
-      setAnimState({ playing: true, step: 1 });
-      const longestDelay = dotPositions.length * 22 + 550;
-      setTimeout(() => {
-        setAnimState(s => ({ ...s, playing: false }));
-        setIsAnimating(false);
-        setCurrentStepId("draft"); // switch to draft-results for tier colors
-      }, longestDelay);
-    }, 0);
+    // Step 2: Double rAF ensures the browser paints the projected state before
+    // we flip isAnimating=true. Without this, React batches both updates into
+    // the same paint frame and the CSS transition has nothing to animate from.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setIsAnimating(true);
+        setViewMode("drafted");
+        setAnimState({ playing: true, step: 1 });
+        const longestDelay = dotPositions.length * 22 + 550;
+        setTimeout(() => {
+          setAnimState(s => ({ ...s, playing: false }));
+          setIsAnimating(false);
+          setCurrentStepId("draft"); // switch to draft-results for tier colors
+        }, longestDelay);
+      });
+    });
   }, [dotPositions.length]);
 
   const handlePause = useCallback(() => {
