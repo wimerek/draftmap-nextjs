@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { VALID_DRAFT_YEARS } from "@/lib/sheets";
+import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
 import type { SidebarProps, ViewMode } from "@/components/Sidebar";
 
 // Reusable segmented control for the drawer

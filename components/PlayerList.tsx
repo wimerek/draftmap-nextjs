@@ -15,7 +15,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Player } from "@/lib/sheets";
-import { VALID_DRAFT_YEARS } from "@/lib/sheets";
+import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
 import { fmtHeight, ALL_POSITIONS } from "@/lib/utils";
 import { generateBaseSlug } from "@/lib/slugs";
 import { cardPositionalRangeData } from "@/lib/chartConstants";

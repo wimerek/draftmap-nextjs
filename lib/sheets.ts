@@ -11,6 +11,7 @@
  */
 
 import { SeasonStats, normalizePosition, scoreAllFromSeasons } from './scoring'
+import { CURRENT_DRAFT_YEAR } from './draftYears'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,12 +102,10 @@ export interface Player {
 
 // ── Year constants ─────────────────────────────────────────────────────────────
 
-/** Years with data in the Google Sheet, most-recent first. Expand as data is added. */
-export const VALID_DRAFT_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016] as const;
-export type DraftYear = (typeof VALID_DRAFT_YEARS)[number];
-
-/** Most recent year — used as the default when no year is specified. */
-export const CURRENT_DRAFT_YEAR = VALID_DRAFT_YEARS[0];
+// Re-exported from lib/draftYears.ts — client components should import from there
+// directly to avoid pulling server-only dependencies into the client bundle.
+export { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from './draftYears';
+export type { DraftYear } from './draftYears';
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
 

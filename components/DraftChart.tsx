@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
-import { VALID_DRAFT_YEARS } from "@/lib/sheets";
+import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
 import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
