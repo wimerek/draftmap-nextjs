@@ -386,7 +386,9 @@ export async function fetchOutcomeScores(): Promise<Map<string, number>> {
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=player_seasons`;
 
   try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
+    // player_seasons is historical data — revalidate once per day, not every 5 min.
+    // This is the largest payload (9k+ rows) and the primary cause of slow cold loads.
+    const res = await fetch(url, { next: { revalidate: 86400 } });
     if (!res.ok) return new Map();
 
     const csv  = await res.text();
