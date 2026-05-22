@@ -28,7 +28,7 @@ export interface JourneyStep {
 }
 
 // First NFL season covered by the scoring dataset.
-const DATA_START_YEAR = 2021
+const DATA_START_YEAR = 2018
 
 // Last completed NFL season with stats in the dataset.
 // TODO: bump to 2025 once 2025-season scoring data is processed.

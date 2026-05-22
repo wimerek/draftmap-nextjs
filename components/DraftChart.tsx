@@ -185,10 +185,11 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const yAxisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const isResults = chartMode !== 'projection';
-    if (isResults && yAxisPhase === 'projection') {
+    // Tier labels fire at Year 1 (player-production), not Draft Results
+    const isProduction = chartMode === 'player-production' || chartMode === 'career';
+    if (isProduction && yAxisPhase === 'projection') {
       setYAxisPhase('results');
-    } else if (!isResults && yAxisPhase === 'results') {
+    } else if (!isProduction && yAxisPhase === 'results') {
       if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
       yAxisTimerRef.current = setTimeout(() => setYAxisPhase('projection'), 400);
     }
@@ -659,6 +660,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   const tierAxisVisible = yAxisPhase === 'results';
   const tierBandsHiding = yAxisPhase === 'results';
+  const showTierArrows  = chartMode === 'projection' || chartMode === 'draft-results';
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -728,18 +730,23 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 </linearGradient>
               </defs>
               <TierBands
+                key={`bands-${selectedYear}`}
                 layout={layout}
                 labelsHiding={tierBandsHiding}
                 prefersReducedMotion={prefersReduced.current}
               />
-              <TierArrows layout={layout} />
+              {showTierArrows && <TierArrows layout={layout} />}
               <TierAxisLabels
+                key={`tier-labels-${selectedYear}`}
                 layout={layout}
                 visible={tierAxisVisible}
                 prefersReducedMotion={prefersReduced.current}
+                isMobile={isMobile}
+                draftYear={selectedYear}
+                currentStep={currentStep}
               />
               <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
-              <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} />
+              <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} />
               <UDFAZone
                 layout={layout}
                 viewMode={viewMode}

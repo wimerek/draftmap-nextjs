@@ -1,21 +1,39 @@
 /**
  * lib/tierLabels.ts
  *
- * NFL outcome tier definitions for the Delta-2 results view.
- * Used by TierAxisLabels (Y-axis), getDotColor (dot fills), and player cards.
+ * Delta-3: 5-tier visual outcome system (replaces 7-tier from Delta-2).
+ * Used by TierAxisLabels (Y-axis zone fills/labels), getDotColor (dot fills),
+ * and player cards.
  *
- * Thresholds map to the 0-100 score from lib/scoring.ts.
- * List is ordered highest-to-lowest (Star first, Bust last).
+ * Thresholds map to the 0–100 score from lib/scoring.ts.
+ * List is ordered highest-to-lowest (Franchise Player first, Bust last).
+ *
+ * Awards floors (from scoring engine — carry forward):
+ *   All-Pro (1+)   → minimum Franchise Player (score ≥ 75)
+ *   Pro Bowl (2+)  → minimum Pro Bowl Caliber (score ≥ 55)
+ *   Pro Bowl (1×)  → no floor
  */
 
-export const TIER_LABELS = [
-  { label: 'STAR',        threshold: 75, color: '#f59e0b' },
-  { label: 'GREAT',       threshold: 58, color: '#34d399' },
-  { label: 'GOOD',        threshold: 42, color: '#60a5fa' },
-  { label: 'STARTER',     threshold: 28, color: '#94a3b8' },
-  { label: 'CONTRIBUTOR', threshold: 14, color: '#7c8fa8' },
-  { label: 'DEPTH/ST',    threshold: 5,  color: '#4e6070' },
-  { label: 'BUST',        threshold: 0,  color: '#f87171' },
-] as const
+export interface Tier {
+  id: string
+  label: string
+  color: string
+  minScore: number  // inclusive lower bound: score >= minScore → this tier
+}
 
-export type OutcomeTierLabel = typeof TIER_LABELS[number]['label']
+// TODO Delta-5: validate cutoffs against full dataset
+export const TIERS: Tier[] = [
+  { id: 'franchise', label: 'FRANCHISE PLAYER',   color: '#f59e0b', minScore: 75 },
+  { id: 'pro-bowl',  label: 'PRO BOWL CALIBER',   color: '#34d399', minScore: 55 },
+  { id: 'starter',   label: 'STARTER',             color: '#60a5fa', minScore: 35 },
+  { id: 'depth',     label: 'DEPTH / ROLE PLAYER', color: '#94a3b8', minScore: 12 },
+  { id: 'bust',      label: 'BUST',                color: '#f87171', minScore: 0  },
+]
+
+// TODO Delta-5: validate cutoffs against full dataset
+export function getTierForScore(score: number): Tier {
+  for (const tier of TIERS) {
+    if (score >= tier.minScore) return tier
+  }
+  return TIERS[TIERS.length - 1]
+}

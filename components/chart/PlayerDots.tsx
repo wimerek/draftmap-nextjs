@@ -106,8 +106,7 @@ export default function PlayerDots({
         let fill: string, stroke: string;
 
         if (isResultsMode) {
-          // Delta-2: tier color based on outcome score (null until scoring integrated)
-          fill   = getDotColor(chartMode, null, player.rd);
+          fill   = getDotColor(chartMode, player.outcomeScore ?? null, player.rd);
           stroke = "rgba(255,255,255,0.25)";
         } else if (isDrafted) {
           fill   = "rgba(210,200,185,0.35)";

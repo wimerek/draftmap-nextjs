@@ -1,14 +1,14 @@
 /**
  * lib/dotColor.ts
  *
- * Dot color logic for the Delta-2 chart view system.
+ * Dot color logic for the Delta-3 chart view system.
  *
  * Projection mode: round-based colors (unchanged from Phase Beta).
- * All other modes (draft-results, player-production, career): tier colors from
- * the NFL outcome scoring system. Null outcomeScore → Depth/ST fallback color.
+ * All other modes (draft-results, player-production, career): 5-tier colors from
+ * the visual outcome tier system. Null outcomeScore → grey fallback (#4e6070).
  */
 
-import { TIER_LABELS } from './tierLabels'
+import { getTierForScore } from './tierLabels'
 import type { ChartMode } from './dataAvailability'
 
 const ROUND_COLORS: Record<number, string> = {
@@ -19,13 +19,6 @@ const ROUND_COLORS: Record<number, string> = {
   5: '#f87171',
   6: '#c084fc',
   7: '#94a3b8',
-}
-
-export function getTierForScore(score: number): typeof TIER_LABELS[number] {
-  for (const tier of TIER_LABELS) {
-    if (score >= tier.threshold) return tier
-  }
-  return TIER_LABELS[TIER_LABELS.length - 1]
 }
 
 export function getDotColor(

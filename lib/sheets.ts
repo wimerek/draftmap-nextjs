@@ -41,6 +41,7 @@ export interface SheetsRawRow {
   rd_drafted?: string;
   pick_drafted?: string;
   team_drafted?: string;
+  outcome_score?: string;
 }
 
 /** Shape returned by the /api/draft and /api/players route handlers. */
@@ -92,6 +93,9 @@ export interface Player {
 
   /** Derived: true if any of rd_drafted / pick_drafted / team_drafted is populated */
   drafted: boolean;
+
+  /** Pre-computed outcome score (0–100) from lib/scoring.ts. Null for classes without data. */
+  outcomeScore: number | null;
 }
 
 // ── Year constants ─────────────────────────────────────────────────────────────
@@ -222,6 +226,7 @@ function mapRow(row: SheetsRawRow): Player {
       pick_drafted !== null ||
       (team_drafted && team_drafted.length > 0)
     ),
+    outcomeScore: toFloat(row.outcome_score),
   };
 }
 

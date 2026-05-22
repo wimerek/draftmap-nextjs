@@ -11,6 +11,7 @@
  * consistency with position headers.
  */
 import type { ChartLayout } from "@/lib/chartMath";
+import type { ChartMode } from "@/lib/dataAvailability";
 
 interface Props {
   layout: ChartLayout;
@@ -18,9 +19,10 @@ interface Props {
   mobileZoomedX?: number;
   /** Width of the mobile zoomed viewBox (used to scale font size appropriately). */
   mobileZoomedViewBoxW?: number;
+  chartMode?: ChartMode;
 }
 
-export default function RoundZones({ layout, mobileZoomedX, mobileZoomedViewBoxW }: Props) {
+export default function RoundZones({ layout, mobileZoomedX, mobileZoomedViewBoxW, chartMode }: Props) {
   const { roundBoundaryYs, roundLabelYs, margin, chartW } = layout;
 
   const isMobileZoomed = mobileZoomedX !== undefined;
@@ -38,8 +40,8 @@ export default function RoundZones({ layout, mobileZoomedX, mobileZoomedViewBoxW
         />
       ))}
 
-      {/* Round labels — left margin on desktop only; MobileRoundTicks handles zoomed mobile */}
-      {!isMobileZoomed && ([1, 2, 3, 4, 5, 6, 7] as const).map(rd => (
+      {/* Round labels — left margin on desktop only; hidden in production/career modes */}
+      {!isMobileZoomed && chartMode !== 'player-production' && chartMode !== 'career' && ([1, 2, 3, 4, 5, 6, 7] as const).map(rd => (
         <text
           key={`rd-label-${rd}`}
           x={margin.left - 10}
