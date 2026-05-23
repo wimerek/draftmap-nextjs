@@ -31,8 +31,7 @@ export interface JourneyStep {
 const DATA_START_YEAR = 2018
 
 // Last completed NFL season with stats in the dataset.
-// TODO: bump to 2025 once 2025-season scoring data is processed.
-const DATA_END_YEAR = 2024
+const DATA_END_YEAR = 2025
 
 export function getClassAvailability(draftYear: number): ClassDataAvailability {
   const seasonsAvailable: number[] = []

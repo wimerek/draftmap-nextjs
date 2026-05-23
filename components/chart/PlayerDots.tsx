@@ -27,6 +27,7 @@ interface Props {
   liveMode: boolean;
   viewMode: ViewMode;
   chartMode?: ChartMode;
+  currentStepId?: string;
   isAnimating: boolean;
   showLines: boolean;
   isMobile?: boolean;
@@ -47,6 +48,7 @@ function deltaToRadius(delta: number): number {
 
 export default function PlayerDots({
   dotPositions, liveMode, viewMode, chartMode = "projection",
+  currentStepId,
   isAnimating, showLines,
   isMobile = false,
   isZoomedMobile = false,
@@ -113,9 +115,18 @@ export default function PlayerDots({
         let fill: string, stroke: string;
 
         if (isProductionMode) {
-          // Year 1-N and Career: tier colors from outcome scoring
-          fill   = getDotColor(chartMode, player.outcomeScore ?? null, player.rd);
-          stroke = "rgba(255,255,255,0.25)";
+          // Year 1-N and Career: team colors (team identity story; Y-position tells performance story)
+          let stepTeam: string | null = null;
+          if (chartMode === 'career') {
+            const lastStep = [...(player.stepScores ?? [])].reverse().find(s => s.team)
+            stepTeam = lastStep?.team ?? player.team_drafted ?? null;
+          } else {
+            const stepEntry = (player.stepScores ?? []).find(s => s.stepId === currentStepId);
+            stepTeam = stepEntry?.team ?? player.team_drafted ?? null;
+          }
+          const tc = stepTeam ? TEAM_COLORS[stepTeam] : null;
+          fill   = tc?.fill   ?? '#4e6070';
+          stroke = tc?.secondary ?? 'rgba(255,255,255,0.35)';
         } else if (isDrafted) {
           // Live mode: grey out already-drafted players in projected view
           fill   = "rgba(210,200,185,0.35)";
@@ -137,14 +148,18 @@ export default function PlayerDots({
         const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
         const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
 
-        // Production mode resets to base radius; draft-results sizes by pick delta.
-        const r = (isMobile || isProductionMode) ? BASE_R : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
+        // Production mode uses slightly larger uniform radius; draft-results sizes by pick delta.
+        const r = isMobile ? BASE_R : isProductionMode ? BASE_R + 1.5 : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
         const skipAnim = isMobile && !isAnimating;
         const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
         const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
+        // In production mode, exclude `r` from transition so radius snaps instantly
+        // when entering from Draft Results (variable delta-size → uniform BASE_R+1.5).
         const transition = tDuration > 0
-          ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+          ? isProductionMode
+            ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+            : [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
         const dotStroke      = isMobile ? "#ffffff" : stroke;

@@ -875,6 +875,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
               <UDFAZone
                 layout={layout}
                 viewMode={viewMode}
+                chartMode={chartMode}
                 isZoomedMobile={isZoomedMobile}
                 viewBoxX={mobileZoomedX}
                 viewBoxW={mobileZoomedViewBoxW || undefined}
@@ -884,6 +885,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 liveMode={liveMode}
                 viewMode={viewMode}
                 chartMode={chartMode}
+                currentStepId={currentStepId}
                 isAnimating={isAnimating}
                 showLines={showLines}
                 isMobile={isMobile}

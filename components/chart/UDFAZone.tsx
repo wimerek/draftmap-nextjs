@@ -10,18 +10,23 @@
 import { useState } from "react";
 import type { ChartLayout } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
+import type { ChartMode } from "@/lib/dataAvailability";
 
 interface Props {
   layout: ChartLayout;
   viewMode: ViewMode;
+  chartMode?: ChartMode;
   isZoomedMobile?: boolean;
   viewBoxX?: number;
   viewBoxW?: number;
 }
 
-export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, viewBoxX, viewBoxW }: Props) {
+export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile = false, viewBoxX, viewBoxW }: Props) {
   const [hover, setHover] = useState(false);
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
+
+  const isProductionMode = chartMode === 'player-production' || chartMode === 'career';
+  const zoneLabel = isProductionMode ? 'NO DATA' : 'UDFA';
 
   if (isZoomedMobile) {
     const cx = viewBoxX !== undefined && viewBoxW !== undefined
@@ -39,7 +44,7 @@ export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, vie
           letterSpacing={1.5}
           textAnchor="middle"
         >
-          UDFA
+          {zoneLabel}
         </text>
       </g>
     );
@@ -73,7 +78,7 @@ export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, vie
         strokeWidth={1}
         strokeDasharray="6,5"
       />
-      {/* "UDFA" label */}
+      {/* Zone label */}
       <text
         x={labelX} y={labelY}
         fontSize={10} fontWeight={700}
@@ -81,7 +86,7 @@ export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, vie
         letterSpacing={1.5}
         textAnchor="start"
       >
-        UDFA
+        {zoneLabel}
       </text>
       {/* Hover tooltip */}
       {hover && (
@@ -97,7 +102,7 @@ export default function UDFAZone({ layout, viewMode, isZoomedMobile = false, vie
             x={labelX + 8} y={udfaZoneY + 18}
             fontSize={10} fill="#F5F0E8"
           >
-            Undrafted Free Agent
+            {isProductionMode ? 'No production data yet' : 'Undrafted Free Agent'}
           </text>
         </g>
       )}

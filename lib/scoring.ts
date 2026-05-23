@@ -152,6 +152,7 @@ export interface SeasonStats {
 export interface StepScore {
   stepId: string        // matches journey step ID: String(season) e.g. '2021', or 'career'
   score: number | null  // null if no data for this step
+  team?: string | null  // NFL team for this season (populated from SeasonStats.team)
 }
 
 /** Scored outcome for a player -- output of the scoring engine. */
@@ -706,7 +707,7 @@ export function scoreFromSeasonStats(
   const cohortVecs = allSeasons.map(buildSeasonStatVector)
 
   // Score each season that has any involvement data
-  const seasonScores: Array<{ season: number; score: number }> = []
+  const seasonScores: Array<{ season: number; score: number; team?: string | null }> = []
   const sorted = [...playerSeasons].sort((a, b) => a.season - b.season)
 
   for (const s of sorted) {
@@ -731,7 +732,7 @@ export function scoreFromSeasonStats(
     }
 
     const seasonScore = Math.max(rawSeason, 5)   // involvement floor
-    seasonScores.push({ season: s.season, score: seasonScore })
+    seasonScores.push({ season: s.season, score: seasonScore, team: s.team })
   }
 
   if (seasonScores.length === 0) return empty
@@ -762,6 +763,7 @@ export function scoreFromSeasonStats(
     return {
       stepId: String(entry.season),
       score:  Math.max(stepRaw, 5),
+      team:   entry.team ?? null,
     }
   })
 

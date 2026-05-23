@@ -97,7 +97,7 @@ export default function HeaderZone({
       background: "rgba(255,255,255,0.5)",
       border: "2px solid rgba(255,255,255,0.5)",
     };
-    return { background: "transparent", border: "2px solid rgba(255,255,255,0.2)" };
+    return { background: "transparent", border: "2px solid rgba(255,255,255,0.30)" };
   }
 
   function getLabelStyle(stepIdx: number) {
