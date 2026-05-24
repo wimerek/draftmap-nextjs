@@ -10,7 +10,7 @@
  * Set SHEETS_SPREADSHEET_ID in .env.local and Vercel environment variables.
  */
 
-import { SeasonStats, StepScore, normalizePosition, scoreAllFromSeasons } from './scoring'
+import { SeasonStats, StepScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -419,7 +419,7 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
       });
     }
 
-    const scored = scoreAllFromSeasons(allSeasons, awards);
+    const scored = normalizeScoreDistribution(scoreAllFromSeasons(allSeasons, awards));
 
     const result = new Map<string, PlayerOutcomeData>();
     scored.forEach((outcome, playerId) => {
@@ -432,4 +432,11 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
   } catch {
     return new Map();
   }
+}
+rn result;
+  } catch {
+    return new Map();
+  }
+}
+}
 }

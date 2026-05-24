@@ -934,3 +934,74 @@ export function scoreAllFromSeasons(
 
   return results
 }
+
+// ── Scale normalization ────────────────────────────────────────────────────────
+
+/**
+ * Normalize score distribution per position so the best players in each
+ * position group visually reach near the top of the chart (target: p98 → 95).
+ *
+ * Why: ARC averages season scores, so the mathematical ceiling is ~82-90 even
+ * for elite players, leaving the top 10-15% of the chart visually empty.
+ *
+ * Algorithm:
+ *   1. Bucket scores by position.
+ *   2. For each position with ≥5 significant scorers (score > 10),
+ *      find the 98th-percentile score as the reference ceiling.
+ *   3. Compute scale factor = TARGET (95) / ref, capped so we never
+ *      shrink scores (only expand), and only when ref < TARGET.
+ *   4. Apply factor to outcome.score and all stepScores[].score.
+ *   5. arcScore/apexScore/rookieScore remain unchanged (displayed on cards).
+ *
+ * Returns a new Map — does not mutate the input.
+ */
+export function normalizeScoreDistribution(
+  scores: Map<string, PlayerOutcomeScore>,
+): Map<string, PlayerOutcomeScore> {
+  const TARGET     = 95
+  const REF_PCT    = 0.98
+  const MIN_COHORT = 5
+
+  // Collect scores per position
+  const byPosition = new Map<ScoringPosition, number[]>()
+  scores.forEach((outcome) => {
+    const group = byPosition.get(outcome.position) ?? []
+    group.push(outcome.score)
+    byPosition.set(outcome.position, group)
+  })
+
+  // Compute per-position scale factors
+  const factors = new Map<ScoringPosition, number>()
+  byPosition.forEach((posScores, position) => {
+    const significant = posScores.filter(s => s > 10).sort((a, b) => a - b)
+    if (significant.length < MIN_COHORT) return
+    const idx = Math.min(Math.floor(significant.length * REF_PCT), significant.length - 1)
+    const ref = significant[idx]
+    if (ref > 0 && ref < TARGET) {
+      factors.set(position, TARGET / ref)
+    }
+  })
+
+  // Apply factors, rebuilding the map
+  const out = new Map<string, PlayerOutcomeScore>()
+  scores.forEach((outcome, pid) => {
+    const factor = factors.get(outcome.position) ?? 1.0
+    if (factor === 1.0) {
+      out.set(pid, outcome)
+      return
+    }
+    const scale = (s: number) => Math.min(100, Math.max(5, Math.round(s * factor)))
+    const newScore      = scale(outcome.score)
+    const newStepScores = outcome.stepScores.map((step: StepScore) => ({
+      ...step,
+      score: step.score !== null ? scale(step.score) : null,
+    }))
+    out.set(pid, {
+      ...outcome,
+      score:      newScore,
+      tier:       getTier(newScore, outcome.position),
+      stepScores: newStepScores,
+    })
+  })
+  return out
+}
