@@ -223,11 +223,23 @@ const AWARD_FLOORS = {
  * and remaining weights are re-normalized -- see reweightForAvailable().
  *
  * Design notes:
- *  - EDGE: sacks carry extra weight -- pass-rush is the primary value signal
- *  - DT: snaps/tackles weighted more than sacks (run defense matters equally)
- *  - CB: not penalized for low tackle totals (coverage is the core value)
- *  - OT/IOL: snap% + games + seasons started = proxy for "true starter"
+ *  - EDGE: sacks heavily weighted -- pass-rush is the defining value signal for the position
+ *  - DT: snaps/tackles weighted more than sacks (run defense matters as much as pass rush)
+ *  - LB: tackles are the primary signal; INTs reduced (most LBs get 0-2/year)
+ *  - CB: coverage (INTs + snap%) dominates; tackles intentionally low -- a good cover corner
+ *        earns snaps by not being thrown at, not by tackling. High tackle totals can indicate
+ *        coverage failure as much as run support.
+ *  - S: box safety tackling is a core value signal; sack weight reduced (blitzing is real
+ *        but 10% was too heavy for a non-primary responsibility)
+ *  - OT/IOL: snap% + games + seasons started = proxy for "true starter"; team context
+ *        (pass_prot_quality + run_block_quality) applied separately in applyOLineContext
  *  - QB: no INTs (not in dataset yet); offSnapPct captures starter status
+ *
+ * Weight validation: 2026-05-23. All positions confirmed via simulate-and-rank test
+ * against representative cohorts. Key outcomes verified:
+ *   - CB cover corner scores higher than high-tackle/no-INT corner
+ *   - EDGE pass rusher separates further from run-stopping DE
+ *   - LB coverage-only (high INTs, low tackles) correctly drops vs tackle leaders
  */
 export const POSITION_WEIGHTS: Record<ScoringPosition, Partial<Record<StatKey, number>>> = {
   QB: {
@@ -247,10 +259,10 @@ export const POSITION_WEIGHTS: Record<ScoringPosition, Partial<Record<StatKey, n
     gamesPlayed: 0.05,
   },
   WR: {
-    recYards:    0.40,
-    recTDs:      0.28,
-    rushYards:   0.05,    // small gadget bonus -- intentionally small
-    offSnapPct:  0.17,
+    recYards:    0.43,   // primary WR signal; slight increase
+    recTDs:      0.20,   // reduced -- TDs are scheme/usage-dependent (red zone target share)
+    rushYards:   0.05,   // small gadget bonus -- intentionally small
+    offSnapPct:  0.22,   // coaching trust; increased to absorb TD reduction
     gamesPlayed: 0.10,
   },
   TE: {
@@ -278,8 +290,8 @@ export const POSITION_WEIGHTS: Record<ScoringPosition, Partial<Record<StatKey, n
     seasonsStarted:  0.25,
   },
   EDGE: {
-    sacks:       0.40,   // pass-rush is the defining value signal
-    soloTackles: 0.25,
+    sacks:       0.50,   // pass-rush is the defining value signal -- increased from 0.40
+    soloTackles: 0.15,   // run defense participation, secondary -- reduced from 0.25
     defSnapPct:  0.30,
     defInts:     0.05,   // small bonus -- rare but high-value plays
   },
@@ -290,21 +302,21 @@ export const POSITION_WEIGHTS: Record<ScoringPosition, Partial<Record<StatKey, n
     defInts:     0.05,
   },
   LB: {
-    soloTackles: 0.30,
+    soloTackles: 0.40,   // primary LB value signal -- increased from 0.30
     sacks:       0.20,
-    defInts:     0.20,
+    defInts:     0.10,   // reduced from 0.20 -- most LBs get 0-2 INTs/year
     defSnapPct:  0.30,
   },
   CB: {
-    defInts:     0.30,
-    defSnapPct:  0.35,
-    soloTackles: 0.30,   // tackles included but CB not penalized for low totals
-    sacks:       0.05,   // small bonus only
+    defInts:     0.45,   // coverage is the primary CB signal -- increased from 0.30
+    defSnapPct:  0.40,   // coaching trust -- increased from 0.35
+    soloTackles: 0.10,   // intentionally low -- high tackles can indicate coverage failure
+    sacks:       0.05,   // small blitz bonus only
   },
   S: {
-    soloTackles: 0.25,
+    soloTackles: 0.30,   // box safety tackling is a core value signal -- increased from 0.25
     defInts:     0.30,
-    sacks:       0.10,
+    sacks:       0.05,   // reduced from 0.10 -- blitzing real but not primary responsibility
     defSnapPct:  0.35,
   },
   ST: {
@@ -591,6 +603,11 @@ export function scoreFromCareerStats(
 // 60% playing time (primary signal) + 40% team quality.
 // Snap-weighting: a full-time starter earns the full team signal; a swing
 // tackle at 20% snaps gets partial credit, not the full signal.
+//
+// Team quality uses pass_prot_quality and run_block_quality equally (0.50/0.50)
+// rather than the blended oline_quality field. This gives OT/IOL explicit credit
+// for run-blocking (enabling a top rushing offense) separately from pass protection.
+// QB context uses pressure_rate_allowed exclusively and is unaffected by this split.
 function applyOLineContext(
   baseScore: number,
   team: string | null | undefined,
@@ -602,8 +619,9 @@ function applyOLineContext(
   const ctx = team ? getTeamContext(team, season) : null
   if (!ctx) return baseScore
 
+  const combinedOLQuality = ctx.pass_prot_quality * 0.50 + ctx.run_block_quality * 0.50
   const snapWeight = Math.min(snapPct, 1.0)
-  const contextContribution = ctx.oline_quality * snapWeight + 50 * (1 - snapWeight)
+  const contextContribution = combinedOLQuality * snapWeight + 50 * (1 - snapWeight)
   return baseScore * 0.60 + contextContribution * 0.40
 }
 
