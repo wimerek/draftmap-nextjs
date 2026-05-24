@@ -433,10 +433,3 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
     return new Map();
   }
 }
-rn result;
-  } catch {
-    return new Map();
-  }
-}
-}
-}
