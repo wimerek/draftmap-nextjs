@@ -153,6 +153,8 @@ export interface StepScore {
   stepId: string        // matches journey step ID: String(season) e.g. '2021', or 'career'
   score: number | null  // null if no data for this step
   team?: string | null  // NFL team for this season (populated from SeasonStats.team)
+  trajectoryRaw?: number        // raw traj score for post-processing (null = Year 1)
+  trajectoryMultiplier?: number // 0.7–1.5 dot size multiplier (null = Year 1/neutral)
 }
 
 /** Scored outcome for a player -- output of the scoring engine. */
@@ -689,6 +691,35 @@ function buildSeasonStatVector(
   }
 }
 
+/** Linear regression slope over an array of values (index = x, value = y). */
+function trajectorySlope(scores: number[]): number {
+  if (scores.length < 2) return 0
+  const n = scores.length
+  const xMean = (n - 1) / 2
+  const yMean = scores.reduce((s, v) => s + v, 0) / n
+  const num = scores.reduce((s, v, i) => s + (i - xMean) * (v - yMean), 0)
+  const den = scores.reduce((s, _, i) => s + (i - xMean) ** 2, 0)
+  return den === 0 ? 0 : num / den
+}
+
+/** Standard deviation of an array. */
+function trajectoryStdev(scores: number[]): number {
+  if (scores.length < 2) return 0
+  const mean = scores.reduce((s, v) => s + v, 0) / scores.length
+  return Math.sqrt(scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length)
+}
+
+/**
+ * Raw trajectory score: slope × (1/(1+stdev)) × log(n+1)
+ * Returns null when fewer than 2 seasons (Year 1 = no trajectory yet).
+ */
+export function computeRawTrajectory(scores: number[]): number | null {
+  if (scores.length < 2) return null
+  const slope = trajectorySlope(scores)
+  const stdev = trajectoryStdev(scores)
+  return slope * (1 / (1 + stdev)) * Math.log(scores.length + 1)
+}
+
 /**
  * Score a player's career from year-by-year seasonal statistics.
  * Computes independent per-season scores, then applies JAWS combined scoring.
@@ -778,10 +809,12 @@ export function scoreFromSeasonStats(
   const stepScores: StepScore[] = seasonScores.map((entry, idx) => {
     const cumulative = seasonScores.slice(0, idx + 1)
     const { arcScore: stepRaw } = computeARCScore(cumulative, draftYear)
+    const cumulativeScores = cumulative.map(s => s.score)
     return {
-      stepId: String(entry.season),
-      score:  Math.max(stepRaw, 5),
-      team:   entry.team ?? null,
+      stepId:        String(entry.season),
+      score:         Math.max(stepRaw, 5),
+      team:          entry.team ?? null,
+      trajectoryRaw: computeRawTrajectory(cumulativeScores) ?? undefined, // undefined for idx===0 (Year 1)
     }
   })
 
@@ -949,6 +982,34 @@ export function scoreAllFromSeasons(
     const sortedSeasons = [...playerSeasons].sort((a, b) => a.season - b.season)
     results.set(pfrId, scoreFromSeasonStats(sortedSeasons, cohort, award))
   })
+
+  // ── Trajectory multiplier normalization ──────────────────────────────────────
+  // Percentile-rank each step's raw trajectory within its position cohort,
+  // then map to a dot-size multiplier (0.7 = p0, 1.0 = p50ish, 1.5 = p100).
+  // Only steps with trajectoryRaw !== null/undefined get a multiplier.
+
+  const trajByPos = new Map<ScoringPosition, number[]>()
+  results.forEach(outcome => {
+    for (const step of outcome.stepScores) {
+      if (step.trajectoryRaw == null) continue
+      const pos = outcome.position as ScoringPosition
+      const list = trajByPos.get(pos) ?? []
+      list.push(step.trajectoryRaw)
+      trajByPos.set(pos, list)
+    }
+  })
+
+  results.forEach(outcome => {
+    const cohort = [...(trajByPos.get(outcome.position as ScoringPosition) ?? [])].sort((a, b) => a - b)
+    if (cohort.length === 0) return
+    for (const step of outcome.stepScores) {
+      if (step.trajectoryRaw == null) continue
+      const below = cohort.filter(v => v < step.trajectoryRaw!).length
+      const percentile = below / cohort.length  // 0.0–1.0
+      step.trajectoryMultiplier = 0.7 + percentile * 0.8  // 0.7 at p0, 1.5 at p100
+    }
+  })
+  // ── End trajectory normalization ─────────────────────────────────────────────
 
   return results
 }

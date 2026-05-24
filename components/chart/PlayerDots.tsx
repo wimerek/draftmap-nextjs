@@ -148,8 +148,17 @@ export default function PlayerDots({
         const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
         const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
 
-        // Production mode uses slightly larger uniform radius; draft-results sizes by pick delta.
-        const r = isMobile ? BASE_R : isProductionMode ? BASE_R + 1.5 : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
+        // Production mode: trajectory-scaled radius (Year 1 = neutral; mobile = unchanged).
+        const PROD_R_NEUTRAL = BASE_R + 1.5
+        let productionR = PROD_R_NEUTRAL
+        if (isProductionMode && !isMobile) {
+          const stepEntry = (player.stepScores ?? []).find(s => s.stepId === currentStepId)
+          const mult = chartMode === 'career'
+            ? ([...(player.stepScores ?? [])].reverse().find(s => s.trajectoryMultiplier != null)?.trajectoryMultiplier)
+            : stepEntry?.trajectoryMultiplier
+          if (mult != null) productionR = PROD_R_NEUTRAL * mult
+        }
+        const r = isMobile ? BASE_R : isProductionMode ? productionR : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
         const skipAnim = isMobile && !isAnimating;
         const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
