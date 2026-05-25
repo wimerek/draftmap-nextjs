@@ -4,6 +4,16 @@
  * All configuration constants for the DraftMap chart.
  */
 
+// ── Luminance helper ──────────────────────────────────────────────────────────
+
+export function luminance(hex: string): number {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
 // ── Position types ────────────────────────────────────────────────────────────
 
 export type Position =
@@ -371,6 +381,43 @@ export const TEAM_COLORS: Record<string, TeamColor> = (() => {
   }
   return map;
 })();
+
+/** Resolve NFL team colors from any team string format.
+ *  Accepts: full name ("Kansas City Chiefs"), abbreviation ("KC"), city ("Kansas City").
+ *  Falls back to DraftMap brand navy/gold if team is not found.
+ */
+export function resolveTeamColors(rawTeam: string | null | undefined): {
+  primary: string;
+  secondary: string;
+  onPrimary: string;
+  onSecondary: string;
+} {
+  const FALLBACK = { primary: '#0B2239', secondary: '#D4A017', onPrimary: '#FFFFFF', onSecondary: '#1a1a1a' };
+  if (!rawTeam) return FALLBACK;
+  const entry = TEAM_COLORS[rawTeam] ?? TEAM_COLORS[rawTeam.toLowerCase()] ?? null;
+  if (!entry) return FALLBACK;
+  const lum = luminance(entry.fill);
+  const effectivePrimary   = lum > 0.5 ? entry.secondary : entry.fill;
+  const effectiveSecondary = lum > 0.5 ? entry.fill      : entry.secondary;
+  const onPrimary   = luminance(effectivePrimary)   > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  const onSecondary = luminance(effectiveSecondary) > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  return { primary: effectivePrimary, secondary: effectiveSecondary, onPrimary, onSecondary };
+}
+
+/** Resolve school colors for pre-draft player card headers. */
+export function resolveSchoolColors(school: string | null | undefined): {
+  primary: string;
+  secondary: string;
+  onPrimary: string;
+  onSecondary: string;
+} {
+  const FALLBACK = { primary: '#0B2239', secondary: '#D4A017', onPrimary: '#FFFFFF', onSecondary: '#1a1a1a' };
+  const sc = SCHOOL_COLORS[school ?? ''];
+  if (!sc) return FALLBACK;
+  const onPrimary   = luminance(sc.fill)   > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  const onSecondary = luminance(sc.stroke) > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  return { primary: sc.fill, secondary: sc.stroke, onPrimary, onSecondary };
+}
 
 /** Derive a stroke color from a fill hex: darken by ~25%. */
 export function teamStrokeFromFill(hex: string): string {

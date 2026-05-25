@@ -1,27 +1,9 @@
 "use client";
 
-/**
- * components/PlayerCard.tsx
- *
- * Phase 2b: Full implementation of the player detail modal as a React component.
- *
- * Uses the same CSS classes and element IDs as the original chart-engine.js
- * pcm* functions so the existing <style> block in chartTemplate.ts applies
- * without any changes. Team colors are applied via CSS custom properties on
- * the wrapper element (--pcm-team-primary, etc.).
- *
- * Props:
- *   player  — the Player to display (null = card is closed / not rendered)
- *   players — full player array, needed to build positional peer comparisons
- *   onClose — called when user dismisses the card
- */
-
-"use client";
-
 import { useMemo } from "react";
 import Link from "next/link";
 import type { Player } from "@/lib/sheets";
-import { SCHOOL_COLORS, cardPositionalRangeData } from "@/lib/chartConstants";
+import { cardPositionalRangeData, resolveTeamColors, resolveSchoolColors } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -50,33 +32,26 @@ interface PlayerCardProps {
   playerSlug?: string;
 }
 
-// ── Pure helpers ──────────────────────────────────────────────────────────────
+// ── Card color resolution ─────────────────────────────────────────────────────
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const n = parseInt(hex.replace("#", ""), 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
+function computeCardColors(player: Player) {
+  const c = player.drafted
+    ? resolveTeamColors(player.team_drafted)
+    : resolveSchoolColors(player.school);
 
-function toRgba(hex: string, a: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  return `rgba(${r},${g},${b},${a})`;
-}
-
-function luminance(hex: string): number {
-  const { r, g, b } = hexToRgb(hex);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-}
-
-function computeTeamColors(school: string | null) {
-  const sc = SCHOOL_COLORS[school ?? ""] ?? { fill: "#4A4A4A", stroke: "#6B7280" };
-  const effectiveSecondary =
-    luminance(sc.stroke) > 0.7 ? toRgba(sc.fill, 0.65) : sc.stroke;
   return {
-    "--pcm-team-primary": sc.fill,
-    "--pcm-team-secondary": effectiveSecondary,
-    "--pcm-team-primary-wash": toRgba(sc.fill, 0.2),
+    "--team-primary":       c.primary,
+    "--team-secondary":     c.secondary,
+    "--team-on-primary":    c.onPrimary,
+    "--team-on-secondary":  c.onSecondary,
+    // Legacy aliases — keep until all pcm-* classes are migrated
+    "--pcm-team-primary":   c.primary,
+    "--pcm-team-secondary": c.secondary,
+    "--pcm-team-primary-wash": `${c.primary}33`,
   } as React.CSSProperties;
 }
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
 
 function formatThreshold(key: string, val: number | null): string {
   if (val == null) return "";
@@ -121,7 +96,7 @@ function buildMetricDefs(player: Player, players: Player[]): MetricDef[] {
 
   function buildPeerArr(key: string): number[] {
     return players
-      .filter((p) => p.pos === pos && p.name !== player.name)
+      .filter((p) => p.pos === pos && p.name !== player.name && p.draft_year === player.draft_year)
       .map((p) => {
         if (key === "height") {
           const h = parseInt(String(p.height ?? ""), 10);
@@ -355,43 +330,53 @@ function MetricRow({ m }: { m: MetricDef }) {
   );
 }
 
-// ── Metric section with header ────────────────────────────────────────────────
+// ── MetricHeader component ────────────────────────────────────────────────────
 
-const METRIC_HEADER = (
-  <div className="pcm-metric-head">
-    <div>Metric</div>
-    <div>Value</div>
-    <div>
-      <div style={{ textAlign: "center" }}>Range Profile</div>
-      <div className="pcm-metric-legend">
-        <span className="pcm-legend-zone">
-          <span className="pcm-legend-swatch below" />Avg/Below
-        </span>
-        <span className="pcm-legend-zone">
-          <span className="pcm-legend-swatch good" />Good
-        </span>
-        <span className="pcm-legend-zone">
-          <span className="pcm-legend-swatch great" />Great
-        </span>
-        <span className="pcm-legend-peer">
-          <span className="pcm-legend-peer-dot" />
-          <span className="pcm-peer-label">2026 class</span>
-        </span>
+function MetricHeader({ pos, draftYear }: { pos: string; draftYear: number }) {
+  return (
+    <div className="pcm-metric-head">
+      <div>Metric</div>
+      <div>Value</div>
+      <div>
+        <div style={{ textAlign: "center" }}>Range Profile</div>
+        <div className="pcm-metric-legend">
+          <span className="pcm-legend-zone">
+            <span className="pcm-legend-swatch below" />Avg/Below
+          </span>
+          <span className="pcm-legend-zone">
+            <span className="pcm-legend-swatch good" />Good
+          </span>
+          <span className="pcm-legend-zone">
+            <span className="pcm-legend-swatch great" />Great
+          </span>
+          <span className="pcm-legend-peer">
+            <span className="pcm-legend-peer-dot" />
+            <span className="pcm-peer-label-wrap">
+              Class Peers *
+              <span className="pcm-peer-tooltip">
+                All {pos} in the {draftYear} draft class.
+              </span>
+            </span>
+          </span>
+        </div>
       </div>
+      <div>Better</div>
+      <div>Context</div>
     </div>
-    <div>Better</div>
-    <div>Context</div>
-  </div>
-);
+  );
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug }: PlayerCardProps) {
   if (!player) return null;
 
-  const teamColorVars = useMemo(
-    () => computeTeamColors(player.school),
-    [player.school]
+  const draftYear = player.draft_year;
+  const draftClassSuffix = `DC${String(draftYear).slice(-2)}`;
+
+  const cardColorVars = useMemo(
+    () => computeCardColors(player),
+    [player]
   );
 
   const metricDefs = useMemo(
@@ -399,23 +384,43 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     [player, players]
   );
 
-  // Compute position rank (1-indexed rank within this position)
-  const posRank = useMemo(() => {
-    const ranked = players
-      .filter((p) => p.pos === player.pos && (p.rank ?? 0) > 0)
-      .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
-    const idx = ranked.findIndex((p) => p.name === player.name);
-    return idx >= 0 ? idx + 1 : 1;
+  const { posRank, totalDraftedAtPos } = useMemo(() => {
+    const draftedAtPos = players
+      .filter((p) => p.pos === player.pos && p.drafted && p.pick_drafted != null)
+      .sort((a, b) => (a.pick_drafted ?? 9999) - (b.pick_drafted ?? 9999));
+    const idx = draftedAtPos.findIndex((p) => p.name === player.name);
+    return {
+      posRank: idx >= 0 ? idx + 1 : null,
+      totalDraftedAtPos: draftedAtPos.length,
+    };
   }, [player, players]);
 
-  const cardId = `${player.pos}-${String(posRank).padStart(2, "0")}`;
+  const cardId = useMemo(() => {
+    const pos = player.pos;
+    const rdStr = player.rd != null ? String(player.rd).padStart(2, "0") : "??";
+    if (!player.drafted) {
+      return `${pos}-${rdStr} ${draftClassSuffix}`;
+    }
+    if (player.rd_drafted == null) {
+      return `${pos}-UD${rdStr} ${draftClassSuffix}`;
+    }
+    const rankStr  = posRank != null ? String(posRank).padStart(2, "0") : "??";
+    const totalStr = totalDraftedAtPos > 0 ? String(totalDraftedAtPos) : "??";
+    return `${pos}-${rankStr}/${totalStr} ${draftClassSuffix}`;
+  }, [player, posRank, totalDraftedAtPos, draftClassSuffix]);
+
   const role = player.role && player.role !== "N/A" ? player.role : "Balanced";
-  const year = 2026; // TODO: make dynamic when multi-year support lands
+
+  // Height display for meta block
+  const heightNum = parseInt(String(player.height ?? ""), 10);
+  const heightDisplay = isNaN(heightNum) ? null : inchesToHeightDisplay(scoutToInches(heightNum));
 
   const sizeLengthDefs = metricDefs.filter((m) => m.groupId === "pcmGroupSizeLength");
   const explosionDefs  = metricDefs.filter((m) => m.groupId === "pcmGroupExplosion");
   const agilityDefs    = metricDefs.filter((m) => m.groupId === "pcmGroupAgility");
   const strengthDefs   = metricDefs.filter((m) => m.groupId === "pcmGroupStrength");
+
+  const funFact = "Combine data and draft projections available for all 11 positions.";
 
   return (
     // Backdrop
@@ -427,141 +432,214 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
       }}
     >
       {/* Card */}
-      <div id="pcm-wrap" style={teamColorVars} onClick={(e) => e.stopPropagation()}>
-        {/* Drag handle — mobile bottom sheet only */}
+      <div id="pcm-wrap" className="dm-card-wrap" style={cardColorVars} onClick={(e) => e.stopPropagation()}>
+
+        {/* Drag handle — mobile bottom sheet only, outside dm-card-inner */}
         {isMobile && (
           <div className="pcm-drag-handle" onClick={onClose} aria-label="Close">
             <div className="pcm-drag-handle-pill" />
           </div>
         )}
 
-        <button id="pcm-close" aria-label="Close player card" onClick={onClose}>
-          &#x2715;
-        </button>
+        {/* dm-card-inner: structural border (replaces dm-frame overlay) */}
+        <div className="dm-card-inner">
 
-        {/* ── Header ─────────────────────────────────────────────── */}
-        <div style={{ position: "relative", padding: "4px 2px 0" }}>
-          <div className="pcm-card-id">{cardId}</div>
+        {/* ── Header (pinned) ─────────────────────────────────────── */}
+        <div className="dm-header">
+          <button id="pcm-close" aria-label="Close player card" onClick={onClose}>&#x2715;</button>
 
-          {/* Draft result badge — desktop only */}
-          {player.drafted && !isMobile && (
-            <div id="pcmDraftResult" style={{ display: "block" }}>
-              <div className="pcm-draft-badge-label">Drafted</div>
-              <table className="pcm-draft-table">
-                <tbody>
-                  <tr><td>Team</td><td>{player.team_drafted ?? "—"}</td></tr>
-                  <tr><td>Round</td><td>{player.rd_drafted != null ? `Rd ${player.rd_drafted}` : "—"}</td></tr>
-                  <tr><td>Pick</td><td>{player.pick_drafted != null ? `#${player.pick_drafted}` : "—"}</td></tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div style={{ textAlign: "center", margin: "2px 48px 8px" }}>
-            <h1 className="pcm-player-name">{player.name}</h1>
+          {/* Player name bar */}
+          <div className="dm-name-bar">
+            {/* Card Number — upper right, pennant shape */}
+            <div className="dm-card-number">{cardId}</div>
+            <h1 className="dm-player-name">{player.name}</h1>
+            <div className="dm-secondary-rail" />
           </div>
 
-          <div className="pcm-identity-line">
-            <span>{player.pos}</span>
-            <span className="pcm-meta-divider" />
-            <span>{player.school ?? ""}</span>
-          </div>
-
-          {/* Mobile: static drafted info line */}
-          {isMobile && player.drafted && (player.rd_drafted != null || player.team_drafted) && (
-            <div style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "var(--pcm-text-muted, rgba(30,26,22,0.55))", paddingTop: 4, paddingBottom: 2 }}>
-              {`Drafted${player.rd_drafted != null ? `: Rd ${player.rd_drafted}` : ""}${player.pick_drafted != null ? `, Pick #${player.pick_drafted}` : ""}${player.team_drafted ? ` — ${player.team_drafted}` : ""}`}
+          {/* Meta block */}
+          <div className="dm-meta-block">
+            {/* Row 1: Vitals */}
+            <div className="dm-meta-row dm-meta-vitals">
+              <span><span className="dm-meta-label">Pos.</span>&nbsp;<span className="dm-meta-value">{player.pos}</span></span>
+              <span><span className="dm-meta-label">College</span>&nbsp;<span className="dm-meta-value">{player.school ?? "—"}</span></span>
+              {heightDisplay && (
+                <span><span className="dm-meta-label">Ht.</span>&nbsp;<span className="dm-meta-value">{heightDisplay}</span></span>
+              )}
+              {player.weight != null && player.weight > 0 && (
+                <span><span className="dm-meta-label">Wt.</span>&nbsp;<span className="dm-meta-value">{player.weight}</span></span>
+              )}
             </div>
-          )}
+
+            <div className="dm-meta-spacer" />
+
+            {/* Row 2: Projected */}
+            <div className="dm-meta-row">
+              <span className="dm-meta-label">Projected</span>
+              <span className="dm-meta-value">{player.rd != null ? `Round ${player.rd}` : "UDFA"}</span>
+            </div>
+
+            {/* Row 3: Drafted */}
+            <div className="dm-meta-row">
+              <span className="dm-meta-label">Drafted</span>
+              {player.drafted ? (
+                player.rd_drafted != null ? (
+                  <span className="dm-meta-value">
+                    {player.team_drafted ?? "—"}
+                    &ensp;Rd&nbsp;{player.rd_drafted}
+                    &ensp;Pick&nbsp;#{player.pick_drafted}
+                    &ensp;{draftYear}
+                  </span>
+                ) : (
+                  <span className="dm-meta-value">UDFA&ensp;{draftYear}</span>
+                )
+              ) : (
+                <span className="dm-meta-value">—</span>
+              )}
+            </div>
+
+            <div className="dm-meta-spacer" />
+
+            {/* Row 4: Current */}
+            <div className="dm-meta-row">
+              <span className="dm-meta-label">Current</span>
+              <span className="dm-meta-value">
+                {player.drafted && player.team_drafted ? `${player.team_drafted} ${draftYear}` : "—"}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* ── Player Profile ──────────────────────────────────────── */}
-        <div className="pcm-section-band">Player Profile</div>
-        <div className="pcm-section-block">
-          <div className="pcm-profile-rail">
-            {/* Role pennant */}
-            <div>
-              <div className="pcm-profile-label">Role</div>
-              <div className="pcm-role-pennant">{role}</div>
-            </div>
+        {/* ── Body (scrolling) ──────────────────────────────────────── */}
+        <div className="dm-body">
 
-            {/* Strengths panel */}
-            <div className="pcm-strengths-panel">
-              <div className="pcm-profile-label">Strengths Profile</div>
-              <div className="pcm-strength-stack">
-                {[
-                  { s: player.s1, mod: "", kicker: "Primary" },
-                  { s: player.s2, mod: " pcm-s-secondary", kicker: "Secondary" },
-                  { s: player.s3, mod: " pcm-s-supportive", kicker: "Supportive" },
-                ].map(({ s, mod, kicker }) => (
-                  <div key={kicker} className={`pcm-strength-row${mod}`}>
-                    <div className="pcm-pennant-tail">
-                      <div className="pcm-tail-strip upper" />
-                      <div className="pcm-tail-strip lower" />
+          {/* ── Player Profile ──────────────────────────────────────── */}
+          <div className="dm-band">Player Profile</div>
+          <div className="pcm-section-block">
+            <div className="pcm-profile-rail">
+              {/* Role pennant */}
+              <div>
+                <div className="pcm-profile-label">Role</div>
+                <div className="pcm-role-pennant">{role}</div>
+              </div>
+
+              {/* Strengths panel */}
+              <div className="pcm-strengths-panel">
+                <div className="pcm-profile-label">Strengths Profile</div>
+                <div className="pcm-strength-stack">
+                  {[
+                    { s: player.s1, mod: "", kicker: "Primary" },
+                    { s: player.s2, mod: " pcm-s-secondary", kicker: "Secondary" },
+                    { s: player.s3, mod: " pcm-s-supportive", kicker: "Supportive" },
+                  ].map(({ s, mod, kicker }) => (
+                    <div key={kicker} className={`pcm-strength-row${mod}`}>
+                      <div className="pcm-pennant-tail">
+                        <div className="pcm-tail-strip upper" />
+                        <div className="pcm-tail-strip lower" />
+                      </div>
+                      <div className="pcm-pennant-flag">
+                        <div className="pcm-pennant-kicker">{kicker}</div>
+                        <span className="pcm-pennant-text">
+                          {s && s !== "N/A" ? s : "—"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="pcm-pennant-flag">
-                      <div className="pcm-pennant-kicker">{kicker}</div>
-                      <span className="pcm-pennant-text">
-                        {s && s !== "N/A" ? s : "—"}
-                      </span>
-                    </div>
-                  </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Size & Length ───────────────────────────────────────── */}
+          <div className="dm-band">Size &amp; Length</div>
+          <div className="pcm-section-block">
+            <div className="pcm-metric-table">
+              <MetricHeader pos={player.pos} draftYear={draftYear} />
+              <div id="pcmGroupSizeLength">
+                {sizeLengthDefs.map((m) => (
+                  <MetricRow key={m.key} m={m} />
                 ))}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Size & Length ───────────────────────────────────────── */}
-        <div className="pcm-section-band">Size &amp; Length</div>
-        <div className="pcm-section-block">
-          <div className="pcm-metric-table">
-            {METRIC_HEADER}
-            <div id="pcmGroupSizeLength">
-              {sizeLengthDefs.map((m) => (
-                <MetricRow key={m.key} m={m} />
-              ))}
+          {/* ── Athletic Profile ────────────────────────────────────── */}
+          <div className="dm-band">Athletic Profile</div>
+          <div className="pcm-section-block">
+            <div className="pcm-metric-table">
+              <MetricHeader pos={player.pos} draftYear={draftYear} />
+              <div id="pcmGroupExplosion">
+                <h3 className="pcm-metric-subtitle">Speed &amp; Explosion</h3>
+                {explosionDefs.map((m) => (
+                  <MetricRow key={m.key} m={m} />
+                ))}
+              </div>
+              <div id="pcmGroupAgility">
+                <h3 className="pcm-metric-subtitle">Agility</h3>
+                {agilityDefs.map((m) => (
+                  <MetricRow key={m.key} m={m} />
+                ))}
+              </div>
+              <div id="pcmGroupStrength">
+                <h3 className="pcm-metric-subtitle">Strength</h3>
+                {strengthDefs.map((m) => (
+                  <MetricRow key={m.key} m={m} />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Athletic Profile ────────────────────────────────────── */}
-        <div className="pcm-section-band">Athletic Profile</div>
-        <div className="pcm-section-block">
-          <div className="pcm-metric-table">
-            {METRIC_HEADER}
-            <div id="pcmGroupExplosion">
-              <h3 className="pcm-metric-subtitle">Speed &amp; Explosion</h3>
-              {explosionDefs.map((m) => (
-                <MetricRow key={m.key} m={m} />
-              ))}
+          {/* ── Fun Fact Panel ────────────────────────────────────────── */}
+          <div className="dm-funfact">
+            {/* Left tag: team secondary colored — label: CHALK TALK */}
+            <div className="dm-funfact-tag">
+              <span>CHALK</span>
+              <span>TALK</span>
             </div>
-            <div id="pcmGroupAgility">
-              <h3 className="pcm-metric-subtitle">Agility</h3>
-              {agilityDefs.map((m) => (
-                <MetricRow key={m.key} m={m} />
-              ))}
-            </div>
-            <div id="pcmGroupStrength">
-              <h3 className="pcm-metric-subtitle">Strength</h3>
-              {strengthDefs.map((m) => (
-                <MetricRow key={m.key} m={m} />
-              ))}
+
+            {/* Right body: mascot + fact text + football stamp */}
+            <div className="dm-funfact-body">
+              <img
+                src="/brand/dm-mascot.png"
+                alt="DraftMap mascot"
+                className="dm-funfact-mascot"
+                width={96}
+                height={96}
+              />
+              {funFact && (
+                <p className="dm-funfact-text">
+                  {funFact}
+                </p>
+              )}
+              {/* Quiet football stamp — bottom-right corner flourish */}
+              <svg className="dm-funfact-football" viewBox="0 0 22 14" aria-hidden="true">
+                <ellipse cx="11" cy="7" rx="10" ry="6" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                <line x1="11" y1="1" x2="11" y2="13" stroke="currentColor" strokeWidth="1"/>
+                <line x1="7" y1="4" x2="15" y2="4" stroke="currentColor" strokeWidth="0.8"/>
+                <line x1="6" y1="7" x2="16" y2="7" stroke="currentColor" strokeWidth="0.8"/>
+                <line x1="7" y1="10" x2="15" y2="10" stroke="currentColor" strokeWidth="0.8"/>
+              </svg>
             </div>
           </div>
-        </div>
 
-        {playerSlug && (
-          <div style={{ textAlign: 'right', paddingTop: 12, paddingRight: 16, paddingBottom: 8, borderTop: '1px solid rgba(148,163,184,0.15)' }}>
-            <Link
-              href={`/players/${playerSlug}`}
-              style={{ fontSize: 12, color: '#94a3b8', textDecoration: 'none' }}
-            >
-              View full profile →
-            </Link>
+          {/* ── Footer ────────────────────────────────────────────────── */}
+          <div className="dm-footer">
+            &copy; DRAFTMAP {draftYear} &middot; CLASS OF &apos;{String(draftYear).slice(-2)} &middot; PRTD. IN U.S.A.
           </div>
-        )}
-      </div>
+
+          {playerSlug && (
+            <div style={{ textAlign: "right", padding: "12px 16px 8px", borderTop: "1px solid rgba(148,163,184,0.15)" }}>
+              <Link
+                href={`/players/${playerSlug}`}
+                style={{ fontSize: 12, color: "var(--ink-3, #94a3b8)", textDecoration: "none" }}
+              >
+                View full profile →
+              </Link>
+            </div>
+          )}
+
+        </div>{/* end dm-body */}
+        </div>{/* end dm-card-inner */}
+      </div>{/* end pcm-wrap */}
     </div>
   );
 }

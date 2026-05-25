@@ -196,13 +196,22 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   width: min(1060px, 94vw);
   max-height: 90vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: #f7f1e4;
+  overflow: hidden !important;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper, #f7f1e4);
   border: 2px solid rgba(20, 16, 12, 0.72);
-  outline: 2px solid rgba(20, 16, 12, 0.55);
-  outline-offset: -12px;
-  padding: 22px 24px 52px;
+  padding: 6px;
+
+  /* Paper/ink tokens */
+  --paper:      #f5f0e8;
+  --paper-2:    #efe8d6;
+  --ink:        #1a1a1a;
+  --ink-2:      #4a4a4a;
+  --ink-3:      #888;
+  --ink-faint:  #cfcfcf;
+  --texture:    0.35;
 
   --pcm-bg: #ece7dc;
   --pcm-surface: #f7f1e4;
@@ -236,23 +245,25 @@ a { color: inherit; text-decoration: none; }
 
 #pcm-close {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 32px;
-  height: 32px;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 1.5px solid rgba(20, 16, 12, 0.30);
-  background: rgba(20, 16, 12, 0.06);
-  color: var(--pcm-ink);
-  font-size: 16px;
+  border: 1px solid var(--team-on-primary, rgba(255,255,255,0.7));
+  background: transparent;
+  color: var(--team-on-primary, #FFFFFF);
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
+  z-index: 6;
+  opacity: 0.7;
+  transition: opacity 0.15s;
 }
-#pcm-close:hover { background: rgba(20, 16, 12, 0.14); }
+#pcm-close:hover { opacity: 1; }
 
 #pcmDraftResult {
   position: absolute;
@@ -353,7 +364,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid rgba(23, 20, 17, 0.12);
 }
 .pcm-section-block {
-  padding: 0 0 12px;
+  padding: 0 0 12px 18px;
   border-bottom: 1px solid var(--pcm-border);
 }
 .pcm-section-block:last-of-type { border-bottom: none; padding-bottom: 0; }
@@ -379,7 +390,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--pcm-team-secondary);
   color: #fffaf0;
   font-family: 'Oswald', sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -408,13 +419,13 @@ a { color: inherit; text-decoration: none; }
 }
 .pcm-pennant-kicker {
   font-family: 'Inter', sans-serif;
-  font-size: 8px; font-weight: 800;
+  font-size: 7px; font-weight: 800;
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--pcm-text-muted); margin-bottom: 2px;
 }
 .pcm-pennant-text {
   font-family: 'Oswald', sans-serif;
-  font-size: 18px; font-weight: 600;
+  font-size: 16px; font-weight: 600;
   letter-spacing: 0.03em; text-transform: uppercase;
   color: var(--pcm-ink); line-height: 1.05; white-space: nowrap;
 }
@@ -462,6 +473,8 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px; font-weight: 600;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--pcm-text-secondary);
+  border-bottom: 1px solid var(--ink-faint, #cfcfcf);
+  padding-bottom: 3px;
 }
 .pcm-metric-item {
   min-height: 40px; padding: 8px 0;
@@ -1339,13 +1352,8 @@ a { color: inherit; text-decoration: none; }
     border-radius: 14px 14px 0 0;
     border: none;
     outline: none;
-    padding: 0 16px 24px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  #pcm-close {
-    top: 56px; /* below drag handle */
-    right: 12px;
+    overflow: hidden;
+    padding: 0;
   }
   .pcm-drag-handle {
     display: flex;
@@ -1353,9 +1361,8 @@ a { color: inherit; text-decoration: none; }
     padding: 12px 0 8px;
     cursor: grab;
   }
-  .pcm-player-name {
-    font-size: clamp(24px, 7vw, 40px);
-    margin: 4px 48px 8px;
+  .dm-player-name {
+    font-size: clamp(20px, 6vw, 28px) !important;
   }
 }
 
@@ -1579,6 +1586,294 @@ a { color: inherit; text-decoration: none; }
   .hz-tick-label {
     font-size: 7px;
   }
+}
+
+/* ============================================================
+   Delta-6 Player Card — Claude Design V2 (added 2026-05-24)
+   Source: DraftMap Player Card v2/design_handoff_player_card/DraftMap Player Card V2.html
+   ============================================================ */
+
+/* dm-card-wrap — additive class on #pcm-wrap confirming it is the card shell */
+.dm-card-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Paper texture overlays on the card shell */
+#pcm-wrap::before {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: var(--texture, 0.35);
+  background-image:
+    radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+    radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: multiply;
+  z-index: 1;
+}
+#pcm-wrap::after {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: calc(var(--texture, 0.35) * 0.9);
+  background:
+    radial-gradient(120% 80% at 0% 0%, transparent 60%, rgba(80,60,30,0.18) 100%),
+    radial-gradient(120% 80% at 100% 100%, transparent 60%, rgba(80,60,30,0.18) 100%);
+  z-index: 2;
+}
+#pcm-wrap > * { position: relative; z-index: 3; }
+
+/* Higher-specificity overrides for elements needing non-relative position */
+#pcm-wrap > .dm-header { position: sticky; top: 0; z-index: 5; }
+
+/* Inner card border — structural replacement for the old dm-frame overlay */
+.dm-card-inner {
+  border: 1.5px solid var(--ink, #1a1a1a);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+/* ── Pinned header ─────────────────────────────────────────────────────────── */
+.dm-header {
+  flex-shrink: 0;
+}
+
+/* Player name bar — full-width, team primary surface */
+.dm-name-bar {
+  background: var(--team-primary, #0B2239);
+  color: var(--team-on-primary, #FFFFFF);
+  padding: 22px 48px 21px; /* bottom pad makes room for the 3px rail */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.dm-player-name {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: 0.02em;
+  color: var(--team-on-primary, #FFFFFF);
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* 3px secondary rail — absolute at the bottom of the name bar */
+.dm-secondary-rail {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--team-secondary, #D4A017);
+}
+
+/* Card number — upper-left, pennant/arrow shape pointing right */
+.dm-card-number {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  background: var(--team-secondary, #D4A017);
+  color: var(--team-on-secondary, #1a1a1a);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 6px 14px 6px 8px;
+  line-height: 1;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%);
+  text-transform: uppercase;
+  z-index: 2;
+}
+
+/* ── Meta block ────────────────────────────────────────────────────────────── */
+.dm-meta-block {
+  background: var(--paper-2, #efe8d6);
+  padding: 11px 14px 12px 18px;
+  border-bottom: 1.5px solid var(--ink, #1a1a1a);
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  color: var(--ink-2, #4a4a4a);
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
+
+.dm-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border-bottom: 1px dotted var(--ink-faint, #cfcfcf);
+  padding: 1.5px 0;
+}
+.dm-meta-row:last-child { border-bottom: none; }
+
+.dm-meta-vitals {
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.dm-meta-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3, #888);
+  white-space: nowrap;
+}
+
+.dm-meta-value {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: var(--ink, #1a1a1a);
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.dm-meta-spacer {
+  height: 4px;
+  border-bottom: none !important;
+}
+
+/* ── Scrollable body ───────────────────────────────────────────────────────── */
+.dm-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.18) transparent;
+}
+.dm-body::-webkit-scrollbar { width: 5px; }
+.dm-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
+
+/* ── Section band — retro pennant with 6px secondary leading stripe ─────── */
+.dm-band {
+  background:
+    linear-gradient(90deg,
+      var(--team-secondary, #D4A017) 0 6px,
+      var(--team-primary, #0B2239) 6px 100%);
+  color: var(--team-on-primary, #FFFFFF);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  padding: 8px 14px 8px 18px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%);
+  text-transform: uppercase;
+}
+
+/* ── Fun fact panel ────────────────────────────────────────────────────────── */
+.dm-funfact {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid var(--ink, #1a1a1a);
+  background: var(--paper-2, #efe8d6);
+  margin: 0;
+}
+.dm-funfact-tag {
+  flex: 0 0 70px;
+  border-right: 1.5px solid var(--ink, #1a1a1a);
+  background: var(--team-secondary, #D4A017);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px 4px;
+}
+.dm-funfact-tag span {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  color: var(--team-on-secondary, #1a1a1a);
+}
+.dm-funfact-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 36px 10px 10px;
+  position: relative;
+}
+.dm-funfact-body > * { position: relative; z-index: 1; }
+.dm-funfact-mascot {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.dm-funfact-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink-2, #4a4a4a);
+  line-height: 1.45;
+  margin: 0;
+  align-self: center;
+}
+.dm-funfact-football {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  width: 22px;
+  height: 14px;
+  opacity: 0.7;
+  pointer-events: none;
+  color: var(--ink-3, #888);
+}
+
+/* ── Footer ────────────────────────────────────────────────────────────────── */
+.dm-footer {
+  border-top: 1.5px solid var(--team-secondary, #D4A017);
+  margin: 4px 14px 0;
+  padding: 8px 0 10px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3, #888);
+  text-align: center;
+}
+
+/* ── Peer label tooltip ────────────────────────────────────────────────────── */
+.pcm-peer-label-wrap {
+  position: relative;
+  cursor: default;
+}
+.pcm-peer-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: var(--ink, #1a1a1a);
+  color: var(--paper, #f5f0e8);
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  border-radius: 3px;
+  z-index: 10;
+  pointer-events: none;
+}
+.pcm-peer-label-wrap:hover .pcm-peer-tooltip {
+  display: block;
 }
 
 /* prefers-reduced-motion: disable all animations */
