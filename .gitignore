@@ -39,4 +39,7 @@ Thumbs.db
 # Linux FUSE sandbox artifacts (appear when an editor sandbox holds open handles)
 .fuse_hidden*
 
+# One-off task briefs handed to Claude Code CLI — ephemeral, not part of the build
+*-cli-brief.md
+
 data/*.xlsx
