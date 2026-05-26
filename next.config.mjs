@@ -7,10 +7,17 @@ const nextConfig = {
     return [
       {
         // Land directly on the draft chart — landing page is just a hub.
-        // Deploy this after dot-size fixes are confirmed in production.
         source: '/',
         destination: '/draft',
-        permanent: false, // 307 — flip to true (308) once structure is settled
+        permanent: true, // 308 — structure is settled, helps Google consolidate signal
+      },
+      {
+        // Land on the current draft year. Edge-level redirect avoids the
+        // RSC-variant cache bug from calling redirect() in app/draft/page.tsx.
+        // NOTE: When CURRENT_DRAFT_YEAR flips (lib/sheets.ts), update this too.
+        source: '/draft',
+        destination: '/draft/2026',
+        permanent: true,
       },
     ];
   },

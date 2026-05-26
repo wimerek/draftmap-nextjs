@@ -17,12 +17,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);
 
+  // Sitemap lists ONLY canonical destinations — never URLs that 3xx redirect.
+  // / and /draft are excluded because they redirect to /draft/[year]; listing
+  // them caused Google to flag them as "Redirect error" pages.
   return [
-    { url: 'https://draftmap.app/',       priority: 1.0 },
-    { url: 'https://draftmap.app/draft',  priority: 0.9 },
     ...VALID_DRAFT_YEARS.map(year => ({
       url: `https://draftmap.app/draft/${year}`,
-      priority: 0.8,
+      priority: year === CURRENT_DRAFT_YEAR ? 1.0 : 0.8,
     })),
     { url: 'https://draftmap.app/players', priority: 0.7 },
     ...playerEntries,
