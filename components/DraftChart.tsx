@@ -952,6 +952,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
         onClose={handleClosePlayer}
         isMobile={isMobile}
         playerSlug={openPlayer ? generateBaseSlug(openPlayer.name) : undefined}
+        currentStepId={currentStepId}
       />
     </div>
   );

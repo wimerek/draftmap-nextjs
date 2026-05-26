@@ -1876,6 +1876,99 @@ a { color: inherit; text-decoration: none; }
   display: block;
 }
 
+/* ============================================================
+   Delta-6 Phase B — stat grid (added 2026-05-25)
+   ============================================================ */
+
+.dm-stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  color: var(--ink-2, #4a4a4a);
+}
+
+.dm-stats th {
+  font-family: 'Oswald', sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3, #888);
+  text-align: left;
+  padding: 5px 6px;
+  border-bottom: 1.5px solid var(--ink-faint, #cfcfcf);
+}
+
+.dm-stats th:not(:nth-child(1)):not(:nth-child(2)) {
+  text-align: right;
+}
+
+.dm-stats td {
+  padding: 5px 6px;
+  border-bottom: 1px dotted var(--ink-faint, #cfcfcf);
+}
+
+.dm-stats tbody tr:nth-child(odd) td {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.dm-stats-total td {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--ink, #1a1a1a);
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-top: 1.5px solid var(--ink-faint, #cfcfcf);
+  border-bottom: none;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 6px;
+}
+
+.dm-award-star,
+.dm-award-dagger {
+  color: #B45309;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.dm-arc {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--ink-faint, #cfcfcf);
+}
+.dm-arc-cap {
+  font-family: 'Oswald', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-3, #888);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.dm-arc-num {
+  font-family: 'Oswald', sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--ink, #1a1a1a);
+  line-height: 1;
+}
+.dm-arc-pill {
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--ink-2, #4a4a4a);
+  padding: 3px 9px;
+  border-radius: 3px;
+  color: var(--ink-2, #4a4a4a);
+}
+
 /* prefers-reduced-motion: disable all animations */
 @media (prefers-reduced-motion: reduce) {
   .mb-drawer { transition: none; }

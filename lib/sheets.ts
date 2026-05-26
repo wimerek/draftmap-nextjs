@@ -10,7 +10,7 @@
  * Set SHEETS_SPREADSHEET_ID in .env.local and Vercel environment variables.
  */
 
-import { SeasonStats, StepScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution } from './scoring'
+import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -101,6 +101,9 @@ export interface Player {
 
   /** Per-step cumulative ARC scores for production animation. Null for classes without data. */
   stepScores: StepScore[] | null;
+
+  /** Per-season display rows for the stat grid. Null for classes without data. */
+  seasonData: DisplaySeasonRow[] | null;
 }
 
 // ── Year constants ─────────────────────────────────────────────────────────────
@@ -231,6 +234,7 @@ function mapRow(row: SheetsRawRow): Player {
     ),
     outcomeScore: null,
     stepScores:   null,
+    seasonData:   null,
   };
 }
 
@@ -375,6 +379,81 @@ function mapSeasonRow(row: Record<string, string>): {
 export interface PlayerOutcomeData {
   arcScore:   number | null;
   stepScores: StepScore[];
+  seasonData: DisplaySeasonRow[];
+}
+
+function buildSeasonData(
+  rawRows: Array<Record<string, string>>,
+  outcome: PlayerOutcomeScore,
+): DisplaySeasonRow[] {
+  const bySeason = new Map<number, Array<Record<string, string>>>()
+  for (const row of rawRows) {
+    const yr = parseInt(row.season ?? '', 10)
+    if (isNaN(yr)) continue
+    if (!bySeason.has(yr)) bySeason.set(yr, [])
+    bySeason.get(yr)!.push(row)
+  }
+
+  const display: DisplaySeasonRow[] = []
+
+  const sortedSeasons = Array.from(bySeason.entries()).sort(([a], [b]) => a - b)
+
+  for (const [season, seasonRows] of sortedSeasons) {
+    const teamsRaw = seasonRows
+      .map((r: Record<string, string>) => ({ team: (r.team ?? '').trim().toUpperCase(), gp: parseInt(r.games_played ?? '0', 10) }))
+      .filter((t: { team: string; gp: number }) => t.team)
+      .sort((a: { team: string; gp: number }, b: { team: string; gp: number }) => b.gp - a.gp)
+    const teams = Array.from(new Set(teamsRaw.map((t: { team: string; gp: number }) => t.team)))
+
+    const sum = (key: string): number | null => {
+      const vals = seasonRows.map((r: Record<string, string>) => parseFloat(r[key] ?? '')).filter((v: number) => !isNaN(v))
+      return vals.length > 0 ? vals.reduce((a: number, b: number) => a + b, 0) : null
+    }
+    const toB = (key: string) => seasonRows.some((r: Record<string, string>) => r[key] === '1')
+
+    let snapPct: number | null = null
+    const snapEntries = seasonRows
+      .map((r: Record<string, string>) => ({ pct: parseFloat(r.snap_pct ?? ''), gp: parseInt(r.games_played ?? '0', 10) }))
+      .filter((e: { pct: number; gp: number }) => !isNaN(e.pct))
+    if (snapEntries.length > 0) {
+      const totalGp = snapEntries.reduce((a: number, e: { pct: number; gp: number }) => a + e.gp, 0)
+      snapPct = totalGp > 0
+        ? snapEntries.reduce((a: number, e: { pct: number; gp: number }) => a + e.pct * e.gp, 0) / totalGp
+        : snapEntries[0].pct
+    }
+
+    const gamesPlayed  = seasonRows.reduce((a: number, r: Record<string, string>) => a + (parseInt(r.games_played ?? '0', 10)), 0)
+    const gamesStarted = sum('games_started') !== null ? Math.round(sum('games_started')!) : null
+    const snapCount    = sum('snap_count')
+
+    display.push({
+      season,
+      teams,
+      gamesPlayed,
+      gamesStarted,
+      snapPct,
+      snapCount,
+      passYards:        sum('pass_yards'),
+      passTDs:          sum('pass_tds'),
+      rushYards:        sum('rush_yards'),
+      rushTDs:          sum('rush_tds'),
+      recYards:         sum('rec_yards'),
+      recTDs:           sum('rec_tds'),
+      receptions:       sum('receptions'),
+      intsThrownQB:     sum('interceptions'),
+      sacks:            sum('sacks'),
+      tfl:              sum('tfl'),
+      qbHits:           sum('qb_hits'),
+      soloTackles:      sum('tackles_solo'),
+      defInts:          sum('ints_def'),
+      passDeflections:  sum('pass_deflections'),
+      allPro:           toB('all_pro'),
+      proBowl:          toB('pro_bowl'),
+      arcScore:         outcome.scoresByYear[season] ?? null,
+    })
+  }
+
+  return display
 }
 
 /**
@@ -405,8 +484,15 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
 
     const allSeasons: SeasonStats[]                             = [];
     const awards = new Map<string, { allPro: number; proBowls: number }>();
+    const rawByPlayer = new Map<string, Array<Record<string, string>>>();
 
     for (const row of rows) {
+      const pid = (row.player_id ?? '').trim();
+      if (pid) {
+        if (!rawByPlayer.has(pid)) rawByPlayer.set(pid, []);
+        rawByPlayer.get(pid)!.push(row);
+      }
+
       const mapped = mapSeasonRow(row);
       if (!mapped) continue;
 
@@ -423,9 +509,11 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
 
     const result = new Map<string, PlayerOutcomeData>();
     scored.forEach((outcome, playerId) => {
+      const rawRows = rawByPlayer.get(playerId) ?? [];
       result.set(playerId, {
         arcScore:   outcome.score,
         stepScores: outcome.stepScores,
+        seasonData: buildSeasonData(rawRows, outcome),
       });
     });
     return result;

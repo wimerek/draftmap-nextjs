@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import type { Player } from "@/lib/sheets";
+import type { DisplaySeasonRow } from "@/lib/scoring";
+import { getTierForScore } from "@/lib/tierLabels";
 import { cardPositionalRangeData, resolveTeamColors, resolveSchoolColors } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
 
@@ -30,6 +32,7 @@ interface PlayerCardProps {
   onClose: () => void;
   isMobile?: boolean;
   playerSlug?: string;
+  currentStepId?: string;
 }
 
 // ── Card color resolution ─────────────────────────────────────────────────────
@@ -366,9 +369,118 @@ function MetricHeader({ pos, draftYear }: { pos: string; draftYear: number }) {
   );
 }
 
+// ── Stat grid helpers ─────────────────────────────────────────────────────────
+
+// Local client-safe version — mirrors lib/scoring.ts (scoring.ts pulls in server-only teamContext)
+function computeRookieContractARC(
+  allSeasonData: Array<{ season: number; score: number }>,
+  draftYear: number,
+): number {
+  const rookieSeasons = allSeasonData.filter(
+    (s) => s.season >= draftYear && s.season <= draftYear + 3,
+  )
+  if (rookieSeasons.length === 0) return 0
+  const scores = rookieSeasons.map((s) => s.score)
+  const topN = [...scores].sort((a, b) => b - a).slice(0, Math.min(3, scores.length))
+  const apex = topN.reduce((s, v) => s + v, 0) / topN.length
+  const rookieWindow = rookieSeasons
+  const rookieMean = rookieWindow.reduce((s, d) => s + d.score, 0) / rookieWindow.length
+  const consistency = scores.reduce((s, v) => s + v, 0) / scores.length
+  return Math.round(apex * 0.45 + rookieMean * 0.35 + consistency * 0.20)
+}
+
+type StatCol = {
+  header: string
+  getValue: (row: DisplaySeasonRow) => number | null
+  isTotalsSum: boolean
+}
+
+const STAT_COLUMNS: Partial<Record<string, StatCol[]>> = {
+  QB: [
+    { header: 'YDS',  getValue: (r) => r.passYards,    isTotalsSum: true },
+    { header: 'TD',   getValue: (r) => r.passTDs,      isTotalsSum: true },
+    { header: 'INT',  getValue: (r) => r.intsThrownQB ?? null, isTotalsSum: true },
+    { header: 'RUSH', getValue: (r) => r.rushYards,    isTotalsSum: true },
+  ],
+  RB: [
+    { header: 'RUSH', getValue: (r) => r.rushYards,    isTotalsSum: true },
+    { header: 'REC',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'TD',   getValue: (r) => (r.rushTDs ?? 0) + (r.recTDs ?? 0), isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
+  ],
+  WR: [
+    { header: 'YDS',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'TD',   getValue: (r) => r.recTDs,       isTotalsSum: true },
+    { header: 'REC',  getValue: (r) => r.receptions,   isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
+  ],
+  TE: [
+    { header: 'YDS',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'TD',   getValue: (r) => r.recTDs,       isTotalsSum: true },
+    { header: 'REC',  getValue: (r) => r.receptions,   isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
+  ],
+  OT: [
+    { header: 'G',    getValue: (r) => r.gamesPlayed,  isTotalsSum: true },
+    { header: 'GS',   getValue: (r) => r.gamesStarted, isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
+  ],
+  IOL: [
+    { header: 'G',    getValue: (r) => r.gamesPlayed,  isTotalsSum: true },
+    { header: 'GS',   getValue: (r) => r.gamesStarted, isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
+  ],
+  EDGE: [
+    { header: 'SACK', getValue: (r) => r.sacks,         isTotalsSum: true },
+    { header: 'TFL',  getValue: (r) => r.tfl,           isTotalsSum: true },
+    { header: 'QBH',  getValue: (r) => r.qbHits,        isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,       isTotalsSum: false },
+  ],
+  DT: [
+    { header: 'TFL',  getValue: (r) => r.tfl,           isTotalsSum: true },
+    { header: 'QBH',  getValue: (r) => r.qbHits,        isTotalsSum: true },
+    { header: 'TKL',  getValue: (r) => r.soloTackles,   isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,       isTotalsSum: false },
+  ],
+  LB: [
+    { header: 'TKL',  getValue: (r) => r.soloTackles,   isTotalsSum: true },
+    { header: 'TFL',  getValue: (r) => r.tfl,           isTotalsSum: true },
+    { header: 'PD',   getValue: (r) => r.passDeflections, isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,       isTotalsSum: false },
+  ],
+  CB: [
+    { header: 'INT',  getValue: (r) => r.defInts,        isTotalsSum: true },
+    { header: 'PD',   getValue: (r) => r.passDeflections, isTotalsSum: true },
+    { header: 'TKL',  getValue: (r) => r.soloTackles,    isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,        isTotalsSum: false },
+  ],
+  S: [
+    { header: 'INT',  getValue: (r) => r.defInts,        isTotalsSum: true },
+    { header: 'PD',   getValue: (r) => r.passDeflections, isTotalsSum: true },
+    { header: 'TKL',  getValue: (r) => r.soloTackles,    isTotalsSum: true },
+    { header: 'SNP%', getValue: (r) => r.snapPct,        isTotalsSum: false },
+  ],
+}
+
+function sumStat(rows: DisplaySeasonRow[], getValue: (r: DisplaySeasonRow) => number | null): number | null {
+  const vals = rows.map(getValue).filter((v): v is number => v !== null)
+  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null
+}
+
+function weightedSnapPct(rows: DisplaySeasonRow[]): number | null {
+  const entries = rows
+    .map((r) => ({ snapPct: r.snapPct, weight: r.snapCount ?? r.gamesPlayed }))
+    .filter((e) => e.snapPct !== null && e.weight > 0) as Array<{ snapPct: number; weight: number }>
+  if (entries.length === 0) return null
+  const totalWeight = entries.reduce((a, e) => a + e.weight, 0)
+  return totalWeight > 0
+    ? entries.reduce((a, e) => a + e.snapPct * e.weight, 0) / totalWeight
+    : null
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug }: PlayerCardProps) {
+export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug, currentStepId }: PlayerCardProps) {
   if (!player) return null;
 
   const draftYear = player.draft_year;
@@ -421,6 +533,35 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
   const strengthDefs   = metricDefs.filter((m) => m.groupId === "pcmGroupStrength");
 
   const funFact = "Combine data and draft projections available for all 11 positions.";
+
+  const currentTeamDisplay = useMemo(() => {
+    const stepYear = currentStepId ? parseInt(currentStepId, 10) : NaN
+    if (!isNaN(stepYear) && player.seasonData) {
+      const row = player.seasonData.find((r) => r.season === stepYear)
+      if (row && row.teams.length > 0) return row.teams[0]
+      return '—'
+    }
+    if (currentStepId === 'career' && player.seasonData && player.seasonData.length > 0) {
+      const lastSeason = player.seasonData[player.seasonData.length - 1]
+      return lastSeason.teams[0] ?? '—'
+    }
+    if (player.drafted && player.team_drafted) return player.team_drafted
+    return '—'
+  }, [player, currentStepId])
+
+  const hasProductionData = (player.seasonData?.length ?? 0) > 0
+  const sectionLabel = hasProductionData ? 'Player Production' : 'Player Profile'
+
+  const mostRecentSeason = player.seasonData
+    ? [...player.seasonData].sort((a, b) => b.season - a.season)[0]
+    : null
+  const arcSnapYear = mostRecentSeason
+    ? `'${String(mostRecentSeason.season).slice(-2)}`
+    : null
+
+  const tierLabelDisplay = player.outcomeScore != null
+    ? getTierForScore(player.outcomeScore).label
+    : '—'
 
   return (
     // Backdrop
@@ -499,12 +640,10 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
 
             <div className="dm-meta-spacer" />
 
-            {/* Row 4: Current */}
+            {/* Row 4: Current — dynamic per Journey Step year */}
             <div className="dm-meta-row">
               <span className="dm-meta-label">Current</span>
-              <span className="dm-meta-value">
-                {player.drafted && player.team_drafted ? `${player.team_drafted} ${draftYear}` : "—"}
-              </span>
+              <span className="dm-meta-value">{currentTeamDisplay}</span>
             </div>
           </div>
         </div>
@@ -512,42 +651,152 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
         {/* ── Body (scrolling) ──────────────────────────────────────── */}
         <div className="dm-body">
 
-          {/* ── Player Profile ──────────────────────────────────────── */}
-          <div className="dm-band">Player Profile</div>
-          <div className="pcm-section-block">
-            <div className="pcm-profile-rail">
-              {/* Role pennant */}
-              <div>
-                <div className="pcm-profile-label">Role</div>
-                <div className="pcm-role-pennant">{role}</div>
-              </div>
+          {/* ── Player Production / Player Profile ──────────────────── */}
+          <div className="dm-band">{sectionLabel}</div>
+          {hasProductionData ? (
+            <div className="pcm-section-block">
+              {/* ARC Score snapshot */}
+              {arcSnapYear && (
+                <div className="dm-arc">
+                  <div>
+                    <div className="dm-arc-cap">ARC Score &middot; {arcSnapYear}</div>
+                    <div className="dm-arc-num">{player.outcomeScore ?? '—'}</div>
+                  </div>
+                  <div className="dm-arc-pill">{tierLabelDisplay}</div>
+                </div>
+              )}
 
-              {/* Strengths panel */}
-              <div className="pcm-strengths-panel">
-                <div className="pcm-profile-label">Strengths Profile</div>
-                <div className="pcm-strength-stack">
-                  {[
-                    { s: player.s1, mod: "", kicker: "Primary" },
-                    { s: player.s2, mod: " pcm-s-secondary", kicker: "Secondary" },
-                    { s: player.s3, mod: " pcm-s-supportive", kicker: "Supportive" },
-                  ].map(({ s, mod, kicker }) => (
-                    <div key={kicker} className={`pcm-strength-row${mod}`}>
-                      <div className="pcm-pennant-tail">
-                        <div className="pcm-tail-strip upper" />
-                        <div className="pcm-tail-strip lower" />
+              {/* Stat grid */}
+              {player.seasonData && (() => {
+                const statCols = STAT_COLUMNS[player.pos] ?? []
+                const allRows = player.seasonData!
+                const rookieRows = allRows.filter((r) => r.season >= draftYear && r.season <= draftYear + 3)
+                const hasPostRookie = allRows.some((r) => r.season > draftYear + 3)
+
+                const seasonScoreData = allRows
+                  .filter((r) => r.arcScore !== null)
+                  .map((r) => ({ season: r.season, score: r.arcScore! }))
+                const rookieARC = computeRookieContractARC(seasonScoreData, draftYear)
+                const careerARC = player.outcomeScore
+
+                const fmtStat = (v: number | null) => v !== null ? String(Math.round(v)) : '—'
+                const fmtSnap = (v: number | null) => v !== null ? `${Math.round(v * 100)}%` : '—'
+                const fmtARC  = (v: number | null) => v !== null ? String(Math.round(v)) : '—'
+
+                const renderStatCell = (col: StatCol, row: DisplaySeasonRow) => {
+                  const v = col.getValue(row)
+                  return col.header === 'SNP%' ? fmtSnap(v) : fmtStat(v)
+                }
+                const renderTotalsStatCell = (col: StatCol, rows: DisplaySeasonRow[]) => {
+                  if (col.header === 'SNP%') return fmtSnap(weightedSnapPct(rows))
+                  return fmtStat(sumStat(rows, col.getValue))
+                }
+
+                return (
+                  <table className="dm-stats">
+                    <thead>
+                      <tr>
+                        <th>Yr</th>
+                        <th>Team</th>
+                        {statCols.map((c) => <th key={c.header}>{c.header}</th>)}
+                        {statCols.length === 3 && <th />}
+                        <th>ARC</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rookieRows.map((row) => (
+                        <tr key={row.season}>
+                          <td>&apos;{String(row.season).slice(-2)}</td>
+                          <td>{row.teams.join(' / ')}</td>
+                          {statCols.map((c) => (
+                            <td key={c.header} style={{ textAlign: 'right' }}>{renderStatCell(c, row)}</td>
+                          ))}
+                          {statCols.length === 3 && <td />}
+                          <td style={{ textAlign: 'right' }}>
+                            <b>{fmtARC(row.arcScore)}</b>
+                            {row.allPro  && <span className="dm-award-star" title="All-Pro">&thinsp;&#x2605;</span>}
+                            {row.proBowl && <span className="dm-award-dagger" title="Pro Bowl">&thinsp;&#x2020;</span>}
+                          </td>
+                        </tr>
+                      ))}
+
+                      <tr className="dm-stats-total">
+                        <td colSpan={2}>Rookie Contract</td>
+                        {statCols.map((c) => (
+                          <td key={c.header} style={{ textAlign: 'right' }}>{renderTotalsStatCell(c, rookieRows)}</td>
+                        ))}
+                        {statCols.length === 3 && <td />}
+                        <td style={{ textAlign: 'right' }}>{fmtARC(rookieARC)}</td>
+                      </tr>
+
+                      {hasPostRookie && allRows
+                        .filter((r) => r.season > draftYear + 3)
+                        .map((row) => (
+                          <tr key={row.season}>
+                            <td>&apos;{String(row.season).slice(-2)}</td>
+                            <td>{row.teams.join(' / ')}</td>
+                            {statCols.map((c) => (
+                              <td key={c.header} style={{ textAlign: 'right' }}>{renderStatCell(c, row)}</td>
+                            ))}
+                            {statCols.length === 3 && <td />}
+                            <td style={{ textAlign: 'right' }}>
+                              <b>{fmtARC(row.arcScore)}</b>
+                              {row.allPro  && <span className="dm-award-star" title="All-Pro">&thinsp;&#x2605;</span>}
+                              {row.proBowl && <span className="dm-award-dagger" title="Pro Bowl">&thinsp;&#x2020;</span>}
+                            </td>
+                          </tr>
+                        ))
+                      }
+
+                      <tr className="dm-stats-total">
+                        <td colSpan={2}>Career</td>
+                        {statCols.map((c) => (
+                          <td key={c.header} style={{ textAlign: 'right' }}>{renderTotalsStatCell(c, allRows)}</td>
+                        ))}
+                        {statCols.length === 3 && <td />}
+                        <td style={{ textAlign: 'right' }}>{fmtARC(careerARC)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              })()}
+            </div>
+          ) : (
+            <div className="pcm-section-block">
+              <div className="pcm-profile-rail">
+                {/* Role pennant */}
+                <div>
+                  <div className="pcm-profile-label">Role</div>
+                  <div className="pcm-role-pennant">{role}</div>
+                </div>
+
+                {/* Strengths panel */}
+                <div className="pcm-strengths-panel">
+                  <div className="pcm-profile-label">Strengths Profile</div>
+                  <div className="pcm-strength-stack">
+                    {[
+                      { s: player.s1, mod: "", kicker: "Primary" },
+                      { s: player.s2, mod: " pcm-s-secondary", kicker: "Secondary" },
+                      { s: player.s3, mod: " pcm-s-supportive", kicker: "Supportive" },
+                    ].map(({ s, mod, kicker }) => (
+                      <div key={kicker} className={`pcm-strength-row${mod}`}>
+                        <div className="pcm-pennant-tail">
+                          <div className="pcm-tail-strip upper" />
+                          <div className="pcm-tail-strip lower" />
+                        </div>
+                        <div className="pcm-pennant-flag">
+                          <div className="pcm-pennant-kicker">{kicker}</div>
+                          <span className="pcm-pennant-text">
+                            {s && s !== "N/A" ? s : "—"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="pcm-pennant-flag">
-                        <div className="pcm-pennant-kicker">{kicker}</div>
-                        <span className="pcm-pennant-text">
-                          {s && s !== "N/A" ? s : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* ── Size & Length ───────────────────────────────────────── */}
           <div className="dm-band">Size &amp; Length</div>

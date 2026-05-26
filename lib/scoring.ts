@@ -157,6 +157,45 @@ export interface StepScore {
   trajectoryMultiplier?: number // 0.7–1.5 dot size multiplier (null = Year 1/neutral)
 }
 
+/**
+ * Per-season display row for the Player Card stat grid.
+ * Built from raw Google Sheets player_seasons data in fetchOutcomeScores().
+ * Counting stats are summed across all teams for multi-team seasons.
+ */
+export interface DisplaySeasonRow {
+  season: number             // calendar year, e.g. 2021
+  teams: string[]            // ['KC'] single team, or ['KC', 'SEA'] if traded mid-season
+  gamesPlayed: number
+  gamesStarted: number | null
+  snapPct: number | null     // 0.0–1.0 decimal; games-weighted avg for multi-team seasons
+  snapCount: number | null   // raw snap count (sum across teams); used for totals row weighted avg
+
+  // Offense
+  passYards: number | null
+  passTDs: number | null
+  rushYards: number | null
+  rushTDs: number | null
+  recYards: number | null
+  recTDs: number | null
+  receptions: number | null
+  intsThrownQB: number | null  // QB interceptions thrown (from 'interceptions' column)
+
+  // Defense
+  sacks: number | null
+  tfl: number | null         // raw tfl column — includes sacks; display as-is
+  qbHits: number | null
+  soloTackles: number | null
+  defInts: number | null
+  passDeflections: number | null
+
+  // Awards (per-season flags for ★ / † display)
+  allPro: boolean
+  proBowl: boolean
+
+  // Per-season ARC score (from PlayerOutcomeScore.scoresByYear[season])
+  arcScore: number | null
+}
+
 /** Scored outcome for a player -- output of the scoring engine. */
 export interface PlayerOutcomeScore {
   pfrId: string
@@ -880,6 +919,23 @@ export function computeARCScore(
     consistency: Math.round(consistency),
     arcScore:    Math.round(arcScore),
   }
+}
+
+/**
+ * ARC Score scoped to the rookie contract window: draftYear through draftYear+3 (4 seasons).
+ * Uses the identical formula as computeARCScore() but restricted to those seasons.
+ * Returns 0 if no rookie-window seasons exist in the data.
+ */
+export function computeRookieContractARC(
+  allSeasonData: Array<{ season: number; score: number }>,
+  draftYear: number,
+): number {
+  const rookieSeasons = allSeasonData.filter(
+    (s) => s.season >= draftYear && s.season <= draftYear + 3,
+  )
+  if (rookieSeasons.length === 0) return 0
+  const { arcScore } = computeARCScore(rookieSeasons, draftYear)
+  return arcScore
 }
 
 // ── Pick value ────────────────────────────────────────────────────────────────

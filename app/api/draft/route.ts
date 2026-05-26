@@ -28,13 +28,14 @@ export async function GET(request: NextRequest) {
       fetchOutcomeScores(),
     ]);
 
-    // Attach outcome scores and step scores (null when no data for this player)
+    // Attach outcome scores, step scores, and season data (null when no data for this player)
     const scored = players.map(p => {
       const od = outcomeScores.get(p.player_id);
       return {
         ...p,
         outcomeScore: od?.arcScore   ?? null,
         stepScores:   od?.stepScores ?? null,
+        seasonData:   od?.seasonData ?? null,
       };
     });
 
