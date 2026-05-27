@@ -38,10 +38,25 @@ interface PlayerCardProps {
 
 // ── Card color resolution ─────────────────────────────────────────────────────
 
-function computeCardColors(player: Player) {
-  const c = player.drafted
-    ? resolveTeamColors(player.team_drafted)
-    : resolveSchoolColors(player.school);
+function computeCardColors(player: Player, currentStepId?: string) {
+  let teamCode: string | null = null;
+
+  if (currentStepId && player.seasonData && player.seasonData.length > 0) {
+    const stepYear = parseInt(currentStepId, 10);
+    if (!isNaN(stepYear)) {
+      const row = player.seasonData.find(r => r.season === stepYear);
+      teamCode = row?.teams[0] ?? null;
+    } else if (currentStepId === 'career') {
+      const lastSeason = player.seasonData[player.seasonData.length - 1];
+      teamCode = lastSeason?.teams[0] ?? null;
+    }
+  }
+
+  const c = teamCode
+    ? resolveTeamColors(teamCode)
+    : player.drafted
+      ? resolveTeamColors(player.team_drafted)
+      : resolveSchoolColors(player.school);
 
   return {
     "--team-primary":       c.primary,
@@ -488,8 +503,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
   const draftClassSuffix = `DC${String(draftYear).slice(-2)}`;
 
   const cardColorVars = useMemo(
-    () => computeCardColors(player),
-    [player]
+    () => computeCardColors(player, currentStepId),
+    [player, currentStepId]
   );
 
   const metricDefs = useMemo(

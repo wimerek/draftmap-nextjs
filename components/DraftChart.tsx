@@ -216,7 +216,6 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     const currentIdx = journeySteps.findIndex(s => s.id === currentStepId);
     if (currentIdx === journeySteps.length - 1) {
       setIsPlaying(false);
-      setCurrentStepId('projection');
       return;
     }
     animateToStep(journeySteps[currentIdx + 1].id);
@@ -232,6 +231,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [players,   setPlayers]   = useState<Player[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
+  const yearCache = useRef<Map<string, Player[]>>(new Map());
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
 
@@ -358,11 +358,24 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   // ── Data fetch (uses selectedYear to support in-place year switching) ────
   useEffect(() => {
+    const cacheKey = `${selectedYear}${liveMode ? '-live' : ''}`;
+
+    if (!liveMode && yearCache.current.has(cacheKey)) {
+      setPlayers(yearCache.current.get(cacheKey)!);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const url = `/api/draft?year=${selectedYear}${liveMode ? "&live=1" : ""}`;
     fetch(url)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setPlayers(d.players ?? []); setLoading(false); })
+      .then(d => {
+        const result = d.players ?? [];
+        if (!liveMode) yearCache.current.set(cacheKey, result);
+        setPlayers(result);
+        setLoading(false);
+      })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [selectedYear, liveMode]);
 
