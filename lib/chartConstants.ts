@@ -152,6 +152,121 @@ export const SCHOOL_COLORS: Record<string, { fill: string; stroke: string }> = {
   "Washington":         { fill: "#363c74", stroke: "#e8d3a2" },
   "Western Michigan":   { fill: "#6c4023", stroke: "#b5a167" },
   "Wisconsin":          { fill: "#c5050c", stroke: "#FFFFFF" },
+
+  // ── 2026 additions ────────────────────────────────────────────────────────
+  "Central Michigan":       { fill: "#6A0032", stroke: "#FFC82E" },
+  "Dartmouth":              { fill: "#00693E", stroke: "#FFFFFF" },
+  "East Carolina":          { fill: "#592A8A", stroke: "#FFC526" },
+  "Florida International":  { fill: "#081E3F", stroke: "#B6862C" },
+  "Houston":                { fill: "#C8102E", stroke: "#FFFFFF" },
+  "Incarnate Word":         { fill: "#8D1332", stroke: "#C8A600" },
+  "James Madison":          { fill: "#450084", stroke: "#CBB677" },
+  "Kennesaw State":         { fill: "#000000", stroke: "#FDBB30" },
+  "Louisiana":              { fill: "#CE181E", stroke: "#FFFFFF" },
+  "Marshall":               { fill: "#00AF66", stroke: "#FFFFFF" },
+  "Memphis":                { fill: "#003087", stroke: "#8C8C8C" },
+  "Miami (OH)":             { fill: "#C01933", stroke: "#FFFFFF" },
+  "Middle Tennessee State": { fill: "#00437A", stroke: "#FFFFFF" },
+  "Minnesota":              { fill: "#7A0019", stroke: "#FFCC33" },
+  "Mississippi":            { fill: "#00205b", stroke: "#c8102e" },
+  "New Mexico":             { fill: "#BA0C2F", stroke: "#63666A" },
+  "Nigeria":                { fill: "#008751", stroke: "#FFFFFF" },
+  "North Carolina":         { fill: "#4B9CD3", stroke: "#FFFFFF" },
+  "North Carolina State":   { fill: "#CC0000", stroke: "#FFFFFF" },
+  "Northern Illinois":      { fill: "#C8102E", stroke: "#000000" },
+  "Rutgers":                { fill: "#CC0033", stroke: "#FFFFFF" },
+  "SMU":                    { fill: "#CC0000", stroke: "#003DA5" },
+  "South Alabama":          { fill: "#002469", stroke: "#C41230" },
+  "Southeastern Louisiana": { fill: "#006240", stroke: "#C8A951" },
+  "Syracuse":               { fill: "#F76900", stroke: "#002147" },
+  "Utah State":             { fill: "#00263A", stroke: "#FFFFFF" },
+  "Weber State":            { fill: "#492F92", stroke: "#FFFFFF" },
+  "West Virginia":          { fill: "#002855", stroke: "#EAAA00" },
+  "Wyoming":                { fill: "#492F24", stroke: "#FFC425" },
+
+  // ── Pass 2 additions ──────────────────────────────────────────────────────
+
+  // Category A — aliases for alternate data strings
+  "Cal":            { fill: "#041E42", stroke: "#FFC72C" },
+  "N.C. State":     { fill: "#CC0000", stroke: "#FFFFFF" },
+  "Pitt":           { fill: "#1c2957", stroke: "#cdb87d" },
+  "Connecticut":    { fill: "#000E2F", stroke: "#FFFFFF" },
+
+  // Category B — non-collegiate (International Player Pathway)
+  "IPP":            { fill: "#0B2239", stroke: "#D4A017" },
+
+  // Power/major conference
+  "Virginia Tech":      { fill: "#630031", stroke: "#CF4420" },
+  "Oklahoma State":     { fill: "#FF6600", stroke: "#000000" },
+  "Oregon State":       { fill: "#DC4405", stroke: "#000000" },
+  "Purdue":             { fill: "#CEB888", stroke: "#000000" },
+  "Colorado":           { fill: "#CFB87C", stroke: "#000000" },
+  "Colorado State":     { fill: "#1E4D2B", stroke: "#C8C372" },
+  "Tulane":             { fill: "#006747", stroke: "#418FDE" },
+  "Washington State":   { fill: "#981E32", stroke: "#5E6A71" },
+  "Appalachian State":  { fill: "#000000", stroke: "#FFB300" },
+  "Fresno State":       { fill: "#DB0032", stroke: "#002244" },
+  "UNLV":               { fill: "#CF0A2C", stroke: "#858585" },
+  "Nevada":             { fill: "#003366", stroke: "#807F84" },
+  "Rice":               { fill: "#00205B", stroke: "#7C7E7F" },
+  "Western Kentucky":   { fill: "#C60C30", stroke: "#FFFFFF" },
+  "Temple":             { fill: "#9D2235", stroke: "#FFFFFF" },
+  "USF":                { fill: "#006747", stroke: "#CFC493" },
+  "UTEP":               { fill: "#041E42", stroke: "#FF8200" },
+  "UL Monroe":          { fill: "#7B0D21", stroke: "#C9A84C" },
+  "Ohio":               { fill: "#00694E", stroke: "#FFFFFF" },
+
+  // Mid-major / FBS
+  "Bowling Green":      { fill: "#4B1003", stroke: "#F15A22" },
+  "Charlotte":          { fill: "#046A38", stroke: "#FFFFFF" },
+  "Florida Atlantic":   { fill: "#003366", stroke: "#CC0000" },
+  "Houston Christian":  { fill: "#002D72", stroke: "#F26522" },
+  "Illinois State":     { fill: "#C01933", stroke: "#FFFFFF" },
+  "Louisiana Tech":     { fill: "#002F8F", stroke: "#E31837" },
+  "Missouri State":     { fill: "#5C0025", stroke: "#FFFFFF" },
+  "Montana":            { fill: "#73000A", stroke: "#999999" },
+  "Montana State":      { fill: "#003875", stroke: "#D4A017" },
+  "New Hampshire":      { fill: "#003DA5", stroke: "#C8A951" },
+  "Northern State":     { fill: "#492F91", stroke: "#FDB827" },
+  "Sacramento State":   { fill: "#00553A", stroke: "#C39F37" },
+  "South Dakota":       { fill: "#990000", stroke: "#FFFFFF" },
+  "South Dakota State": { fill: "#003478", stroke: "#FFC82E" },
+  "Towson":             { fill: "#F0A500", stroke: "#000000" },
+  "Troy":               { fill: "#8B1C21", stroke: "#A2AAAD" },
+  "UC Davis":           { fill: "#002855", stroke: "#DAAA00" },
+  "UMass":              { fill: "#881C1C", stroke: "#FFFFFF" },
+  "Utah Tech":          { fill: "#CC0000", stroke: "#000000" },
+  "Villanova":          { fill: "#00205B", stroke: "#FFFFFF" },
+  "William & Mary":     { fill: "#115740", stroke: "#B9975B" },
+
+  // FCS / small programs
+  "Central Arkansas":    { fill: "#562C82", stroke: "#9EA2A2" },
+  "Central Connecticut": { fill: "#002E6C", stroke: "#B5A300" },
+  "Duquesne":            { fill: "#8B2131", stroke: "#003478" },
+  "Eastern Kentucky":    { fill: "#881C1C", stroke: "#FFFFFF" },
+  "Holy Cross":          { fill: "#582C83", stroke: "#FFFFFF" },
+  "Lafayette":           { fill: "#8B0000", stroke: "#FFFFFF" },
+  "Lamar":               { fill: "#E31837", stroke: "#FFFFFF" },
+  "Merrimack":           { fill: "#002147", stroke: "#FDBB30" },
+  "Millsaps":            { fill: "#461D7C", stroke: "#FFFFFF" },
+  "Monmouth":            { fill: "#041E42", stroke: "#FFFFFF" },
+  "New Haven":           { fill: "#333333", stroke: "#C6A020" },
+  "Rhode Island":        { fill: "#002147", stroke: "#75B2DD" },
+  "SE Missouri State":   { fill: "#CC0000", stroke: "#000000" },
+  "Southern":            { fill: "#0033A0", stroke: "#CFB53B" },
+  "Southern Miss":       { fill: "#000000", stroke: "#EFAB00" },
+  "Southern Mississippi":{ fill: "#000000", stroke: "#EFAB00" },
+
+  // HBCUs
+  "Alabama A&M":            { fill: "#800000", stroke: "#FFFFFF" },
+  "Howard":                 { fill: "#003A63", stroke: "#FFFFFF" },
+  "North Carolina Central": { fill: "#862633", stroke: "#8B8B8B" },
+  "Virginia State":         { fill: "#003366", stroke: "#FF6600" },
+  "Winston-Salem State":    { fill: "#C8102E", stroke: "#FFFFFF" },
+
+  // Ivy League
+  "Brown": { fill: "#4E3629", stroke: "#FFFFFF" },
+  "Yale":  { fill: "#00356B", stroke: "#FFFFFF" },
 };
 
 // ── Tier definitions (order = Great -> Role Player/Project) ───────────────────
@@ -414,9 +529,12 @@ export function resolveSchoolColors(school: string | null | undefined): {
   const FALLBACK = { primary: '#0B2239', secondary: '#D4A017', onPrimary: '#FFFFFF', onSecondary: '#1a1a1a' };
   const sc = SCHOOL_COLORS[school ?? ''];
   if (!sc) return FALLBACK;
-  const onPrimary   = luminance(sc.fill)   > 0.5 ? '#1a1a1a' : '#FFFFFF';
-  const onSecondary = luminance(sc.stroke) > 0.5 ? '#1a1a1a' : '#FFFFFF';
-  return { primary: sc.fill, secondary: sc.stroke, onPrimary, onSecondary };
+  const lum = luminance(sc.fill);
+  const effectivePrimary   = lum > 0.85 ? sc.stroke : sc.fill;
+  const effectiveSecondary = lum > 0.85 ? sc.fill   : sc.stroke;
+  const onPrimary   = luminance(effectivePrimary)   > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  const onSecondary = luminance(effectiveSecondary) > 0.5 ? '#1a1a1a' : '#FFFFFF';
+  return { primary: effectivePrimary, secondary: effectiveSecondary, onPrimary, onSecondary };
 }
 
 /** Derive a stroke color from a fill hex: darken by ~25%. */
