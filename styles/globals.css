@@ -1820,11 +1820,11 @@ a { color: inherit; text-decoration: none; }
 }
 .dm-funfact-text {
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: 1rem;
   font-style: italic;
   font-weight: 400;
   color: var(--ink-2, #4a4a4a);
-  line-height: 1.45;
+  line-height: 1.6;
   margin: 0;
   align-self: center;
 }
@@ -1851,6 +1851,22 @@ a { color: inherit; text-decoration: none; }
   text-transform: uppercase;
   color: var(--ink-3, #888);
   text-align: center;
+}
+
+/* ── View full profile link (above Chalk Talk) ─────────────────────────────── */
+.dm-profile-link {
+  text-align: right;
+  padding: 8px 16px 4px;
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+.dm-profile-link a {
+  color: inherit;
+  text-decoration: none;
+}
+.dm-profile-link a:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 /* ── Peer label tooltip ────────────────────────────────────────────────────── */
@@ -1931,6 +1947,18 @@ a { color: inherit; text-decoration: none; }
   color: #B45309;
   font-size: 10px;
   font-style: normal;
+}
+
+/* Delta-6 Phase C — award flags left of ARC score */
+.dm-award-flags {
+  color: #B45309;
+  margin-right: 4px;
+  font-size: 0.85em;
+}
+
+/* Delta-6 Phase C — top breathing room in production section */
+.dm-production-body {
+  padding-top: 10px;
 }
 
 .dm-arc {

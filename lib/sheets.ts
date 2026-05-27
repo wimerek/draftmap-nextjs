@@ -44,6 +44,7 @@ export interface SheetsRawRow {
   rd_drafted?: string;
   pick_drafted?: string;
   team_drafted?: string;
+  fun_fact_override?: string;
 }
 
 /** Shape returned by the /api/draft and /api/players route handlers. */
@@ -92,6 +93,9 @@ export interface Player {
   rd_drafted: number | null;
   pick_drafted: number | null;
   team_drafted: string | null;
+
+  /** Manual override for the Chalk Talk fun fact panel. Null = use auto-generated fact. */
+  fun_fact_override?: string | null;
 
   /** Derived: true if any of rd_drafted / pick_drafted / team_drafted is populated */
   drafted: boolean;
@@ -227,6 +231,7 @@ function mapRow(row: SheetsRawRow): Player {
     rd_drafted,
     pick_drafted,
     team_drafted,
+    fun_fact_override: toStr(row.fun_fact_override),
     drafted: !!(
       rd_drafted !== null ||
       pick_drafted !== null ||

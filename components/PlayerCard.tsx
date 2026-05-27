@@ -7,6 +7,7 @@ import type { DisplaySeasonRow } from "@/lib/scoring";
 import { getTierForScore } from "@/lib/tierLabels";
 import { cardPositionalRangeData, resolveTeamColors, resolveSchoolColors } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
+import { getFunFact } from "@/lib/funFacts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -532,7 +533,10 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
   const agilityDefs    = metricDefs.filter((m) => m.groupId === "pcmGroupAgility");
   const strengthDefs   = metricDefs.filter((m) => m.groupId === "pcmGroupStrength");
 
-  const funFact = "Combine data and draft projections available for all 11 positions.";
+  const classPeers = players.filter(
+    p => p.pos === player.pos && p.draft_year === player.draft_year && p.player_id !== player.player_id
+  );
+  const funFact = player ? getFunFact(player, classPeers) : "";
 
   const currentTeamDisplay = useMemo(() => {
     const stepYear = currentStepId ? parseInt(currentStepId, 10) : NaN
@@ -654,7 +658,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
           {/* ── Player Production / Player Profile ──────────────────── */}
           <div className="dm-band">{sectionLabel}</div>
           {hasProductionData ? (
-            <div className="pcm-section-block">
+            <div className="pcm-section-block dm-production-body">
               {/* ARC Score snapshot */}
               {arcSnapYear && (
                 <div className="dm-arc">
@@ -679,7 +683,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                 const rookieARC = computeRookieContractARC(seasonScoreData, draftYear)
                 const careerARC = player.outcomeScore
 
-                const fmtStat = (v: number | null) => v !== null ? String(Math.round(v)) : '—'
+                const fmtStat = (v: number | null) => v !== null ? Math.round(v).toLocaleString('en-US') : '—'
                 const fmtSnap = (v: number | null) => v !== null ? `${Math.round(v * 100)}%` : '—'
                 const fmtARC  = (v: number | null) => v !== null ? String(Math.round(v)) : '—'
 
@@ -713,9 +717,11 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                           ))}
                           {statCols.length === 3 && <td />}
                           <td style={{ textAlign: 'right' }}>
+                            <span className="dm-award-flags">
+                              {row.allPro  && <span title="All-Pro">★</span>}
+                              {row.proBowl && <span title="Pro Bowl">†</span>}
+                            </span>
                             <b>{fmtARC(row.arcScore)}</b>
-                            {row.allPro  && <span className="dm-award-star" title="All-Pro">&thinsp;&#x2605;</span>}
-                            {row.proBowl && <span className="dm-award-dagger" title="Pro Bowl">&thinsp;&#x2020;</span>}
                           </td>
                         </tr>
                       ))}
@@ -729,6 +735,12 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                         <td style={{ textAlign: 'right' }}>{fmtARC(rookieARC)}</td>
                       </tr>
 
+                      {hasPostRookie && (
+                        <tr className="dm-grid-spacer" aria-hidden="true">
+                          <td colSpan={7} style={{ height: '14px', background: 'transparent', border: 'none' }} />
+                        </tr>
+                      )}
+
                       {hasPostRookie && allRows
                         .filter((r) => r.season > draftYear + 3)
                         .map((row) => (
@@ -740,9 +752,11 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                             ))}
                             {statCols.length === 3 && <td />}
                             <td style={{ textAlign: 'right' }}>
+                              <span className="dm-award-flags">
+                                {row.allPro  && <span title="All-Pro">★</span>}
+                                {row.proBowl && <span title="Pro Bowl">†</span>}
+                              </span>
                               <b>{fmtARC(row.arcScore)}</b>
-                              {row.allPro  && <span className="dm-award-star" title="All-Pro">&thinsp;&#x2605;</span>}
-                              {row.proBowl && <span className="dm-award-dagger" title="Pro Bowl">&thinsp;&#x2020;</span>}
                             </td>
                           </tr>
                         ))
@@ -837,6 +851,13 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
             </div>
           </div>
 
+          {/* ── View full profile link (above Chalk Talk) ─────────────── */}
+          {playerSlug && (
+            <div className="dm-profile-link">
+              <Link href={`/players/${playerSlug}`}>View full profile →</Link>
+            </div>
+          )}
+
           {/* ── Fun Fact Panel ────────────────────────────────────────── */}
           <div className="dm-funfact">
             {/* Left tag: team secondary colored — label: CHALK TALK */}
@@ -874,17 +895,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
           <div className="dm-footer">
             &copy; DRAFTMAP {draftYear} &middot; CLASS OF &apos;{String(draftYear).slice(-2)} &middot; PRTD. IN U.S.A.
           </div>
-
-          {playerSlug && (
-            <div style={{ textAlign: "right", padding: "12px 16px 8px", borderTop: "1px solid rgba(148,163,184,0.15)" }}>
-              <Link
-                href={`/players/${playerSlug}`}
-                style={{ fontSize: 12, color: "var(--ink-3, #94a3b8)", textDecoration: "none" }}
-              >
-                View full profile →
-              </Link>
-            </div>
-          )}
 
         </div>{/* end dm-body */}
         </div>{/* end dm-card-inner */}
