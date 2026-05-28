@@ -510,14 +510,84 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
       });
     }
 
+    // ── Build position-normalized snap percentile lookup ──────────────────────
+    // For each position (P/K/LS/ST excluded), collect all season snap_pct values
+    // and sort them. Then for any snap_pct, percentile = rank / (n-1) × 100.
+    //
+    // Multi-team seasons: games-weighted average snap_pct per player-season.
+
+    // Step 1: Aggregate snap_pct per player per season (games-weighted for trades)
+    const playerSeasonSnap = new Map<string, Map<number, number>>();
+    rawByPlayer.forEach((rowList, pid) => {
+      const bySeason = new Map<number, { totalSnap: number; totalGP: number }>();
+      for (const row of rowList) {
+        const season  = parseInt(row.season ?? '', 10);
+        const snapPct = parseFloat(row.snap_pct ?? '');
+        const gp      = parseInt(row.games_played ?? '0', 10);
+        if (isNaN(season) || isNaN(snapPct)) continue;
+        const prev = bySeason.get(season) ?? { totalSnap: 0, totalGP: 0 };
+        bySeason.set(season, { totalSnap: prev.totalSnap + snapPct * gp, totalGP: prev.totalGP + gp });
+      }
+      const seasonMap = new Map<number, number>();
+      bySeason.forEach(({ totalSnap, totalGP }, season) => {
+        seasonMap.set(season, totalGP > 0 ? totalSnap / totalGP : 0);
+      });
+      playerSeasonSnap.set(pid, seasonMap);
+    });
+
+    // Step 2: Collect snap_pct values by position for percentile reference population
+    const snapsByPosition = new Map<string, number[]>();
+    playerSeasonSnap.forEach((seasonMap, pid) => {
+      const idParts  = pid.split('-');
+      const posRaw   = idParts.length >= 3 ? idParts[idParts.length - 3] : '';
+      const position = normalizePosition(posRaw);
+      if (!position || position === 'ST') return;  // exclude ST/P/K/LS
+      seasonMap.forEach(snapPct => {
+        const list = snapsByPosition.get(position) ?? [];
+        list.push(snapPct);
+        snapsByPosition.set(position, list);
+      });
+    });
+
+    // Step 3: Sort each position's snap array (ascending) for percentile lookup
+    const sortedSnaps = new Map<string, number[]>();
+    snapsByPosition.forEach((values, pos) => {
+      sortedSnaps.set(pos, [...values].sort((a, b) => a - b));
+    });
+
+    const computeSnapPct = (snapPct: number, position: string): number => {
+      const sorted = sortedSnaps.get(position);
+      if (!sorted || sorted.length <= 1) return 50;
+      const below = sorted.filter(v => v < snapPct).length;
+      return Math.round((below / (sorted.length - 1)) * 100);
+    };
+    // ── End snap percentile lookup ────────────────────────────────────────────
+
     const scored = normalizeScoreDistribution(scoreAllFromSeasons(allSeasons, awards));
 
     const result = new Map<string, PlayerOutcomeData>();
     scored.forEach((outcome, playerId) => {
-      const rawRows = rawByPlayer.get(playerId) ?? [];
+      const rawRows    = rawByPlayer.get(playerId) ?? [];
+      const playerSnaps = playerSeasonSnap.get(playerId) ?? new Map<number, number>();
+      const posKey     = outcome.position as string;
+
+      // Replace ARC step scores with position-normalized snap percentile per season
+      const snapStepScores: StepScore[] = outcome.stepScores.map(step => {
+        const season  = parseInt(step.stepId, 10);
+        const snap    = playerSnaps.get(season);
+        const pct     = snap !== undefined ? computeSnapPct(snap, posKey) : null;
+        return { ...step, score: pct };
+      });
+
+      // Career snap percentile = mean of per-season percentiles (drives career Y-axis)
+      const validPcts = snapStepScores.map(s => s.score).filter((s): s is number => s !== null);
+      const careerSnapPct = validPcts.length > 0
+        ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length)
+        : null;
+
       result.set(playerId, {
-        arcScore:   outcome.score,
-        stepScores: outcome.stepScores,
+        arcScore:   careerSnapPct,
+        stepScores: snapStepScores,
         seasonData: buildSeasonData(rawRows, outcome),
       });
     });

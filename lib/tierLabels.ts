@@ -1,17 +1,19 @@
 /**
  * lib/tierLabels.ts
  *
- * Delta-3: 5-tier visual outcome system (replaces 7-tier from Delta-2).
- * Used by TierAxisLabels (Y-axis zone fills/labels), getDotColor (dot fills),
- * and player cards.
+ * Phase 2: 3-tier visual outcome system based on position-normalized snap percentile.
+ * Used by TierAxisLabels (Y-axis zone fills/labels) and player cards.
  *
- * Thresholds map to the 0–100 score from lib/scoring.ts.
- * List is ordered highest-to-lowest (Franchise Player first, Bust last).
+ * Thresholds map to the 0–100 position-normalized snap percentile from lib/sheets.ts.
+ * List is ordered highest-to-lowest (Starter first, Depth last).
  *
- * Awards floors (from scoring engine — carry forward):
- *   All-Pro (1+)   → minimum Franchise Player (score ≥ 75)
- *   Pro Bowl (2+)  → minimum Pro Bowl Caliber (score ≥ 55)
- *   Pro Bowl (1×)  → no floor
+ * Tier boundaries (validated against dataset):
+ *   Starter    (P65+): coaches rely on this player regularly
+ *   Role Player (P25–P65): contributing, defined role, competes for snaps
+ *   Depth       (P0–P25):  on the roster, limited playing time
+ *
+ * Pro Bowl and All Pro status are now visual markers on dots (ring / star),
+ * not score floors. Award floors removed from this tier system.
  */
 
 export interface Tier {
@@ -21,16 +23,12 @@ export interface Tier {
   minScore: number  // inclusive lower bound: score >= minScore → this tier
 }
 
-// TODO Delta-5: validate cutoffs against full dataset
 export const TIERS: Tier[] = [
-  { id: 'franchise', label: 'FRANCHISE PLAYER',   color: '#f59e0b', minScore: 75 },
-  { id: 'pro-bowl',  label: 'PRO BOWL CALIBER',   color: '#34d399', minScore: 55 },
-  { id: 'starter',   label: 'STARTER',             color: '#60a5fa', minScore: 35 },
-  { id: 'depth',     label: 'DEPTH / ROLE PLAYER', color: '#94a3b8', minScore: 12 },
-  { id: 'bust',      label: 'BUST',                color: '#f87171', minScore: 0  },
+  { id: 'starter',    label: 'STARTER',     color: '#60a5fa', minScore: 65 },
+  { id: 'role',       label: 'ROLE PLAYER', color: '#94a3b8', minScore: 25 },
+  { id: 'depth',      label: 'DEPTH',       color: '#64748b', minScore: 0  },
 ]
 
-// TODO Delta-5: validate cutoffs against full dataset
 export function getTierForScore(score: number): Tier {
   for (const tier of TIERS) {
     if (score >= tier.minScore) return tier

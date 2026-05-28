@@ -220,7 +220,8 @@ export interface PlayerOutcomeScore {
   // key = calendar year, e.g. { 2021: 42, 2022: 51, 2023: 58, 2024: 55 }
   scoresByYear: Record<number, number>
 
-  // Per-step cumulative ARC scores for production animation (Delta-5)
+  // Per-step position-normalized snap percentile scores for production animation.
+  // score field carries snap percentile (0–100) after sheets.ts post-processing.
   stepScores: StepScore[]
 
   // Metadata

@@ -42,6 +42,16 @@ interface Props {
 const BASE_R = 6;
 const TOUCH_TARGET = 22;
 
+function starPath(cx: number, cy: number, outerR: number, innerR: number): string {
+  const pts: string[] = [];
+  for (let k = 0; k < 10; k++) {
+    const angle = (Math.PI * 2 * k) / 10 - Math.PI / 2;
+    const r = k % 2 === 0 ? outerR : innerR;
+    pts.push(`${(cx + r * Math.cos(angle)).toFixed(2)},${(cy + r * Math.sin(angle)).toFixed(2)}`);
+  }
+  return `M${pts[0]} ` + pts.slice(1).map(p => `L${p}`).join(' ') + ' Z';
+}
+
 function deltaToRadius(delta: number): number {
   return BASE_R + 10 * (1 - Math.exp(-delta / 25));
 }
@@ -165,11 +175,32 @@ export default function PlayerDots({
         const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
         // In production mode, exclude `r` from transition so radius snaps instantly
         // when entering from Draft Results (variable delta-size → uniform BASE_R+1.5).
+        // `cy` movement is handled by the group transform so ring/star travel with the dot.
+        const groupTransition = tDuration > 0
+          ? `transform ${tDuration}ms ease-out ${tDelay}ms`
+          : "none";
         const transition = tDuration > 0
           ? isProductionMode
-            ? [`cy ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
-            : [`cy ${tDuration}ms ease-out ${tDelay}ms`, `r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+            ? [`fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+            : [`r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
+
+        // Pro Bowl ring + All Pro star: production/career steps only
+        let showProBowl = false;
+        let showAllPro  = false;
+        if (isProductionMode) {
+          if (chartMode === 'career') {
+            showProBowl = player.seasonData?.some(sr => sr.proBowl) ?? false;
+            showAllPro  = player.seasonData?.some(sr => sr.allPro)  ?? false;
+          } else if (currentStepId) {
+            const season = parseInt(currentStepId, 10);
+            if (!isNaN(season)) {
+              const sr = player.seasonData?.find(s => s.season === season);
+              showProBowl = sr?.proBowl ?? false;
+              showAllPro  = sr?.allPro  ?? false;
+            }
+          }
+        }
 
         const dotStroke      = isMobile ? "#ffffff" : stroke;
         const dotStrokeWidth = isMobile
@@ -187,46 +218,72 @@ export default function PlayerDots({
 
         return (
           <g key={`${player.player_id}-${i}`}>
-            {showTwoTone ? (
-              <>
+            {/* Inner group translates to (x, cy) — all children ride the same animation */}
+            <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
+              {showTwoTone ? (
+                <>
+                  <circle
+                    cx={0} cy={0} r={r + 2.5}
+                    fill={stroke}
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    style={{ pointerEvents: "none" }}
+                  />
+                  <circle
+                    cx={0} cy={0} r={r}
+                    fill={fill}
+                    stroke="none"
+                    style={{ pointerEvents: "none" }}
+                  />
+                </>
+              ) : (
                 <circle
-                  cx={x} cy={cy} r={r + 2.5}
-                  fill={stroke}
-                  stroke="#ffffff"
-                  strokeWidth={1}
-                  style={{ pointerEvents: "none" }}
+                  cx={0} cy={0} r={r}
+                  stroke={dotStroke}
+                  strokeWidth={dotStrokeWidth}
+                  style={{ fill, opacity: dotOpacity, cursor: "pointer", transition }}
+                  onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
+                  onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
+                  onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
                 />
-                <circle
-                  cx={x} cy={cy} r={r}
-                  fill={fill}
-                  stroke="none"
-                  style={{ pointerEvents: "none" }}
-                />
-              </>
-            ) : (
-              <circle
-                cx={x} cy={cy} r={r}
-                stroke={dotStroke}
-                strokeWidth={dotStrokeWidth}
-                style={{ fill, opacity: dotOpacity, cursor: "pointer", transition }}
-                onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
-                onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
-                onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
-              />
-            )}
+              )}
 
-            {isMobile && (
-              <rect
-                x={x - TOUCH_TARGET}
-                y={cy - TOUCH_TARGET}
-                width={TOUCH_TARGET * 2}
-                height={TOUCH_TARGET * 2}
-                fill="transparent"
-                stroke="none"
-                style={{ cursor: "pointer" }}
-                onClick={e => { e.stopPropagation(); onDotClick(player); }}
-              />
-            )}
+              {/* Pro Bowl ring — travels with the dot via the parent group transform */}
+              {showProBowl && !showTwoTone && (
+                <circle
+                  cx={0} cy={0}
+                  r={r + 3.5}
+                  fill="none"
+                  stroke="#D4A017"
+                  strokeWidth={1.5}
+                  opacity={0.85}
+                  style={{ pointerEvents: "none" }}
+                />
+              )}
+
+              {/* All Pro star — travels with the dot via the parent group transform */}
+              {showAllPro && !showTwoTone && (
+                <path
+                  d={starPath(0, 0, 4.5, 2.0)}
+                  fill="white"
+                  opacity={0.9}
+                  style={{ pointerEvents: "none" }}
+                />
+              )}
+
+              {isMobile && (
+                <rect
+                  x={-TOUCH_TARGET}
+                  y={-TOUCH_TARGET}
+                  width={TOUCH_TARGET * 2}
+                  height={TOUCH_TARGET * 2}
+                  fill="transparent"
+                  stroke="none"
+                  style={{ cursor: "pointer" }}
+                  onClick={e => { e.stopPropagation(); onDotClick(player); }}
+                />
+              )}
+            </g>
           </g>
         );
       })}
