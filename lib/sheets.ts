@@ -493,10 +493,17 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
 
     for (const row of rows) {
       const pid = (row.player_id ?? '').trim();
-      if (pid) {
-        if (!rawByPlayer.has(pid)) rawByPlayer.set(pid, []);
-        rawByPlayer.get(pid)!.push(row);
-      }
+      if (!pid) continue;
+
+      // Guard: skip any season that predates the player's draft year.
+      // Draft year is the last segment of player_id (e.g. "firstname-lastname-pos-sch-2022").
+      // Contaminated rows from name-collision matching errors are always pre-draft-year.
+      const draftYear  = parseInt(pid.split('-').at(-1) ?? '', 10);
+      const rowSeason  = parseInt(row.season ?? '', 10);
+      if (!isNaN(draftYear) && !isNaN(rowSeason) && rowSeason < draftYear) continue;
+
+      if (!rawByPlayer.has(pid)) rawByPlayer.set(pid, []);
+      rawByPlayer.get(pid)!.push(row);
 
       const mapped = mapSeasonRow(row);
       if (!mapped) continue;

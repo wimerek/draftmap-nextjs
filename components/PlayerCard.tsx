@@ -39,9 +39,24 @@ interface PlayerCardProps {
 // ── Card color resolution ─────────────────────────────────────────────────────
 
 function computeCardColors(player: Player, currentStepId?: string) {
+  // Projection step always shows school colors — player hasn't been drafted yet
+  // in this view context, regardless of whether draft data exists.
+  if (!currentStepId || currentStepId === 'projection') {
+    const c = resolveSchoolColors(player.school);
+    return {
+      "--team-primary":          c.primary,
+      "--team-secondary":        c.secondary,
+      "--team-on-primary":       c.onPrimary,
+      "--team-on-secondary":     c.onSecondary,
+      "--pcm-team-primary":      c.primary,
+      "--pcm-team-secondary":    c.secondary,
+      "--pcm-team-primary-wash": `${c.primary}33`,
+    } as React.CSSProperties;
+  }
+
   let teamCode: string | null = null;
 
-  if (currentStepId && player.seasonData && player.seasonData.length > 0) {
+  if (player.seasonData && player.seasonData.length > 0) {
     const stepYear = parseInt(currentStepId, 10);
     if (!isNaN(stepYear)) {
       const row = player.seasonData.find(r => r.season === stepYear);
@@ -59,13 +74,13 @@ function computeCardColors(player: Player, currentStepId?: string) {
       : resolveSchoolColors(player.school);
 
   return {
-    "--team-primary":       c.primary,
-    "--team-secondary":     c.secondary,
-    "--team-on-primary":    c.onPrimary,
-    "--team-on-secondary":  c.onSecondary,
+    "--team-primary":          c.primary,
+    "--team-secondary":        c.secondary,
+    "--team-on-primary":       c.onPrimary,
+    "--team-on-secondary":     c.onSecondary,
     // Legacy aliases — keep until all pcm-* classes are migrated
-    "--pcm-team-primary":   c.primary,
-    "--pcm-team-secondary": c.secondary,
+    "--pcm-team-primary":      c.primary,
+    "--pcm-team-secondary":    c.secondary,
     "--pcm-team-primary-wash": `${c.primary}33`,
   } as React.CSSProperties;
 }
