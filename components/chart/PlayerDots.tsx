@@ -185,17 +185,23 @@ export default function PlayerDots({
             : [`r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
-        // ST-primary: player logged more ST snaps per game than primary-position snaps this step
+        // ST-primary: player logged more raw ST snaps than position snaps this step
+        // Uses absolute snap counts (not percentages) so fringe players with tiny position
+        // snap rates don't trigger this. Minimum 50 ST snaps to exclude garbage time.
         let isSTprimary = false;
         if (isProductionMode) {
+          const isSTRow = (row: { stSnapCount?: number | null; snapCount?: number | null } | null) =>
+            row != null &&
+            row.stSnapCount != null && row.stSnapCount >= 50 &&
+            row.snapCount    != null && row.stSnapCount > row.snapCount;
           if (chartMode === 'career') {
             const lastRow = player.seasonData ? player.seasonData[player.seasonData.length - 1] : null;
-            isSTprimary = !!(lastRow?.stSnapPct != null && lastRow?.snapPct != null && lastRow.stSnapPct > lastRow.snapPct);
+            isSTprimary = isSTRow(lastRow);
           } else if (currentStepId) {
             const season = parseInt(currentStepId, 10);
             if (!isNaN(season)) {
               const row = player.seasonData?.find(s => s.season === season) ?? null;
-              isSTprimary = !!(row?.stSnapPct != null && row?.snapPct != null && row.stSnapPct > row.snapPct);
+              isSTprimary = isSTRow(row);
             }
           }
         }
@@ -235,18 +241,6 @@ export default function PlayerDots({
           <g key={`${player.player_id}-${i}`}>
             {/* Inner group translates to (x, cy) — all children ride the same animation */}
             <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
-              {/* ST-primary wavy halo — renders behind the main dot */}
-              {isSTprimary && (
-                <circle
-                  cx={0} cy={0}
-                  r={r + 2}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.55)"
-                  strokeWidth={1.2}
-                  filter="url(#wavy-outline)"
-                  style={{ pointerEvents: 'none' }}
-                />
-              )}
               {showTwoTone ? (
                 <>
                   <circle
@@ -272,6 +266,14 @@ export default function PlayerDots({
                   onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
                   onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
                   onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
+                />
+              )}
+              {/* ST-primary wash: white overlay that dilutes the team color for ST specialists */}
+              {isSTprimary && !showTwoTone && (
+                <circle
+                  cx={0} cy={0} r={r}
+                  fill="rgba(255,255,255,0.42)"
+                  style={{ pointerEvents: 'none' }}
                 />
               )}
 

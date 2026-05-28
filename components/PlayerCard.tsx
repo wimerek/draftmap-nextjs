@@ -891,12 +891,13 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                     </div>
                   )}
 
-                  {hasReturnYards ? (
-                    <table className="dm-stats">
+                  <table className="dm-stats">
                       <thead>
                         <tr>
                           <th>Yr</th>
                           <th>Team</th>
+                          <th>ST SNP%</th>
+                          <th>ST SNAPS</th>
                           {hasPRYards && <><th>PR</th><th>PR YDS</th></>}
                           {hasKRYards && <><th>KR</th><th>KR YDS</th></>}
                           {hasSTTds   && <th>ST TD</th>}
@@ -907,15 +908,20 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                           const prY = row.puntReturnYards;
                           const krY = row.kickoffReturnYards;
                           const stT = row.specialTeamsTds;
-                          const hasData =
+                          const hasRowData =
+                            (row.stSnapPct != null && row.stSnapPct > 0) ||
                             (hasPRYards && prY != null) ||
                             (hasKRYards && krY != null) ||
                             (hasSTTds   && stT != null && stT > 0);
-                          if (!hasData) return null;
+                          if (!hasRowData) return null;
+                          const stPct = row.stSnapPct != null ? `${Math.round(row.stSnapPct * 100)}%` : '—';
+                          const stCnt = row.stSnapCount != null ? String(row.stSnapCount) : '—';
                           return (
                             <tr key={row.season}>
                               <td>&apos;{String(row.season).slice(-2)}</td>
                               <td>{row.teams[0]}</td>
+                              <td style={{ textAlign: 'right' }}>{stPct}</td>
+                              <td style={{ textAlign: 'right' }}>{stCnt}</td>
                               {hasPRYards && (
                                 <>
                                   <td style={{ textAlign: 'right' }}>{fmtVal(row.puntReturns)}</td>
@@ -934,6 +940,13 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                         })}
                         <tr className="dm-stats-total">
                           <td colSpan={2}>Career</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {(() => {
+                              const entries = sd.map(r => r.stSnapPct).filter((v): v is number => v !== null && v > 0);
+                              return entries.length > 0 ? `${Math.round(entries.reduce((a, b) => a + b, 0) / entries.length * 100)}%` : '—';
+                            })()}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>{sumST('stSnapCount') || '—'}</td>
                           {hasPRYards && (
                             <>
                               <td style={{ textAlign: 'right' }}>{sumST('puntReturns') || '—'}</td>
@@ -949,22 +962,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                           {hasSTTds && <td style={{ textAlign: 'right' }}>{sumST('specialTeamsTds') || '—'}</td>}
                         </tr>
                       </tbody>
-                    </table>
-                  ) : (
-                    (() => {
-                      const totalSnaps = sumST('stSnapCount');
-                      const validPcts = sd.map(r => r.stSnapPct).filter((v): v is number => v !== null && v > 0);
-                      const avgPct = validPcts.length > 0
-                        ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length * 100)
-                        : null;
-                      return (
-                        <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', margin: 0 }}>
-                          {totalSnaps > 0 ? `${totalSnaps.toLocaleString()} career ST snaps` : 'ST coverage specialist'}
-                          {avgPct !== null ? ` · ${avgPct}% avg coverage rate` : ''}
-                        </p>
-                      );
-                    })()
-                  )}
+                  </table>
                 </div>
               </>
             );
