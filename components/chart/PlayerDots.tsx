@@ -185,6 +185,21 @@ export default function PlayerDots({
             : [`r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
           : "none";
 
+        // ST-primary: player logged more ST snaps per game than primary-position snaps this step
+        let isSTprimary = false;
+        if (isProductionMode) {
+          if (chartMode === 'career') {
+            const lastRow = player.seasonData ? player.seasonData[player.seasonData.length - 1] : null;
+            isSTprimary = !!(lastRow?.stSnapPct != null && lastRow?.snapPct != null && lastRow.stSnapPct > lastRow.snapPct);
+          } else if (currentStepId) {
+            const season = parseInt(currentStepId, 10);
+            if (!isNaN(season)) {
+              const row = player.seasonData?.find(s => s.season === season) ?? null;
+              isSTprimary = !!(row?.stSnapPct != null && row?.snapPct != null && row.stSnapPct > row.snapPct);
+            }
+          }
+        }
+
         // Pro Bowl ring + All Pro star: production/career steps only
         let showProBowl = false;
         let showAllPro  = false;
@@ -220,6 +235,18 @@ export default function PlayerDots({
           <g key={`${player.player_id}-${i}`}>
             {/* Inner group translates to (x, cy) — all children ride the same animation */}
             <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
+              {/* ST-primary wavy halo — renders behind the main dot */}
+              {isSTprimary && (
+                <circle
+                  cx={0} cy={0}
+                  r={r + 2}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.55)"
+                  strokeWidth={1.2}
+                  filter="url(#wavy-outline)"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
               {showTwoTone ? (
                 <>
                   <circle

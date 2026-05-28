@@ -430,10 +430,54 @@ function cat4(player: Player, classPeers: Player[]): string {
   return addFlair(fact, player.player_id, 'general');
 }
 
+// Cat ST-path — ST-to-starter pathway
+function catSTpath(player: Player): string {
+  const sd = player.seasonData;
+  if (!sd || sd.length === 0) return '';
+
+  const sorted = [...sd].sort((a, b) => a.season - b.season);
+
+  // Find first breakout season (snapPct >= 0.45)
+  let breakoutSeason: number | null = null;
+  for (const row of sorted) {
+    if (row.snapPct !== null && row.snapPct >= 0.45) {
+      breakoutSeason = row.season;
+      break;
+    }
+  }
+  if (breakoutSeason === null) return '';
+
+  // Count ST-heavy seasons (stSnapPct > 0.40) that come BEFORE the breakout
+  const stBefore = sorted.filter(
+    r => r.stSnapPct !== null && r.stSnapPct > 0.40 && r.season < breakoutSeason!
+  );
+  if (stBefore.length < 2) return '';
+
+  const N = stBefore.length;
+  const breakoutYearN = breakoutSeason - player.draft_year + 1;
+  const firstName = player.name.split(' ')[0];
+  const fact = `${firstName} logged ${N} seasons as a core special teamer before earning a starting role in Year ${breakoutYearN}.`;
+  return addFlair(fact, player.player_id, 'general');
+}
+
+// Cat ST-pb — ST Pro Bowl recognition
+function catSTpb(player: Player, group: Player[]): string {
+  const sd = player.seasonData;
+  if (!sd || sd.length === 0) return '';
+  if (!sd.some(r => r.stProBowl)) return '';
+
+  const draftYear = player.draft_year;
+  const N = group.filter(p => p.seasonData?.some(r => r.stProBowl)).length;
+  const firstName = player.name.split(' ')[0];
+  const fact = `${firstName} earned a Special Teams Pro Bowl selection — one of ${N} player${N !== 1 ? 's' : ''} from the ${draftYear} class to earn the honor.`;
+  return addFlair(fact, player.player_id, 'general');
+}
+
 // Cat 5 — Snap share resilience
 function cat5(player: Player): string {
   const sd = player.seasonData;
   if (!sd || sd.length < 3) return '';
+  if (player.rd_drafted == null || player.rd_drafted < 4) return '';
 
   const above60 = sd.filter(r => r.snapPct !== null && r.snapPct >= 0.60);
   if (above60.length < 3) return '';
@@ -490,6 +534,12 @@ export function getFunFact(player: Player, classPeers: Player[]): string {
 
     const c1 = cat1(player, group, statKey);
     if (c1) return c1;
+
+    const cSTpath = catSTpath(player);
+    if (cSTpath) return cSTpath;
+
+    const cSTpb = catSTpb(player, group);
+    if (cSTpb) return cSTpb;
 
     const c3 = cat3(player, statKey);
     if (c3) return c3;

@@ -402,7 +402,7 @@ function mapSeasonRow(row: Record<string, string>): {
       sacks:       toFloat(row.sacks),
       offSnapPct:  isOffense ? snapPct : null,
       defSnapPct:  isDefense ? snapPct : null,
-      stSnapPct:   null,
+      stSnapPct:   toFloat(row.st_snap_pct),
     },
     allPro:  toInt(row.all_pro)  ?? 0,
     proBowl: toInt(row.pro_bowl) ?? 0,
@@ -461,6 +461,17 @@ function buildSeasonData(
     const gamesStarted = sum('games_started') !== null ? Math.round(sum('games_started')!) : null
     const snapCount    = sum('snap_count')
 
+    let stSnapPct: number | null = null
+    const stSnapEntries = seasonRows
+      .map((r: Record<string, string>) => ({ pct: parseFloat(r.st_snap_pct ?? ''), count: parseInt(r.st_snap_count ?? '0', 10) }))
+      .filter((e: { pct: number; count: number }) => !isNaN(e.pct))
+    if (stSnapEntries.length > 0) {
+      const totalCount = stSnapEntries.reduce((a: number, e: { pct: number; count: number }) => a + e.count, 0)
+      stSnapPct = totalCount > 0
+        ? stSnapEntries.reduce((a: number, e: { pct: number; count: number }) => a + e.pct * e.count, 0) / totalCount
+        : stSnapEntries[0].pct
+    }
+
     display.push({
       season,
       teams,
@@ -486,6 +497,14 @@ function buildSeasonData(
       proBowl:          toB('pro_bowl'),
       teamRecord,
       arcScore:         outcome.scoresByYear[season] ?? null,
+      stSnapPct,
+      stSnapCount:      sum('st_snap_count'),
+      puntReturns:      sum('punt_returns'),
+      puntReturnYards:  sum('punt_return_yards'),
+      kickoffReturns:   sum('kickoff_returns'),
+      kickoffReturnYards: sum('kickoff_return_yards'),
+      specialTeamsTds:  sum('special_teams_tds'),
+      stProBowl:        toB('st_pro_bowl'),
     })
   }
 

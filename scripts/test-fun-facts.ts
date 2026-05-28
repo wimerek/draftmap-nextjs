@@ -70,10 +70,18 @@ function makeSeason(season: number, stats: Partial<DisplaySeasonRow>): DisplaySe
     soloTackles:     stats.soloTackles ?? null,
     defInts:         stats.defInts ?? null,
     passDeflections: stats.passDeflections ?? null,
-    allPro:          stats.allPro ?? false,
-    proBowl:         stats.proBowl ?? false,
-    teamRecord:      stats.teamRecord ?? null,
-    arcScore:        stats.arcScore ?? null,
+    allPro:            stats.allPro ?? false,
+    proBowl:           stats.proBowl ?? false,
+    teamRecord:        stats.teamRecord ?? null,
+    arcScore:          stats.arcScore ?? null,
+    stSnapPct:         stats.stSnapPct ?? null,
+    stSnapCount:       stats.stSnapCount ?? null,
+    puntReturns:       stats.puntReturns ?? null,
+    puntReturnYards:   stats.puntReturnYards ?? null,
+    kickoffReturns:    stats.kickoffReturns ?? null,
+    kickoffReturnYards: stats.kickoffReturnYards ?? null,
+    specialTeamsTds:   stats.specialTeamsTds ?? null,
+    stProBowl:         stats.stProBowl ?? false,
   };
 }
 
@@ -362,6 +370,55 @@ const noMeasurablesPeers = Array.from({ length: 10 }, (_, i) =>
   })
 );
 
+// Case 13: WR with 3 seasons of high stSnapPct then breakout → Cat ST-path
+// rd=5, rd_drafted=5 (no fall) → Cat 2A won't fire.
+// Low career recYards vs peers → rank 4/4 → Cat 1 won't fire.
+// Cat ST-path: 3 seasons stSnapPct > 0.40 before year 4 snapPct >= 0.45 → fires.
+const wrSTpath = makePlayer({
+  player_id: 'st-path-wr-2021',
+  name: 'Cordarrelle Patterson',
+  pos: 'WR',
+  draft_year: 2021,
+  rd: 5, rd_drafted: 5, pick_drafted: 155,
+  drafted: true,
+  seasonData: [
+    makeSeason(2021, { stSnapPct: 0.55, snapPct: 0.18, recYards: 100 }),
+    makeSeason(2022, { stSnapPct: 0.52, snapPct: 0.20, recYards: 120 }),
+    makeSeason(2023, { stSnapPct: 0.45, snapPct: 0.22, recYards: 150 }),
+    makeSeason(2024, { stSnapPct: 0.15, snapPct: 0.52, recYards: 600 }),
+  ],
+});
+const wrSTpathPeers = [
+  makePlayer({ player_id: 'wr-stpath-peer-1-2021', pos: 'WR', draft_year: 2021,
+    seasonData: [makeSeason(2021, { recYards: 1200 }), makeSeason(2022, { recYards: 1100 })] }),
+  makePlayer({ player_id: 'wr-stpath-peer-2-2021', pos: 'WR', draft_year: 2021,
+    seasonData: [makeSeason(2021, { recYards: 900 }), makeSeason(2022, { recYards: 850 })] }),
+  makePlayer({ player_id: 'wr-stpath-peer-3-2021', pos: 'WR', draft_year: 2021,
+    seasonData: [makeSeason(2021, { recYards: 700 }), makeSeason(2022, { recYards: 600 })] }),
+];
+
+// Case 14: Player with stProBowl=true, no pathway story → Cat ST-pb
+// 2 seasons stSnapPct > 0.40 but snapPct never >= 0.45 → Cat ST-path won't fire.
+// 0 passDeflections, peers have more → rank = 3/3 → Cat 1 won't fire.
+const stPBPlayer = makePlayer({
+  player_id: 'st-pb-player-2021',
+  name: 'Matthew Slater',
+  pos: 'CB',
+  draft_year: 2021,
+  rd: 6, rd_drafted: 6, pick_drafted: 190,
+  drafted: true,
+  seasonData: [
+    makeSeason(2021, { stSnapPct: 0.65, snapPct: 0.15, stProBowl: true }),
+    makeSeason(2022, { stSnapPct: 0.60, snapPct: 0.12 }),
+  ],
+});
+const stPBPeers = [
+  makePlayer({ player_id: 'st-pb-peer-1-2021', pos: 'CB', draft_year: 2021,
+    seasonData: [makeSeason(2021, { defInts: 5, passDeflections: 10, soloTackles: 30, snapPct: 0.80 })] }),
+  makePlayer({ player_id: 'st-pb-peer-2-2021', pos: 'CB', draft_year: 2021,
+    seasonData: [makeSeason(2021, { defInts: 3, passDeflections: 8, soloTackles: 20, snapPct: 0.75 })] }),
+];
+
 // ── Run tests ─────────────────────────────────────────────────────────────────
 
 type TestCase = {
@@ -384,6 +441,8 @@ const cases: TestCase[] = [
   { label: "Case 10 — fun_fact_override set",                            player: playerWithOverride, peers: overridePeers,     expectedCategory: "Cat 0 (override, no flair)" },
   { label: "Case 11 — Brief stint, 1 season 8 games",                    player: briefPlayer,      peers: briefPeers,          expectedCategory: "Cat 6 Variant A → cup of coffee phrase only" },
   { label: "Case 12 — Pre-draft, no measurables data",                   player: noMeasurables,    peers: noMeasurablesPeers,  expectedCategory: "NO FACT GENERATED" },
+  { label: "Case 13 — WR 3 ST seasons then snapPct breakout",           player: wrSTpath,         peers: wrSTpathPeers,       expectedCategory: "Cat ST-path + general flair" },
+  { label: "Case 14 — ST Pro Bowl, no pathway story",                   player: stPBPlayer,       peers: stPBPeers,           expectedCategory: "Cat ST-pb + general flair" },
 ];
 
 console.log('\n=== getFunFact() simulation — with flair ===\n');

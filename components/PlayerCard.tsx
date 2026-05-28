@@ -693,6 +693,9 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                   </div>
                   <div className="dm-usage-legend">
                     ★ All&#8209;Pro &nbsp;&middot;&nbsp; † Pro Bowl
+                    {player.seasonData?.some(r => r.stProBowl) && (
+                      <> &nbsp;&middot;&nbsp; <span style={{ color: '#D4A017' }}>⬡ ST Pro Bowl</span></>
+                    )}
                   </div>
                   <div className="dm-usage-row">
                     <span className="dm-usage-num">{activeUsage != null ? Math.round(activeUsage) : '—'}</span>
@@ -854,6 +857,118 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
               </div>
             </div>
           )}
+
+          {/* ── Special Teams ───────────────────────────────────────── */}
+          {(() => {
+            if (!player.seasonData) return null;
+            const sd = player.seasonData;
+
+            const hasSTStory = sd.some(row =>
+              (row.stSnapPct !== null && row.stSnapPct > 0.30) ||
+              (row.puntReturnYards !== null && row.puntReturnYards > 0) ||
+              (row.kickoffReturnYards !== null && row.kickoffReturnYards > 0) ||
+              row.stProBowl === true
+            );
+            if (!hasSTStory) return null;
+
+            const hasPRYards = sd.some(r => r.puntReturnYards !== null && r.puntReturnYards > 0);
+            const hasKRYards = sd.some(r => r.kickoffReturnYards !== null && r.kickoffReturnYards > 0);
+            const hasReturnYards = hasPRYards || hasKRYards;
+            const hasSTTds = sd.some(r => r.specialTeamsTds !== null && r.specialTeamsTds > 0);
+            const stProBowlYears = sd.filter(r => r.stProBowl).map(r => `'${String(r.season).slice(-2)}`);
+
+            const fmtVal = (v: number | null) => v != null ? String(v) : '—';
+            const sumST = (key: keyof typeof sd[0]) =>
+              sd.reduce((a, r) => a + ((r[key] as number | null) ?? 0), 0);
+
+            return (
+              <>
+                <div className="dm-band">Special Teams</div>
+                <div className="pcm-section-block">
+                  {stProBowlYears.length > 0 && (
+                    <div style={{ color: '#D4A017', fontSize: '0.75rem', marginBottom: '6px' }}>
+                      ⬡ ST Pro Bowl: {stProBowlYears.join(', ')}
+                    </div>
+                  )}
+
+                  {hasReturnYards ? (
+                    <table className="dm-stats">
+                      <thead>
+                        <tr>
+                          <th>Yr</th>
+                          <th>Team</th>
+                          {hasPRYards && <><th>PR</th><th>PR YDS</th></>}
+                          {hasKRYards && <><th>KR</th><th>KR YDS</th></>}
+                          {hasSTTds   && <th>ST TD</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sd.map(row => {
+                          const prY = row.puntReturnYards;
+                          const krY = row.kickoffReturnYards;
+                          const stT = row.specialTeamsTds;
+                          const hasData =
+                            (hasPRYards && prY != null) ||
+                            (hasKRYards && krY != null) ||
+                            (hasSTTds   && stT != null && stT > 0);
+                          if (!hasData) return null;
+                          return (
+                            <tr key={row.season}>
+                              <td>&apos;{String(row.season).slice(-2)}</td>
+                              <td>{row.teams[0]}</td>
+                              {hasPRYards && (
+                                <>
+                                  <td style={{ textAlign: 'right' }}>{fmtVal(row.puntReturns)}</td>
+                                  <td style={{ textAlign: 'right' }}>{fmtVal(prY)}</td>
+                                </>
+                              )}
+                              {hasKRYards && (
+                                <>
+                                  <td style={{ textAlign: 'right' }}>{fmtVal(row.kickoffReturns)}</td>
+                                  <td style={{ textAlign: 'right' }}>{fmtVal(krY)}</td>
+                                </>
+                              )}
+                              {hasSTTds && <td style={{ textAlign: 'right' }}>{fmtVal(stT)}</td>}
+                            </tr>
+                          );
+                        })}
+                        <tr className="dm-stats-total">
+                          <td colSpan={2}>Career</td>
+                          {hasPRYards && (
+                            <>
+                              <td style={{ textAlign: 'right' }}>{sumST('puntReturns') || '—'}</td>
+                              <td style={{ textAlign: 'right' }}>{sumST('puntReturnYards') || '—'}</td>
+                            </>
+                          )}
+                          {hasKRYards && (
+                            <>
+                              <td style={{ textAlign: 'right' }}>{sumST('kickoffReturns') || '—'}</td>
+                              <td style={{ textAlign: 'right' }}>{sumST('kickoffReturnYards') || '—'}</td>
+                            </>
+                          )}
+                          {hasSTTds && <td style={{ textAlign: 'right' }}>{sumST('specialTeamsTds') || '—'}</td>}
+                        </tr>
+                      </tbody>
+                    </table>
+                  ) : (
+                    (() => {
+                      const totalSnaps = sumST('stSnapCount');
+                      const validPcts = sd.map(r => r.stSnapPct).filter((v): v is number => v !== null && v > 0);
+                      const avgPct = validPcts.length > 0
+                        ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length * 100)
+                        : null;
+                      return (
+                        <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', margin: 0 }}>
+                          {totalSnaps > 0 ? `${totalSnaps.toLocaleString()} career ST snaps` : 'ST coverage specialist'}
+                          {avgPct !== null ? ` · ${avgPct}% avg coverage rate` : ''}
+                        </p>
+                      );
+                    })()
+                  )}
+                </div>
+              </>
+            );
+          })()}
 
           {/* ── Size & Length ───────────────────────────────────────── */}
           <div className="dm-band">Size &amp; Length</div>

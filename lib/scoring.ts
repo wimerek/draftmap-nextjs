@@ -196,6 +196,16 @@ export interface DisplaySeasonRow {
 
   // Per-season ARC score (from PlayerOutcomeScore.scoresByYear[season])
   arcScore: number | null
+
+  // Special teams
+  stSnapPct: number | null          // games-weighted avg ST snap% (0–1)
+  stSnapCount: number | null        // total ST snaps (sum across teams)
+  puntReturns: number | null        // PR attempts
+  puntReturnYards: number | null    // PR yards
+  kickoffReturns: number | null     // KR attempts
+  kickoffReturnYards: number | null // KR yards
+  specialTeamsTds: number | null    // all ST TDs
+  stProBowl: boolean                // ST Pro Bowl selection this season
 }
 
 /** Scored outcome for a player -- output of the scoring engine. */

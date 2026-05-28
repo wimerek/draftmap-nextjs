@@ -866,6 +866,10 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                   <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.88} />
                   <stop offset="100%" stopColor="#D4A017" stopOpacity={0.08} />
                 </linearGradient>
+                <filter id="wavy-outline" x="-20%" y="-20%" width="140%" height="140%">
+                  <feTurbulence type="turbulence" baseFrequency="0.08" numOctaves="2" seed="2" result="noise"/>
+                  <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G"/>
+                </filter>
               </defs>
               <TierBands
                 key={`bands-${selectedYear}`}
