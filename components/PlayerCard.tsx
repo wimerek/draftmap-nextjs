@@ -402,24 +402,6 @@ function MetricHeader({ pos, draftYear }: { pos: string; draftYear: number }) {
 
 // ── Stat grid helpers ─────────────────────────────────────────────────────────
 
-// Local client-safe version — mirrors lib/scoring.ts (scoring.ts pulls in server-only teamContext)
-function computeRookieContractARC(
-  allSeasonData: Array<{ season: number; score: number }>,
-  draftYear: number,
-): number {
-  const rookieSeasons = allSeasonData.filter(
-    (s) => s.season >= draftYear && s.season <= draftYear + 3,
-  )
-  if (rookieSeasons.length === 0) return 0
-  const scores = rookieSeasons.map((s) => s.score)
-  const topN = [...scores].sort((a, b) => b - a).slice(0, Math.min(3, scores.length))
-  const apex = topN.reduce((s, v) => s + v, 0) / topN.length
-  const rookieWindow = rookieSeasons
-  const rookieMean = rookieWindow.reduce((s, d) => s + d.score, 0) / rookieWindow.length
-  const consistency = scores.reduce((s, v) => s + v, 0) / scores.length
-  return Math.round(apex * 0.45 + rookieMean * 0.35 + consistency * 0.20)
-}
-
 type StatCol = {
   header: string
   getValue: (row: DisplaySeasonRow) => number | null
@@ -586,16 +568,27 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
   const hasProductionData = (player.seasonData?.length ?? 0) > 0
   const sectionLabel = hasProductionData ? 'Player Production' : 'Player Profile'
 
-  const mostRecentSeason = player.seasonData
-    ? [...player.seasonData].sort((a, b) => b.season - a.season)[0]
-    : null
-  const arcSnapYear = mostRecentSeason
-    ? `'${String(mostRecentSeason.season).slice(-2)}`
-    : null
+  const activeUsage = useMemo(() => {
+    if (!player.stepScores) return null
+    const stepYear = currentStepId ? parseInt(currentStepId, 10) : NaN
+    if (!isNaN(stepYear)) {
+      return player.stepScores.find(s => s.stepId === String(stepYear))?.score ?? null
+    }
+    if (currentStepId === 'career') return player.outcomeScore
+    return null
+  }, [player, currentStepId])
 
-  const tierLabelDisplay = player.outcomeScore != null
-    ? getTierForScore(player.outcomeScore).label
-    : '—'
+  const usageStepLabel = useMemo(() => {
+    if (!currentStepId) return null
+    const stepYear = parseInt(currentStepId, 10)
+    if (!isNaN(stepYear)) return `'${String(stepYear).slice(-2)}`
+    if (currentStepId === 'career') return 'Career'
+    return null
+  }, [currentStepId])
+
+  const usageTierLabel = activeUsage != null
+    ? getTierForScore(activeUsage).label
+    : null
 
   return (
     // Backdrop
@@ -689,14 +682,24 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
           <div className="dm-band">{sectionLabel}</div>
           {hasProductionData ? (
             <div className="pcm-section-block dm-production-body">
-              {/* ARC Score snapshot */}
-              {arcSnapYear && (
-                <div className="dm-arc">
-                  <div>
-                    <div className="dm-arc-cap">ARC Score &middot; {arcSnapYear}</div>
-                    <div className="dm-arc-num">{player.outcomeScore ?? '—'}</div>
+              {/* Usage snapshot */}
+              {hasProductionData && (
+                <div className="dm-usage-snapshot">
+                  <div className="dm-usage-label">
+                    <span className="dm-usage-year">{usageStepLabel} USAGE</span>
+                    <span className="dm-usage-desc">
+                      &mdash; How often this player was on the field compared to others at his position &middot; listed as USG below
+                    </span>
                   </div>
-                  <div className="dm-arc-pill">{tierLabelDisplay}</div>
+                  <div className="dm-usage-legend">
+                    ★ All&#8209;Pro &nbsp;&middot;&nbsp; † Pro Bowl
+                  </div>
+                  <div className="dm-usage-row">
+                    <span className="dm-usage-num">{activeUsage != null ? Math.round(activeUsage) : '—'}</span>
+                    {usageTierLabel && (
+                      <span className="dm-usage-pill">{usageTierLabel}</span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -707,15 +710,20 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                 const rookieRows = allRows.filter((r) => r.season >= draftYear && r.season <= draftYear + 3)
                 const hasPostRookie = allRows.some((r) => r.season > draftYear + 3)
 
-                const seasonScoreData = allRows
-                  .filter((r) => r.arcScore !== null)
-                  .map((r) => ({ season: r.season, score: r.arcScore! }))
-                const rookieARC = computeRookieContractARC(seasonScoreData, draftYear)
-                const careerARC = player.outcomeScore
-
                 const fmtStat = (v: number | null) => v !== null ? Math.round(v).toLocaleString('en-US') : '—'
                 const fmtSnap = (v: number | null) => v !== null ? `${Math.round(v * 100)}%` : '—'
-                const fmtARC  = (v: number | null) => v !== null ? String(Math.round(v)) : '—'
+                const fmtUsage = (v: number | null) => v != null ? String(Math.round(v)) : '—'
+                const fmtWL    = (v: string | null) => v ?? '—'
+
+                const getRowUsage = (season: number): number | null => {
+                  const step = player.stepScores?.find(s => s.stepId === String(season))
+                  return step?.score ?? null
+                }
+                const avgUsage = (rows: DisplaySeasonRow[]): number | null => {
+                  const vals = rows.map(r => getRowUsage(r.season)).filter((v): v is number => v != null)
+                  if (vals.length === 0) return null
+                  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+                }
 
                 const renderStatCell = (col: StatCol, row: DisplaySeasonRow) => {
                   const v = col.getValue(row)
@@ -732,16 +740,18 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                       <tr>
                         <th>Yr</th>
                         <th>Team</th>
+                        <th>W-L</th>
                         {statCols.map((c) => <th key={c.header}>{c.header}</th>)}
                         {statCols.length === 3 && <th />}
-                        <th>ARC</th>
+                        <th>USG</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rookieRows.map((row) => (
                         <tr key={row.season}>
                           <td>&apos;{String(row.season).slice(-2)}</td>
-                          <td>{row.teams.join(' / ')}</td>
+                          <td>{row.teams[0]}</td>
+                          <td style={{ textAlign: 'right' }}>{fmtWL(row.teamRecord)}</td>
                           {statCols.map((c) => (
                             <td key={c.header} style={{ textAlign: 'right' }}>{renderStatCell(c, row)}</td>
                           ))}
@@ -751,18 +761,19 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                               {row.allPro  && <span title="All-Pro">★</span>}
                               {row.proBowl && <span title="Pro Bowl">†</span>}
                             </span>
-                            <b>{fmtARC(row.arcScore)}</b>
+                            <b>{fmtUsage(getRowUsage(row.season))}</b>
                           </td>
                         </tr>
                       ))}
 
                       <tr className="dm-stats-total">
                         <td colSpan={2}>Rookie Contract</td>
+                        <td style={{ textAlign: 'right' }}>—</td>
                         {statCols.map((c) => (
                           <td key={c.header} style={{ textAlign: 'right' }}>{renderTotalsStatCell(c, rookieRows)}</td>
                         ))}
                         {statCols.length === 3 && <td />}
-                        <td style={{ textAlign: 'right' }}>{fmtARC(rookieARC)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtUsage(avgUsage(rookieRows))}</td>
                       </tr>
 
                       {hasPostRookie && (
@@ -776,7 +787,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                         .map((row) => (
                           <tr key={row.season}>
                             <td>&apos;{String(row.season).slice(-2)}</td>
-                            <td>{row.teams.join(' / ')}</td>
+                            <td>{row.teams[0]}</td>
+                            <td style={{ textAlign: 'right' }}>{fmtWL(row.teamRecord)}</td>
                             {statCols.map((c) => (
                               <td key={c.header} style={{ textAlign: 'right' }}>{renderStatCell(c, row)}</td>
                             ))}
@@ -786,7 +798,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                                 {row.allPro  && <span title="All-Pro">★</span>}
                                 {row.proBowl && <span title="Pro Bowl">†</span>}
                               </span>
-                              <b>{fmtARC(row.arcScore)}</b>
+                              <b>{fmtUsage(getRowUsage(row.season))}</b>
                             </td>
                           </tr>
                         ))
@@ -794,11 +806,12 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
 
                       <tr className="dm-stats-total">
                         <td colSpan={2}>Career</td>
+                        <td style={{ textAlign: 'right' }}>—</td>
                         {statCols.map((c) => (
                           <td key={c.header} style={{ textAlign: 'right' }}>{renderTotalsStatCell(c, allRows)}</td>
                         ))}
                         {statCols.length === 3 && <td />}
-                        <td style={{ textAlign: 'right' }}>{fmtARC(careerARC)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtUsage(avgUsage(allRows))}</td>
                       </tr>
                     </tbody>
                   </table>

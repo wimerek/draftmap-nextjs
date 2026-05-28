@@ -72,6 +72,7 @@ function makeSeason(season: number, stats: Partial<DisplaySeasonRow>): DisplaySe
     passDeflections: stats.passDeflections ?? null,
     allPro:          stats.allPro ?? false,
     proBowl:         stats.proBowl ?? false,
+    teamRecord:      stats.teamRecord ?? null,
     arcScore:        stats.arcScore ?? null,
   };
 }

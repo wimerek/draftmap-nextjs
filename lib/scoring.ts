@@ -192,6 +192,8 @@ export interface DisplaySeasonRow {
   allPro: boolean
   proBowl: boolean
 
+  teamRecord: string | null   // e.g. "14-3"; null if no data
+
   // Per-season ARC score (from PlayerOutcomeScore.scoresByYear[season])
   arcScore: number | null
 }

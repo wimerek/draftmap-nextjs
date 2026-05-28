@@ -313,6 +313,34 @@ export function findBySlug(players: Player[], slug: string): Player | undefined 
     .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))[0];
 }
 
+// ── Team records lookup ───────────────────────────────────────────────────────
+
+async function fetchTeamRecords(): Promise<Map<string, string>> {
+  const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID
+  if (!spreadsheetId) return new Map()
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=team_records`
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } })
+    if (!res.ok) return new Map()
+    const text = await res.text()
+    const rows = parseCSV(text) as unknown as Record<string, string>[]
+    const map = new Map<string, string>()
+    for (const row of rows) {
+      const season = row['season']?.trim()
+      const team   = row['team']?.trim()
+      const wins   = parseInt(row['wins'] ?? '0', 10)
+      const losses = parseInt(row['losses'] ?? '0', 10)
+      if (season && team) {
+        map.set(`${season}-${team}`, `${wins}-${losses}`)
+      }
+      // playoff_result: parsed but not displayed yet
+    }
+    return map
+  } catch {
+    return new Map()
+  }
+}
+
 // ── Outcome scores ────────────────────────────────────────────────────────────
 
 /**
@@ -390,6 +418,7 @@ export interface PlayerOutcomeData {
 function buildSeasonData(
   rawRows: Array<Record<string, string>>,
   outcome: PlayerOutcomeScore,
+  teamRecordsMap: Map<string, string>,
 ): DisplaySeasonRow[] {
   const bySeason = new Map<number, Array<Record<string, string>>>()
   for (const row of rawRows) {
@@ -409,6 +438,7 @@ function buildSeasonData(
       .filter((t: { team: string; gp: number }) => t.team)
       .sort((a: { team: string; gp: number }, b: { team: string; gp: number }) => b.gp - a.gp)
     const teams = Array.from(new Set(teamsRaw.map((t: { team: string; gp: number }) => t.team)))
+    const teamRecord = teamRecordsMap.get(`${season}-${teams[0]}`) ?? null
 
     const sum = (key: string): number | null => {
       const vals = seasonRows.map((r: Record<string, string>) => parseFloat(r[key] ?? '')).filter((v: number) => !isNaN(v))
@@ -454,6 +484,7 @@ function buildSeasonData(
       passDeflections:  sum('pass_deflections'),
       allPro:           toB('all_pro'),
       proBowl:          toB('pro_bowl'),
+      teamRecord,
       arcScore:         outcome.scoresByYear[season] ?? null,
     })
   }
@@ -481,7 +512,10 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
   try {
     // player_seasons is historical data — revalidate once per day, not every 5 min.
     // This is the largest payload (9k+ rows) and the primary cause of slow cold loads.
-    const res = await fetch(url, { next: { revalidate: 86400 } });
+    const [res, teamRecordsMap] = await Promise.all([
+      fetch(url, { next: { revalidate: 86400 } }),
+      fetchTeamRecords(),
+    ])
     if (!res.ok) return new Map();
 
     const csv  = await res.text();
@@ -595,7 +629,7 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
       result.set(playerId, {
         arcScore:   careerSnapPct,
         stepScores: snapStepScores,
-        seasonData: buildSeasonData(rawRows, outcome),
+        seasonData: buildSeasonData(rawRows, outcome, teamRecordsMap),
       });
     });
     return result;
