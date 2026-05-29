@@ -37,6 +37,71 @@ interface Props {
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
+  positionFilter: string[];
+  roundFilter: (number | "UDFA")[];
+  teamFilter: string[];
+  schoolFilter: string[];
+}
+
+// ── Filter function ────────────────────────────────────────────────────────────
+
+function isPlayerFiltered(
+  player: Player,
+  positionFilter: string[],
+  roundFilter: (number | "UDFA")[],
+  teamFilter: string[],
+  schoolFilter: string[],
+  currentStepId: string | undefined,
+  chartMode: ChartMode,
+): boolean {
+  if (positionFilter.length > 0 && !positionFilter.includes(player.pos)) return true;
+
+  if (schoolFilter.length > 0 && !schoolFilter.includes(player.school ?? "")) return true;
+
+  if (roundFilter.length > 0) {
+    const hasUDFA = roundFilter.includes("UDFA");
+    const numericRounds = roundFilter.filter((r): r is number => r !== "UDFA");
+
+    if (chartMode === "projection") {
+      if (numericRounds.length > 0 && player.rd != null && !numericRounds.includes(player.rd as number)) return true;
+    } else {
+      const isUDFA = !player.rd_drafted;
+      if (isUDFA) {
+        if (!hasUDFA) return true;
+      } else {
+        if (numericRounds.length > 0) {
+          if (!numericRounds.includes(player.rd_drafted as number)) return true;
+        } else if (hasUDFA) {
+          return true;
+        }
+      }
+    }
+  }
+
+  if (teamFilter.length > 0) {
+    let playerTeam: string | null = null;
+    if (chartMode === "player-production" && currentStepId) {
+      const entry = (player.stepScores ?? []).find(s => s.stepId === currentStepId);
+      playerTeam = entry?.team ?? player.team_drafted ?? null;
+    } else if (chartMode === "career") {
+      const lastEntry = [...(player.stepScores ?? [])].reverse().find(s => s.team);
+      playerTeam = lastEntry?.team ?? player.team_drafted ?? null;
+    } else {
+      playerTeam = player.team_drafted ?? null;
+    }
+    if (!playerTeam) return true;
+    // Compare via TEAM_COLORS entry reference so "PIT" and "Pittsburgh Steelers"
+    // are treated as the same team regardless of which format the data uses.
+    const playerEntry = TEAM_COLORS[playerTeam] ?? TEAM_COLORS[playerTeam.toLowerCase()];
+    const matches = teamFilter.some(t => {
+      const filterEntry = TEAM_COLORS[t] ?? TEAM_COLORS[t.toLowerCase()];
+      if (playerEntry && filterEntry) return playerEntry === filterEntry;
+      return t === playerTeam;
+    });
+    if (!matches) return true;
+  }
+
+  return false;
 }
 
 const BASE_R = 6;
@@ -64,6 +129,7 @@ export default function PlayerDots({
   isZoomedMobile = false,
   productionPositions,
   onDotClick, onDotHover, onDotLeave,
+  positionFilter, roundFilter, teamFilter, schoolFilter,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
@@ -242,8 +308,15 @@ export default function PlayerDots({
           !!player.team_drafted &&
           !!TEAM_COLORS[player.team_drafted];
 
+        const filteredOut = isPlayerFiltered(
+          player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode
+        );
+
         return (
-          <g key={`${player.player_id}-${i}`}>
+          <g
+            key={`${player.player_id}-${i}`}
+            style={{ opacity: filteredOut ? 0.12 : 1, pointerEvents: filteredOut ? "none" : "auto" }}
+          >
             {/* Inner group translates to (x, cy) — all children ride the same animation */}
             <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
               {showTwoTone ? (

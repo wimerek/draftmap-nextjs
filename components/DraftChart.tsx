@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } fr
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
+import { TEAM_COLORS } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
@@ -26,7 +27,6 @@ import UDFAZone from "@/components/chart/UDFAZone";
 import HeaderZone from "@/components/HeaderZone";
 import Sidebar, {
   type ViewMode,
-  type AnimationState,
 } from "@/components/Sidebar";
 import MobileTopBar from "@/components/mobile/MobileTopBar";
 import MobileHandleBar from "@/components/mobile/MobileHandleBar";
@@ -249,20 +249,25 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       setShowLines(true);
     }
   }, [chartMode]);
-  const [view,      setView]      = useState<ChartView>(() => {
+
+  // ── Filter state ─────────────────────────────────────────────────────────
+  const [positionFilter, setPositionFilter] = useState<string[]>(() => {
     const pos = searchParams.get('pos');
-    if (pos === 'offense' || pos === 'defense') return pos;
-    return 'all';
+    if (!pos) return [];
+    if (pos === 'offense') return ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
+    if (pos === 'defense') return ['EDGE', 'DT', 'LB', 'CB', 'S'];
+    return pos.split(',').filter(Boolean);
   });
+  const [roundFilter,  setRoundFilter]  = useState<(number | 'UDFA')[]>([]);
+  const [teamFilter,   setTeamFilter]   = useState<string[]>([]);
+  const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
+
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
-  // ── View/animation state (legacy — kept for Sidebar backward compat) ─────
-  const [viewMode,    setViewMode]    = useState<ViewMode>(() =>
-    searchParams.get('mode') === 'drafted' ? 'drafted' : 'projected'
-  );
+  // ── Legacy view mode (kept for animation, PlayerDots, UDFAZone, etc.) ───
+  const [viewMode,    setViewMode]    = useState<ViewMode>('projected');
   const [isAnimating, setIsAnimating] = useState(false);
-  const [animState,   setAnimState]   = useState<AnimationState>({ playing: false, step: 0 });
 
   // Keep animation/scoredReady refs in sync with state
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
@@ -284,14 +289,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
       .catch(() => { /* non-fatal — production dots won't size by delta */ });
   }, []);
 
-  // Keep legacyViewMode in sync with chartMode for components that use viewMode
+  // Keep viewMode in sync with chartMode for components that use viewMode
   useEffect(() => {
     setViewMode(legacyViewMode);
-    setAnimState(s => ({
-      ...s,
-      step: legacyViewMode === 'drafted' ? 1 : 0,
-      playing: false,
-    }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartMode]);
 
@@ -311,6 +311,51 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const touchStartTime = useRef(0);
   const cancelVBAnimRef = useRef<(() => void) | null>(null);
   const prefersReduced = useRef(false);
+
+  // ── Derive view (column layout) from positionFilter ──────────────────────
+  const DEF_POS = ['EDGE', 'DT', 'LB', 'CB', 'S'];
+  const OFF_POS = ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
+  const view: ChartView = useMemo(() => {
+    if (positionFilter.length === 0) return 'all';
+    const isAllDef = DEF_POS.every(p => positionFilter.includes(p)) && positionFilter.length === DEF_POS.length;
+    const isAllOff = OFF_POS.every(p => positionFilter.includes(p)) && positionFilter.length === OFF_POS.length;
+    if (isAllDef) return 'defense';
+    if (isAllOff) return 'offense';
+    return 'all';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionFilter]);
+
+  // ── Filter computed values ────────────────────────────────────────────────
+  const hasActiveFilters =
+    positionFilter.length > 0 ||
+    roundFilter.length > 0 ||
+    teamFilter.length > 0 ||
+    schoolFilter.length > 0;
+
+  const availableTeams = useMemo(() => {
+    // Deduplicate by TEAM_COLORS entry reference so "Pittsburgh Steelers" and "PIT"
+    // don't appear as two separate entries for the same team.
+    const seenEntries = new Set<object>();
+    const teams: string[] = [];
+    const addTeam = (raw: string) => {
+      const entry = TEAM_COLORS[raw] ?? TEAM_COLORS[raw.toLowerCase()];
+      if (entry) {
+        if (!seenEntries.has(entry)) { seenEntries.add(entry); teams.push(raw); }
+      } else {
+        if (!teams.includes(raw)) teams.push(raw);
+      }
+    };
+    players.forEach(p => {
+      if (p.team_drafted) addTeam(p.team_drafted);
+      (p.stepScores ?? []).forEach(s => { if (s.team) addTeam(s.team); });
+    });
+    return teams.sort();
+  }, [players]);
+
+  const availableSchools = useMemo(() =>
+    Array.from(new Set(players.map(p => p.school).filter(Boolean) as string[])).sort(),
+    [players]
+  );
 
   // ── Layout ───────────────────────────────────────────────────────────────
   const layout = useMemo<ChartLayout>(
@@ -493,12 +538,10 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           const t2 = setTimeout(() => {
             setIsAnimating(true);
             setViewMode("drafted");
-            setAnimState({ playing: true, step: 1 });
             const layout1 = computeChartLayout(players, view);
             const dots1 = computeAllDotPositions(players, layout1, pickValueCurve);
             const longestDelay = dots1.length * 22 + 550;
             setTimeout(() => {
-              setAnimState(s => ({ ...s, playing: false }));
               setIsAnimating(false);
               localStorage.setItem("draftmap_visited", "1");
             }, longestDelay);
@@ -605,67 +648,6 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     localStorage.setItem("draftmap_visited", "1");
   }, [layout, visiblePositions]);
 
-  // ── Desktop animation controls ───────────────────────────────────────────
-  const handlePlay = useCallback(() => {
-    // Step 1: Reset to projection (instant — no CSS transition yet)
-    setIsAnimating(false);
-    setViewMode("projected");
-    setCurrentStepId("projection");
-    setAnimState({ playing: false, step: 0 });
-    setIsPlaying(false);
-
-    // Step 2: Double rAF ensures the browser paints the projected state before
-    // we flip isAnimating=true. Without this, React batches both updates into
-    // the same paint frame and the CSS transition has nothing to animate from.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setIsAnimating(true);
-        setViewMode("drafted");
-        setAnimState({ playing: true, step: 1 });
-        const longestDelay = dotPositions.length * 22 + 550;
-        setTimeout(() => {
-          setAnimState(s => ({ ...s, playing: false }));
-          setIsAnimating(false);
-          setCurrentStepId("draft"); // switch to draft-results for tier colors
-        }, longestDelay);
-      });
-    });
-  }, [dotPositions.length]);
-
-  const handlePause = useCallback(() => {
-    setAnimState(s => ({ ...s, playing: false }));
-    setIsAnimating(false);
-    setIsPlaying(false);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setIsAnimating(false);
-    setIsPlaying(false);
-    setCurrentStepId("projection");
-    setAnimState({ playing: false, step: 0 });
-  }, []);
-
-  const handleStepForward = useCallback(() => {
-    setIsAnimating(false);
-    setIsPlaying(false);
-    setCurrentStepId("draft");
-    setAnimState({ playing: false, step: 1 });
-  }, []);
-
-  const handleStepBack = useCallback(() => {
-    setIsAnimating(false);
-    setIsPlaying(false);
-    setCurrentStepId("projection");
-    setAnimState({ playing: false, step: 0 });
-  }, []);
-
-  const handleJumpEnd = useCallback(() => {
-    setIsAnimating(false);
-    setIsPlaying(false);
-    setCurrentStepId("draft");
-    setAnimState({ playing: false, step: 1 });
-  }, []);
-
   const updateURL = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
@@ -680,11 +662,6 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     router.replace(`${path}${newSearch ? `?${newSearch}` : ''}`, { scroll: false });
   }, [router, searchParams]);
 
-  const handleSetView = useCallback((v: ChartView) => {
-    setView(v);
-    updateURL({ pos: v === 'all' ? null : v });
-  }, [updateURL]);
-
   const handleOpenPlayer = useCallback((player: Player) => {
     setOpenPlayer(player);
     updateURL({ player: generateBaseSlug(player.name) });
@@ -695,14 +672,47 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     updateURL({ player: null });
   }, [updateURL]);
 
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setIsAnimating(false);
-    setViewMode(mode);
-    setAnimState(s => ({ ...s, step: mode === "drafted" ? 1 : 0, playing: false }));
-    // Mirror legacy viewMode change into journey step
-    setCurrentStepId(mode === 'drafted' ? 'draft' : 'projection');
-    setIsPlaying(false);
-    updateURL({ mode: mode === 'projected' ? null : mode });
+  // ── Filter change handlers ────────────────────────────────────────────────
+  const handlePositionFilterChange = useCallback((positions: string[]) => {
+    setPositionFilter(positions);
+    const def = ['EDGE', 'DT', 'LB', 'CB', 'S'];
+    const off = ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
+    if (positions.length === 0) {
+      updateURL({ pos: null });
+    } else if (positions.length === def.length && def.every(p => positions.includes(p))) {
+      updateURL({ pos: 'defense' });
+    } else if (positions.length === off.length && off.every(p => positions.includes(p))) {
+      updateURL({ pos: 'offense' });
+    } else {
+      updateURL({ pos: positions.join(',') });
+    }
+  }, [updateURL]);
+
+  const handleRoundFilterChange = useCallback((rounds: (number | 'UDFA')[]) => {
+    setRoundFilter(rounds);
+    if (rounds.length === 0) {
+      updateURL({ round: null });
+    } else {
+      updateURL({ round: rounds.join(',') });
+    }
+  }, [updateURL]);
+
+  const handleTeamFilterChange = useCallback((teams: string[]) => {
+    setTeamFilter(teams);
+    updateURL({ team: teams.length === 0 ? null : teams.join(',') });
+  }, [updateURL]);
+
+  const handleSchoolFilterChange = useCallback((schools: string[]) => {
+    setSchoolFilter(schools);
+    updateURL({ school: schools.length === 0 ? null : schools.join(',') });
+  }, [updateURL]);
+
+  const handleClearAllFilters = useCallback(() => {
+    setPositionFilter([]);
+    setRoundFilter([]);
+    setTeamFilter([]);
+    setSchoolFilter([]);
+    updateURL({ pos: null, round: null, team: null, school: null });
   }, [updateURL]);
 
   // ── HeaderZone handlers ───────────────────────────────────────────────────
@@ -724,16 +734,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     if (stepId === 'draft' && viewMode === 'projected') {
       setIsAnimating(false);
       setViewMode("projected");
-      setAnimState({ playing: false, step: 0 });
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(true);
           setViewMode("drafted");
-          setAnimState({ playing: true, step: 1 });
           const longestDelay = dotPositions.length * 22 + 550;
           setTimeout(() => {
-            setAnimState(s => ({ ...s, playing: false }));
             setIsAnimating(false);
             setCurrentStepId('draft');
           }, longestDelay);
@@ -824,13 +831,23 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
   // ── Sidebar props (shared between desktop sidebar and mobile drawer) ───────
   const sidebarProps = {
-    viewMode, onViewModeChange: handleViewModeChange,
-    animState, onPlay: handlePlay, onPause: handlePause, onReset: handleReset,
-    onStepBack: handleStepBack, onStepForward: handleStepForward, onJumpEnd: handleJumpEnd,
-    view, onViewChange: handleSetView,
-    year: selectedYear, liveMode, onLiveModeToggle: handleLiveToggle,
-    showLines, onShowLinesToggle: handleShowLinesToggle,
-    chartMode, scoredReady,
+    positionFilter,
+    onPositionFilterChange: handlePositionFilterChange,
+    roundFilter,
+    onRoundFilterChange: handleRoundFilterChange,
+    teamFilter,
+    onTeamFilterChange: handleTeamFilterChange,
+    schoolFilter,
+    onSchoolFilterChange: handleSchoolFilterChange,
+    onClearAllFilters: handleClearAllFilters,
+    liveMode,
+    onLiveModeToggle: handleLiveToggle,
+    showLines,
+    onShowLinesToggle: handleShowLinesToggle,
+    chartMode,
+    availableTeams,
+    availableSchools,
+    hasActiveFilters,
   };
 
   // ── Default mobile viewBox (EDGE zoomed) before state settles ────────────
@@ -975,6 +992,10 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
+                positionFilter={positionFilter}
+                roundFilter={roundFilter}
+                teamFilter={teamFilter}
+                schoolFilter={schoolFilter}
               />
               {isZoomedMobile && currentMobilePos && (
                 <MobilePlayerLabels
