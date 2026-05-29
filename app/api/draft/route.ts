@@ -22,10 +22,11 @@ export async function GET(request: NextRequest) {
 
     const year = parseInt(searchParams.get("year") ?? "2026", 10);
     const isLive = searchParams.get("live") === "1";
+    const skipScores = searchParams.get("scores") === "0";
 
     const [players, outcomeScores] = await Promise.all([
       fetchPlayers(year),
-      fetchOutcomeScores(),
+      skipScores ? Promise.resolve(new Map()) : fetchOutcomeScores(),
     ]);
 
     // Attach outcome scores, step scores, and season data (null when no data for this player)

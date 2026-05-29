@@ -83,23 +83,18 @@ export function getJourneySteps(draftYear: number): JourneyStep[] {
     mode: 'draft-results',
   })
 
-  // Use year-label style (Yr 1, Yr 2…) when the first available season doesn't
-  // match the draft year — meaning early career seasons are missing from the dataset.
-  // TODO: 2016-2020 first seasons not in dataset — score is partial for those years.
-  const useYrLabels =
-    seasonsAvailable.length > 0 && seasonsAvailable[0] !== draftYear
-
-  seasonsAvailable.forEach((season, i) => {
-    const yearLabel  = useYrLabels ? `Yr ${i + 1}` : String(season)
-    const shortLabel = useYrLabels ? `Y${i + 1}` : `'${String(season).slice(2)}`
+  // Steps always start from the draft year so the journey timeline is accurate.
+  // Seasons before DATA_START_YEAR have null scores and render in the no-data zone.
+  // Seasons after DATA_END_YEAR are skipped (future — no data yet).
+  for (let season = draftYear; season <= DATA_END_YEAR; season++) {
     steps.push({
       id: String(season),
-      label: yearLabel,
-      shortLabel,
+      label: String(season),
+      shortLabel: `'${String(season).slice(2)}`,
       mode: 'player-production',
       season,
     })
-  })
+  }
 
   steps.push({
     id: 'career',

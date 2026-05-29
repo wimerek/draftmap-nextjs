@@ -2019,6 +2019,15 @@ a { color: inherit; text-decoration: none; }
   border-radius: 3px;
 }
 
+/* ── Chart skeleton loading animation ─────────────────────────────────────── */
+@keyframes dm-pulse {
+  0%, 100% { opacity: 0.18; }
+  50%       { opacity: 0.35; }
+}
+.dm-chart-skeleton circle {
+  animation: dm-pulse 1.8s ease-in-out infinite;
+}
+
 /* prefers-reduced-motion: disable all animations */
 @media (prefers-reduced-motion: reduce) {
   .mb-drawer { transition: none; }

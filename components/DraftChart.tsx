@@ -32,6 +32,7 @@ import MobileHandleBar from "@/components/mobile/MobileHandleBar";
 import MobilePlayerLabels from "@/components/chart/MobilePlayerLabels";
 import MobileRoundTicks from "@/components/chart/MobileRoundTicks";
 
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface DraftChartProps {
@@ -356,27 +357,54 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     }
   }, [isMobile, layout, mobilePosIdx, mobileView, visiblePositions, loading]);
 
-  // ── Data fetch (uses selectedYear to support in-place year switching) ────
+  // ── Data fetch (two-phase for normal mode; single-fetch for live mode) ────
   useEffect(() => {
-    const cacheKey = `${selectedYear}${liveMode ? '-live' : ''}`;
+    let cancelled = false;
+    const cacheKey  = `${selectedYear}`;
+    const scoredKey = `${selectedYear}-scored`;
 
-    if (!liveMode && yearCache.current.has(cacheKey)) {
-      setPlayers(yearCache.current.get(cacheKey)!);
-      setLoading(false);
-      return;
+    // Live mode: preserve exact existing single-fetch behavior
+    if (liveMode) {
+      setLoading(true);
+      fetch(`/api/draft?year=${selectedYear}&live=1`)
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then(d => { if (!cancelled) { setPlayers(d.players ?? []); setLoading(false); } })
+        .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
+      return () => { cancelled = true; };
     }
 
+    // Normal mode: skip all fetches if fully-scored data already cached
+    if (yearCache.current.has(scoredKey)) {
+      setPlayers(yearCache.current.get(scoredKey)!);
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    // Phase 1: fast fetch (no scores) — renders chart immediately
     setLoading(true);
-    const url = `/api/draft?year=${selectedYear}${liveMode ? "&live=1" : ""}`;
-    fetch(url)
+    fetch(`/api/draft?year=${selectedYear}&scores=0`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => {
-        const result = d.players ?? [];
-        if (!liveMode) yearCache.current.set(cacheKey, result);
-        setPlayers(result);
+        if (cancelled) return;
+        const fast = d.players ?? [];
+        yearCache.current.set(cacheKey, fast);
+        setPlayers(fast);
         setLoading(false);
+
+        // Phase 2: background fetch for full scored data
+        fetch(`/api/draft?year=${selectedYear}`)
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+          .then(d2 => {
+            if (cancelled) return;
+            const full = d2.players ?? [];
+            yearCache.current.set(scoredKey, full);
+            setPlayers(full);
+          })
+          .catch(() => { /* silent — chart is visible; scores arrive on next open */ });
       })
-      .catch(e => { setError(e.message); setLoading(false); });
+      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
+
+    return () => { cancelled = true; };
   }, [selectedYear, liveMode]);
 
   // Auto-open player card if ?player= param is present on load
@@ -835,7 +863,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
           onPlayToggle={handlePlayToggle}
         />
 
-        {loading && <div className="dm-state-msg"><p>Loading draft data…</p></div>}
+        {loading && null}
         {error && <div className="dm-state-msg dm-state-error"><p>Failed to load chart: {error}</p></div>}
 
         {!loading && !error && (
