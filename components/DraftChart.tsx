@@ -12,6 +12,7 @@ import {
   type ChartLayout,
   type DotPosition,
   type ChartView,
+  type PickValueEntry,
 } from "@/lib/chartMath";
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import PlayerCard from "@/components/PlayerCard";
@@ -233,6 +234,12 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState<string | null>(null);
   const yearCache = useRef<Map<string, Player[]>>(new Map());
+  // Phase-2 fetch guard: defer setPlayers while animation is running
+  const isAnimatingRef        = useRef(false);
+  const pendingFullPlayersRef = useRef<Player[] | null>(null);
+  const scoredReadyRef        = useRef(false);
+  const [scoredReady, setScoredReady] = useState(false);
+  const [pickValueCurve, setPickValueCurve] = useState<PickValueEntry[]>([]);
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
 
@@ -256,6 +263,26 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   );
   const [isAnimating, setIsAnimating] = useState(false);
   const [animState,   setAnimState]   = useState<AnimationState>({ playing: false, step: 0 });
+
+  // Keep animation/scoredReady refs in sync with state
+  useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
+  useEffect(() => { scoredReadyRef.current = scoredReady; }, [scoredReady]);
+
+  // Flush deferred Phase-2 players the moment animation ends
+  useEffect(() => {
+    if (!isAnimating && pendingFullPlayersRef.current) {
+      setPlayers(pendingFullPlayersRef.current);
+      pendingFullPlayersRef.current = null;
+    }
+  }, [isAnimating]);
+
+  // Load pick value curve once (static asset — no auth needed)
+  useEffect(() => {
+    fetch('/pick_value_curve.json')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setPickValueCurve(data as PickValueEntry[]); })
+      .catch(() => { /* non-fatal — production dots won't size by delta */ });
+  }, []);
 
   // Keep legacyViewMode in sync with chartMode for components that use viewMode
   useEffect(() => {
@@ -292,8 +319,8 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   );
 
   const dotPositions = useMemo<DotPosition[]>(
-    () => computeAllDotPositions(players, layout),
-    [players, layout],
+    () => computeAllDotPositions(players, layout, pickValueCurve),
+    [players, layout, pickValueCurve],
   );
 
   // Per-dot production Y positions and opacities for the current journey step.
@@ -376,11 +403,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     // Normal mode: skip all fetches if fully-scored data already cached
     if (yearCache.current.has(scoredKey)) {
       setPlayers(yearCache.current.get(scoredKey)!);
+      setScoredReady(true);
       setLoading(false);
       return () => { cancelled = true; };
     }
 
     // Phase 1: fast fetch (no scores) — renders chart immediately
+    setScoredReady(false);
     setLoading(true);
     fetch(`/api/draft?year=${selectedYear}&scores=0`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -398,7 +427,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
             if (cancelled) return;
             const full = d2.players ?? [];
             yearCache.current.set(scoredKey, full);
-            setPlayers(full);
+            setScoredReady(true);
+            // Defer setPlayers if an animation is running — apply when it ends
+            if (isAnimatingRef.current) {
+              pendingFullPlayersRef.current = full;
+            } else {
+              setPlayers(full);
+            }
           })
           .catch(() => { /* silent — chart is visible; scores arrive on next open */ });
       })
@@ -460,7 +495,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
             setViewMode("drafted");
             setAnimState({ playing: true, step: 1 });
             const layout1 = computeChartLayout(players, view);
-            const dots1 = computeAllDotPositions(players, layout1);
+            const dots1 = computeAllDotPositions(players, layout1, pickValueCurve);
             const longestDelay = dots1.length * 22 + 550;
             setTimeout(() => {
               setAnimState(s => ({ ...s, playing: false }));
@@ -712,6 +747,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     // CSS transitions on each dot handle the staggered animation.
     const targetStep = journeySteps.find(s => s.id === stepId);
     if (targetStep?.mode === 'player-production' || targetStep?.mode === 'career') {
+      if (!scoredReadyRef.current) return;
       setIsAnimating(true);
       setCurrentStepId(stepId);
       const longestDelay = dotPositions.length * 22 + 550;
@@ -794,7 +830,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     view, onViewChange: handleSetView,
     year: selectedYear, liveMode, onLiveModeToggle: handleLiveToggle,
     showLines, onShowLinesToggle: handleShowLinesToggle,
-    chartMode,
+    chartMode, scoredReady,
   };
 
   // ── Default mobile viewBox (EDGE zoomed) before state settles ────────────

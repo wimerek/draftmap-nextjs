@@ -440,6 +440,12 @@ export interface DotPosition {
    * Only meaningful in Drafted view; 0 in Projected view.
    */
   pickValueDelta: number;
+  /**
+   * Expected pick value (0–100) from pick_value_curve.json for this player's
+   * actual draft slot (or virtual pick 257 for undrafted).
+   * Used for production dot-size encoding (|USG score − expectedPickValue|).
+   */
+  expectedPickValue: number;
 }
 
 
@@ -527,9 +533,17 @@ function hashStr(s: string): number {
 export function computeAllDotPositions(
   players: Player[],
   layout: ChartLayout,
-  _pickValueCurve?: PickValueEntry[],
+  pickValueCurve?: PickValueEntry[],
 ): DotPosition[] {
   const { visiblePositions, colXMap, colWidths, pickToY, udfaZoneY, udfaZoneH } = layout;
+
+  // Build pick → normalized value lookup. Virtual pick 257 = undrafted (≈ last val × 0.3).
+  const pickValueMap = new Map<number, number>();
+  if (pickValueCurve && pickValueCurve.length > 0) {
+    for (const e of pickValueCurve) pickValueMap.set(e.pick, e.normalized);
+    const lastVal = pickValueCurve[pickValueCurve.length - 1]?.normalized ?? 0;
+    pickValueMap.set(257, Math.max(0, lastVal * 0.3));
+  }
 
   const udfaCenterY = udfaZoneY + udfaZoneH / 2;
   const result: DotPosition[] = [];
@@ -595,6 +609,12 @@ export function computeAllDotPositions(
         }
         // Unranked + undrafted: delta stays 0 (not a tracked projection).
 
+        // Expected value from pick_value_curve for this player's actual draft slot.
+        const pickNum = (player.pick_drafted != null && player.pick_drafted > 0)
+          ? Math.min(player.pick_drafted, 256)
+          : 257;
+        const expectedPickValue = pickValueMap.get(pickNum) ?? 0;
+
         result.push({
           player,
           x: colX + cW / 2 + jitter,
@@ -602,6 +622,7 @@ export function computeAllDotPositions(
           projectedY,
           actualY,
           pickValueDelta,
+          expectedPickValue,
         });
       });
   });

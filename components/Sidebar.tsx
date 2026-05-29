@@ -47,6 +47,8 @@ export interface SidebarProps {
   showLines: boolean;
   onShowLinesToggle: () => void;
   chartMode?: ChartMode;
+  /** True once fully-scored Phase-2 data has loaded. Play button disabled until then. */
+  scoredReady?: boolean;
 }
 
 // ── SidebarSection ────────────────────────────────────────────────────────────
@@ -98,19 +100,21 @@ function SegmentedControl({
 // ── Animation player ──────────────────────────────────────────────────────────
 
 function AnimPlayer({
-  animState, viewMode, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd,
-}: Pick<SidebarProps, "animState" | "viewMode" | "onPlay" | "onPause" | "onReset" | "onStepBack" | "onStepForward" | "onJumpEnd">) {
+  animState, viewMode, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd, scoredReady,
+}: Pick<SidebarProps, "animState" | "viewMode" | "onPlay" | "onPause" | "onReset" | "onStepBack" | "onStepForward" | "onJumpEnd" | "scoredReady">) {
   const stepsDisabled = viewMode === "projected";
   const { playing, step } = animState;
   const atStart = step === 0;
   const atEnd   = step === 1;
+  // Disable play until scored data is ready (prevents animating on Phase-1-only data)
+  const playDisabled = atEnd || scoredReady === false;
   return (
     <div className="sb-player">
       <button className="sb-player-btn" onClick={onReset} title="Reset to projected" disabled={atStart}>&#x23EE;</button>
       <button className="sb-player-btn" onClick={onStepBack} title="Step back" disabled={stepsDisabled || atStart}>&#x23EA;</button>
       {playing
         ? <button className="sb-player-btn sb-player-btn--primary" onClick={onPause} title="Pause">&#x23F8;</button>
-        : <button className="sb-player-btn sb-player-btn--primary" onClick={onPlay} title="Play" disabled={atEnd}>&#x23F5;</button>
+        : <button className="sb-player-btn sb-player-btn--primary" onClick={onPlay} title="Play" disabled={playDisabled}>&#x23F5;</button>
       }
       <button className="sb-player-btn" onClick={onStepForward} title="Step forward" disabled={stepsDisabled || atEnd}>&#x23E9;</button>
       <button className="sb-player-btn" onClick={onJumpEnd} title="Jump to end" disabled={atEnd}>&#x23ED;</button>
@@ -127,7 +131,7 @@ export default function Sidebar(props: SidebarProps) {
     view, onViewChange,
     year, liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
-    chartMode,
+    chartMode, scoredReady,
   } = props;
 
   const showTrailsToggle =
@@ -191,6 +195,7 @@ export default function Sidebar(props: SidebarProps) {
           animState={animState} viewMode={viewMode}
           onPlay={onPlay} onPause={onPause} onReset={onReset}
           onStepBack={onStepBack} onStepForward={onStepForward} onJumpEnd={onJumpEnd}
+          scoredReady={scoredReady}
         />
       </SidebarSection>
 

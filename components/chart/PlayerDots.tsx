@@ -118,7 +118,7 @@ export default function PlayerDots({
       )}
 
       {/* ── Circles ──────────────────────────────────────────────────── */}
-      {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta }, i) => {
+      {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta, expectedPickValue }, i) => {
         const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
         const isDrafted = liveMode && player.drafted && !inDraftedView;
 
@@ -158,15 +158,20 @@ export default function PlayerDots({
         const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
         const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
 
-        // Production mode: trajectory-scaled radius (Year 1 = neutral; mobile = unchanged).
-        const PROD_R_NEUTRAL = BASE_R + 1.5
-        let productionR = PROD_R_NEUTRAL
+        // Production mode: absolute delta (USG score vs expected pick value) drives radius.
+        // Both overperformers and underperformers get larger dots; direction shown via leader lines.
+        const PROD_R_NEUTRAL = BASE_R + 1.5;
+        const PROD_R_MAX     = BASE_R + 8;
+        let productionR = PROD_R_NEUTRAL;
         if (isProductionMode && !isMobile) {
-          const stepEntry = (player.stepScores ?? []).find(s => s.stepId === currentStepId)
-          const mult = chartMode === 'career'
-            ? ([...(player.stepScores ?? [])].reverse().find(s => s.trajectoryMultiplier != null)?.trajectoryMultiplier)
-            : stepEntry?.trajectoryMultiplier
-          if (mult != null) productionR = PROD_R_NEUTRAL * mult
+          const stepScore = chartMode === 'career'
+            ? player.outcomeScore ?? null
+            : (player.stepScores ?? []).find(s => s.stepId === currentStepId)?.score ?? null;
+          if (stepScore !== null && expectedPickValue > 0) {
+            const absDelta = Math.abs(stepScore - expectedPickValue);
+            const t = Math.min(absDelta / 60, 1);
+            productionR = PROD_R_NEUTRAL + t * (PROD_R_MAX - PROD_R_NEUTRAL);
+          }
         }
         const r = isMobile ? BASE_R : isProductionMode ? productionR : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
 
