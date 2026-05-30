@@ -1,54 +1,71 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-/**
- * components/Sidebar.tsx
- *
- * Session S restructure:
- *   - Collapse button moved below brand header (small right-aligned pill)
- *   - "Draft Context" renamed to "Filters"
- *   - "Mark Picked Players" renamed to "Drafted Players"
- *   - Section order: View Mode -> Filters -> [spacer] -> Player List -> Map Display -> How to Read
- *   - "Show Movement Lines" toggle added to Map Display
- *   - showLines / onShowLinesToggle props added
- *
- * Delta-2: chartMode prop added. Trails toggle only shown in draft-results
- *   and player-production modes. ViewMode / animation controls remain for
- *   backward compat (complemented by HeaderZone journey bar).
- */
-
-import { useState, useCallback } from "react";
-import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
+import { useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
+import { POSITION_ORDER } from "@/lib/chartConstants";
+import { TEAM_COLORS } from "@/lib/chartConstants";
+import FilterDropdown from "@/components/sidebar/FilterDropdown";
 
+// ViewMode must remain exported — PlayerDots.tsx imports it
 export type ViewMode = "projected" | "drafted";
 
-export interface AnimationState {
-  playing: boolean;
-  step: number;
-}
-
 export interface SidebarProps {
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-  animState: AnimationState;
-  onPlay: () => void;
-  onPause: () => void;
-  onReset: () => void;
-  onStepBack: () => void;
-  onStepForward: () => void;
-  onJumpEnd: () => void;
-  view: "all" | "offense" | "defense";
-  onViewChange: (v: "all" | "offense" | "defense") => void;
-  year: number;
+  positionFilter: string[];
+  onPositionFilterChange: (positions: string[]) => void;
+  roundFilter: (number | "UDFA")[];
+  onRoundFilterChange: (rounds: (number | "UDFA")[]) => void;
+  teamFilter: string[];
+  onTeamFilterChange: (teams: string[]) => void;
+  schoolFilter: string[];
+  onSchoolFilterChange: (schools: string[]) => void;
+  onClearAllFilters: () => void;
   liveMode: boolean;
   onLiveModeToggle: () => void;
   showLines: boolean;
   onShowLinesToggle: () => void;
   chartMode?: ChartMode;
-  /** True once fully-scored Phase-2 data has loaded. Play button disabled until then. */
-  scoredReady?: boolean;
+  availableTeams: string[];
+  availableSchools: string[];
+  hasActiveFilters: boolean;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const DEF_POSITIONS = ["EDGE", "DT", "LB", "CB", "S"];
+const OFF_POSITIONS = ["RB", "WR", "TE", "OT", "IOL", "QB"];
+const ROUND_OPTIONS: (number | "UDFA")[] = [1, 2, 3, 4, 5, 6, 7, "UDFA"];
+
+// ── Summary helpers ───────────────────────────────────────────────────────────
+
+function isAllDefense(f: string[]) {
+  return f.length === DEF_POSITIONS.length && DEF_POSITIONS.every(p => f.includes(p));
+}
+function isAllOffense(f: string[]) {
+  return f.length === OFF_POSITIONS.length && OFF_POSITIONS.every(p => f.includes(p));
+}
+function getPositionSummary(f: string[]) {
+  if (f.length === 0) return "All Positions";
+  if (isAllOffense(f)) return "All Offense";
+  if (isAllDefense(f)) return "All Defense";
+  if (f.length === 1) return f[0];
+  return `${f.length} positions`;
+}
+function getRoundSummary(f: (number | "UDFA")[]) {
+  if (f.length === 0) return "All Rounds";
+  const labels = f.map(r => (r === "UDFA" ? "UDFA" : `R${r}`));
+  if (labels.length <= 2) return labels.join(", ");
+  return `${f.length} rounds`;
+}
+function getTeamSummary(f: string[]) {
+  if (f.length === 0) return "All Teams";
+  if (f.length <= 2) return f.join(", ");
+  return `${f.length} teams`;
+}
+function getSchoolSummary(f: string[]) {
+  if (f.length === 0) return "All Schools";
+  if (f.length <= 2) return f.join(", ");
+  return `${f.length} schools`;
 }
 
 // ── SidebarSection ────────────────────────────────────────────────────────────
@@ -79,72 +96,35 @@ function SidebarSection({
   );
 }
 
-// ── Segmented control ─────────────────────────────────────────────────────────
-
-function SegmentedControl({
-  value, options, onChange,
-}: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
-  return (
-    <div className="sb-segmented">
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          className={`sb-seg-btn${value === opt.value ? " active" : ""}`}
-          onClick={() => onChange(opt.value)}
-        >{opt.label}</button>
-      ))}
-    </div>
-  );
-}
-
-// ── Animation player ──────────────────────────────────────────────────────────
-
-function AnimPlayer({
-  animState, viewMode, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd, scoredReady,
-}: Pick<SidebarProps, "animState" | "viewMode" | "onPlay" | "onPause" | "onReset" | "onStepBack" | "onStepForward" | "onJumpEnd" | "scoredReady">) {
-  const stepsDisabled = viewMode === "projected";
-  const { playing, step } = animState;
-  const atStart = step === 0;
-  const atEnd   = step === 1;
-  // Disable play until scored data is ready (prevents animating on Phase-1-only data)
-  const playDisabled = atEnd || scoredReady === false;
-  return (
-    <div className="sb-player">
-      <button className="sb-player-btn" onClick={onReset} title="Reset to projected" disabled={atStart}>&#x23EE;</button>
-      <button className="sb-player-btn" onClick={onStepBack} title="Step back" disabled={stepsDisabled || atStart}>&#x23EA;</button>
-      {playing
-        ? <button className="sb-player-btn sb-player-btn--primary" onClick={onPause} title="Pause">&#x23F8;</button>
-        : <button className="sb-player-btn sb-player-btn--primary" onClick={onPlay} title="Play" disabled={playDisabled}>&#x23F5;</button>
-      }
-      <button className="sb-player-btn" onClick={onStepForward} title="Step forward" disabled={stepsDisabled || atEnd}>&#x23E9;</button>
-      <button className="sb-player-btn" onClick={onJumpEnd} title="Jump to end" disabled={atEnd}>&#x23ED;</button>
-    </div>
-  );
-}
-
 // ── Main Sidebar ──────────────────────────────────────────────────────────────
 
 export default function Sidebar(props: SidebarProps) {
   const {
-    viewMode, onViewModeChange,
-    animState, onPlay, onPause, onReset, onStepBack, onStepForward, onJumpEnd,
-    view, onViewChange,
-    year, liveMode, onLiveModeToggle,
+    positionFilter, onPositionFilterChange,
+    roundFilter, onRoundFilterChange,
+    teamFilter, onTeamFilterChange,
+    schoolFilter, onSchoolFilterChange,
+    onClearAllFilters,
+    liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
-    chartMode, scoredReady,
+    chartMode,
+    availableTeams, availableSchools,
+    hasActiveFilters,
   } = props;
+
+  const [collapsed, setCollapsed] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | null>(null);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
 
   const showTrailsToggle =
     chartMode === undefined ||
     chartMode === "draft-results" ||
     chartMode === "player-production";
 
-  const [collapsed, setCollapsed] = useState(false);
-  const router = useRouter();
-
-  const handleYearChange = useCallback((selectedYear: number) => {
-    if (selectedYear !== year) router.push(`/draft/${selectedYear}`);
-  }, [year, router]);
+  const toggleDropdown = (key: "position" | "round" | "team" | "school") => {
+    setOpenDropdown(prev => (prev === key ? null : key));
+  };
 
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
@@ -166,7 +146,7 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {/* ── Collapse button — small pill below brand header ── */}
+      {/* ── Collapse button row (+ active filter badge when collapsed) ── */}
       <div className="sb-collapse-row">
         <button
           className="sb-collapse-btn"
@@ -176,85 +156,198 @@ export default function Sidebar(props: SidebarProps) {
         >
           {collapsed ? "›" : "‹"}
         </button>
+        {collapsed && hasActiveFilters && (
+          <span className="sb-filter-badge" aria-label="Filters active" />
+        )}
       </div>
 
-      {/* ── Zone 1: View Mode ── */}
-      <SidebarSection label="View Mode" icon="⊞" collapsed={collapsed}>
-        <SegmentedControl
-          value={viewMode}
-          options={[
-            { value: "projected", label: "Projected" },
-            { value: "drafted",   label: "Drafted"   },
-          ]}
-          onChange={v => onViewModeChange(v as ViewMode)}
-        />
-        <div className="sb-view-hint">
-          {viewMode === "projected" ? "Pre-draft board — school colors" : "Actual picks — tier colors by NFL outcome"}
-        </div>
-        <AnimPlayer
-          animState={animState} viewMode={viewMode}
-          onPlay={onPlay} onPause={onPause} onReset={onReset}
-          onStepBack={onStepBack} onStepForward={onStepForward} onJumpEnd={onJumpEnd}
-          scoredReady={scoredReady}
-        />
-      </SidebarSection>
+      {/* ── FILTERS section (manually rendered — no SidebarSection, needs Clear all slot) ── */}
+      {!collapsed ? (
+        <div className="sb-section sb-section--open">
+          <div className="sb-section-header sb-section-header--no-toggle">
+            <span className="sb-section-icon">📋</span>
+            <span className="sb-section-label">Filters</span>
+            {hasActiveFilters && (
+              <button className="sb-clear-all" onClick={onClearAllFilters}>Clear all</button>
+            )}
+          </div>
+          <div className="sb-section-body">
 
-      {/* ── Zone 2: Filters (was Draft Context) ── */}
-      <SidebarSection label="Filters" icon="📋" collapsed={collapsed}>
-        <div className="sb-field-group">
-          <label className="sb-field-label">Year</label>
-          <div className="sb-btn-group">
-            {[...VALID_DRAFT_YEARS].reverse().map(y => (
+            {/* Position */}
+            <FilterDropdown
+              label="Position"
+              summary={getPositionSummary(positionFilter)}
+              isOpen={openDropdown === "position"}
+              onToggle={() => toggleDropdown("position")}
+              hasSelection={positionFilter.length > 0}
+              onClear={() => onPositionFilterChange([])}
+            >
+              <div className="sb-fd-quick">
+                <button
+                  className={`sb-fd-quick-btn${positionFilter.length === 0 ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([])}
+                >All Positions</button>
+                <button
+                  className={`sb-fd-quick-btn${isAllOffense(positionFilter) ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([...OFF_POSITIONS])}
+                >All Offense</button>
+                <button
+                  className={`sb-fd-quick-btn${isAllDefense(positionFilter) ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([...DEF_POSITIONS])}
+                >All Defense</button>
+              </div>
+              <div className="sb-fd-separator" />
+              <div className="sb-fd-pos-grid">
+                {POSITION_ORDER.map(pos => (
+                  <button
+                    key={pos}
+                    className={`sb-fd-pos-btn${positionFilter.includes(pos) ? " active" : ""}`}
+                    onClick={() => {
+                      const next = positionFilter.includes(pos)
+                        ? positionFilter.filter(p => p !== pos)
+                        : [...positionFilter, pos];
+                      onPositionFilterChange(next);
+                    }}
+                  >{pos}</button>
+                ))}
+              </div>
+            </FilterDropdown>
+
+            {/* Round */}
+            <FilterDropdown
+              label="Round"
+              summary={getRoundSummary(roundFilter)}
+              isOpen={openDropdown === "round"}
+              onToggle={() => toggleDropdown("round")}
+              hasSelection={roundFilter.length > 0}
+              onClear={() => onRoundFilterChange([])}
+            >
+              <div className="sb-fd-rounds">
+                {ROUND_OPTIONS.map(rd => {
+                  const label = rd === "UDFA" ? "UDFA" : `R${rd}`;
+                  const isSelected = roundFilter.includes(rd);
+                  return (
+                    <button
+                      key={label}
+                      className={`sb-fd-pos-btn${isSelected ? " active" : ""}`}
+                      onClick={() => {
+                        const next = isSelected
+                          ? roundFilter.filter(r => r !== rd)
+                          : [...roundFilter, rd];
+                        onRoundFilterChange(next);
+                      }}
+                    >{label}</button>
+                  );
+                })}
+              </div>
+            </FilterDropdown>
+
+            {/* NFL Team */}
+            <FilterDropdown
+              label="Team"
+              summary={getTeamSummary(teamFilter)}
+              isOpen={openDropdown === "team"}
+              onToggle={() => toggleDropdown("team")}
+              hasSelection={teamFilter.length > 0}
+              onClear={() => onTeamFilterChange([])}
+            >
+              <input
+                className="sb-fd-search"
+                type="text"
+                placeholder="Search teams..."
+                value={teamSearch}
+                onChange={e => setTeamSearch(e.target.value)}
+              />
+              <div className="sb-fd-list">
+                {availableTeams
+                  .filter(t => t.toLowerCase().includes(teamSearch.toLowerCase()))
+                  .map(team => {
+                    const tc = TEAM_COLORS[team];
+                    const isSelected = teamFilter.includes(team);
+                    return (
+                      <button
+                        key={team}
+                        className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
+                        onClick={() => {
+                          const next = isSelected
+                            ? teamFilter.filter(t => t !== team)
+                            : [...teamFilter, team];
+                          onTeamFilterChange(next);
+                        }}
+                      >
+                        {tc && (
+                          <span className="sb-fd-swatch" style={{ background: tc.fill }} />
+                        )}
+                        {team}
+                      </button>
+                    );
+                  })
+                }
+              </div>
+            </FilterDropdown>
+
+            {/* School */}
+            <FilterDropdown
+              label="School"
+              summary={getSchoolSummary(schoolFilter)}
+              isOpen={openDropdown === "school"}
+              onToggle={() => toggleDropdown("school")}
+              hasSelection={schoolFilter.length > 0}
+              onClear={() => onSchoolFilterChange([])}
+            >
+              <input
+                className="sb-fd-search"
+                type="text"
+                placeholder="Search schools..."
+                value={schoolSearch}
+                onChange={e => setSchoolSearch(e.target.value)}
+              />
+              <div className="sb-fd-list">
+                {availableSchools
+                  .filter(s => s.toLowerCase().includes(schoolSearch.toLowerCase()))
+                  .map(school => {
+                    const isSelected = schoolFilter.includes(school);
+                    return (
+                      <button
+                        key={school}
+                        className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
+                        onClick={() => {
+                          const next = isSelected
+                            ? schoolFilter.filter(s => s !== school)
+                            : [...schoolFilter, school];
+                          onSchoolFilterChange(next);
+                        }}
+                      >{school}</button>
+                    );
+                  })
+                }
+              </div>
+            </FilterDropdown>
+
+            {/* Hide Drafted toggle */}
+            <div className="sb-field-group">
               <button
-                key={y}
-                className={`sb-filter-btn${year === y ? " active" : ""}`}
-                onClick={() => handleYearChange(y)}
-              >{y}</button>
-            ))}
+                className={`sb-live-btn${liveMode ? " active" : ""}`}
+                onClick={onLiveModeToggle}
+              >
+                <span className="sb-live-dot" />
+                Hide Drafted
+              </button>
+              <div className="sb-field-hint">
+                Dims players who were drafted — useful during a live draft or to spot who went undrafted.
+              </div>
+            </div>
+
           </div>
         </div>
-        <div className="sb-field-group">
-          <label className="sb-field-label">Position Group</label>
-          <div className="sb-btn-group">
-            {(["all", "offense", "defense"] as const).map(v => (
-              <button
-                key={v}
-                className={`sb-filter-btn${view === v ? " active" : ""}`}
-                onClick={() => onViewChange(v)}
-              >{v === "all" ? "All" : v.charAt(0).toUpperCase() + v.slice(1)}</button>
-            ))}
-          </div>
+      ) : (
+        <div className="sb-section sb-section--icon-only" title="Filters">
+          <span className="sb-section-icon">📋</span>
         </div>
-        <div className="sb-field-group">
-          <button
-            className={`sb-live-btn${liveMode ? " active" : ""}`}
-            onClick={onLiveModeToggle}
-          >
-            <span className="sb-live-dot" />
-            Drafted Players
-          </button>
-          <div className="sb-field-hint">Greys out drafted players in Projected view</div>
-        </div>
-      </SidebarSection>
+      )}
 
-      {/* ── Spacer — pushes remaining sections to bottom ── */}
-      <div className="sb-spacer" />
-
-      {/* ── Player List link (bottom) ── */}
-      <div className="sb-nav-link-row">
-        <Link
-          href={`/players?year=${year}`}
-          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
-          title="Player List"
-        >
-          <span className="sb-nav-link-icon">☰</span>
-          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
-        </Link>
-      </div>
-
-      {/* ── Zone 3: Map Display ── */}
+      {/* ── MAP DISPLAY ── */}
       <SidebarSection label="Map Display" icon="🗺" collapsed={collapsed}>
-        {/* Trails toggle — only visible in draft-results / player-production modes */}
         {showTrailsToggle && (
           <div className="sb-field-group">
             <button
@@ -267,8 +360,7 @@ export default function Sidebar(props: SidebarProps) {
             <div className="sb-field-hint">Display all projection-to-actual lines</div>
           </div>
         )}
-
-        {viewMode === "drafted" && (
+        {chartMode === "draft-results" && (
           <div className="sb-legend">
             <div className="sb-legend-title">Dot Size</div>
             <div className="sb-legend-row">
@@ -284,14 +376,17 @@ export default function Sidebar(props: SidebarProps) {
             </div>
           </div>
         )}
-        {viewMode === "projected" && (
+        {chartMode === "projection" && (
           <div className="sb-legend-subtext sb-legend-subtext--muted">
             Dot size is uniform in Projected view. Switch to Drafted to see surprises.
           </div>
         )}
       </SidebarSection>
 
-      {/* ── Zone 4: How to Read (collapsed by default) ── */}
+      {/* ── Spacer ── */}
+      <div className="sb-spacer" />
+
+      {/* ── HOW TO READ (collapsed by default) ── */}
       <SidebarSection label="How to Read" icon="?" defaultOpen={false} collapsed={collapsed}>
         <p className="sb-help-text">
           <strong>Y-axis:</strong> Draft position — top picks are highest, late rounds are lowest.
@@ -306,6 +401,19 @@ export default function Sidebar(props: SidebarProps) {
           <strong>Drafted view:</strong> Where each player was actually picked. Color = NFL team. Larger dots = bigger surprise. Hover a dot to see projected vs. actual movement.
         </p>
       </SidebarSection>
+
+      {/* ── Player List link (very bottom) ── */}
+      <div className="sb-nav-link-row">
+        <Link
+          href="/players"
+          className={`sb-nav-link${collapsed ? " sb-nav-link--icon-only" : ""}`}
+          title="Player List"
+        >
+          <span className="sb-nav-link-icon">☰</span>
+          {!collapsed && <span className="sb-nav-link-label">Player List</span>}
+        </Link>
+      </div>
+
     </aside>
   );
 }
