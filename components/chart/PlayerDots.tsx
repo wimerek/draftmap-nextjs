@@ -224,19 +224,28 @@ export default function PlayerDots({
         const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
         const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
 
-        // Production mode: absolute delta (USG score vs expected pick value) drives radius.
-        // Both overperformers and underperformers get larger dots; direction shown via leader lines.
-        const PROD_R_NEUTRAL = BASE_R + 1.5;
-        const PROD_R_MAX     = BASE_R + 8;
-        let productionR = PROD_R_NEUTRAL;
+        // Production mode: directional tier-band delta drives radius.
+        // Overperformers (stepScore > expected) grow above BASE_R; underperformers shrink below.
+        // Expected is the historical median usage percentile for this player's draft round.
+        // Default is BASE_R (was PROD_R_NEUTRAL = 7.5 — intentional change, no-data dots render at base size).
+        const PROD_R_MIN = 4.5;
+        const PROD_R_MAX = 12.0;
+        const NORM_POS   = 55;
+        const NORM_NEG   = 40;
+        let productionR = BASE_R;
         if (isProductionMode && !isMobile) {
           const stepScore = chartMode === 'career'
             ? player.outcomeScore ?? null
             : (player.stepScores ?? []).find(s => s.stepId === currentStepId)?.score ?? null;
-          if (stepScore !== null && expectedPickValue > 0) {
-            const absDelta = Math.abs(stepScore - expectedPickValue);
-            const t = Math.min(absDelta / 60, 1);
-            productionR = PROD_R_NEUTRAL + t * (PROD_R_MAX - PROD_R_NEUTRAL);
+          if (stepScore !== null) {
+            const delta = stepScore - expectedPickValue; // signed: positive = overperformer
+            if (delta >= 0) {
+              const t = Math.min(delta / NORM_POS, 1.0);
+              productionR = BASE_R + t * (PROD_R_MAX - BASE_R);
+            } else {
+              const t = Math.min(Math.abs(delta) / NORM_NEG, 1.0);
+              productionR = BASE_R - t * (BASE_R - PROD_R_MIN);
+            }
           }
         }
         const r = isMobile ? BASE_R : isProductionMode ? productionR : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
@@ -245,7 +254,7 @@ export default function PlayerDots({
         const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
         const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
         // In production mode, exclude `r` from transition so radius snaps instantly
-        // when entering from Draft Results (variable delta-size → uniform BASE_R+1.5).
+        // when entering from Draft Results (variable delta-size → directional tier-band size).
         // `cy` movement is handled by the group transform so ring/star travel with the dot.
         const groupTransition = tDuration > 0
           ? `transform ${tDuration}ms ease-out ${tDelay}ms`
