@@ -1,27 +1,38 @@
 "use client";
-import { useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
-import type { SidebarProps, ViewMode } from "@/components/Sidebar";
+import type { SidebarProps } from "@/components/Sidebar";
+import { POSITION_ORDER, TEAM_COLORS } from "@/lib/chartConstants";
+import FilterDropdown from "@/components/sidebar/FilterDropdown";
 
-// Reusable segmented control for the drawer
-function DrawerSegmented({
-  value, options, onChange,
-}: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
-  return (
-    <div className="sb-segmented">
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          className={`sb-seg-btn${value === opt.value ? " active" : ""}`}
-          onClick={() => onChange(opt.value)}
-        >{opt.label}</button>
-      ))}
-    </div>
-  );
+const DEF_POSITIONS = ["EDGE", "DT", "LB", "CB", "S"];
+const OFF_POSITIONS = ["RB", "WR", "TE", "OT", "IOL", "QB"];
+const ROUND_OPTIONS: (number | "UDFA")[] = [1, 2, 3, 4, 5, 6, 7, "UDFA"];
+
+function getPositionSummary(f: string[]) {
+  if (f.length === 0) return "All Positions";
+  if (OFF_POSITIONS.every(p => f.includes(p)) && f.length === OFF_POSITIONS.length) return "All Offense";
+  if (DEF_POSITIONS.every(p => f.includes(p)) && f.length === DEF_POSITIONS.length) return "All Defense";
+  if (f.length === 1) return f[0];
+  return `${f.length} positions`;
+}
+function getRoundSummary(f: (number | "UDFA")[]) {
+  if (f.length === 0) return "All Rounds";
+  const labels = f.map(r => (r === "UDFA" ? "UDFA" : `R${r}`));
+  if (labels.length <= 2) return labels.join(", ");
+  return `${f.length} rounds`;
+}
+function getTeamSummary(f: string[]) {
+  if (f.length === 0) return "All Teams";
+  if (f.length <= 2) return f.join(", ");
+  return `${f.length} teams`;
+}
+function getSchoolSummary(f: string[]) {
+  if (f.length === 0) return "All Schools";
+  if (f.length <= 2) return f.join(", ");
+  return `${f.length} schools`;
 }
 
 function DrawerSection({ label, children }: { label: string; children: React.ReactNode }) {
@@ -46,11 +57,16 @@ interface Props {
 
 export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }: Props) {
   const {
-    viewMode, onViewModeChange,
-    view, onViewChange,
-    year, liveMode, onLiveModeToggle,
+    positionFilter, onPositionFilterChange,
+    roundFilter, onRoundFilterChange,
+    teamFilter, onTeamFilterChange,
+    schoolFilter, onSchoolFilterChange,
+    onClearAllFilters,
+    liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
     chartMode,
+    availableTeams, availableSchools,
+    hasActiveFilters,
   } = sidebarProps;
 
   const showTrailsToggle =
@@ -58,11 +74,13 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
     chartMode === "draft-results" ||
     chartMode === "player-production";
 
-  const router = useRouter();
+  const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | null>(null);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
 
-  const handleYearChange = useCallback((y: number) => {
-    if (y !== year) { onClose(); router.push(`/draft/${y}`); }
-  }, [year, router, onClose]);
+  const toggleDropdown = (key: "position" | "round" | "team" | "school") => {
+    setOpenDropdown(prev => (prev === key ? null : key));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -116,7 +134,7 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
           >✕ Close</button>
         </div>
 
-        {/* Brand row inside drawer */}
+        {/* Brand row */}
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
           padding: "10px 14px 12px",
@@ -130,54 +148,170 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
         </div>
 
         <div className="mb-drawer-content">
-          {/* View Mode */}
-          <DrawerSection label="View Mode">
-            <DrawerSegmented
-              value={viewMode}
-              options={[{ value: "projected", label: "Projected" }, { value: "drafted", label: "Drafted" }]}
-              onChange={v => onViewModeChange(v as ViewMode)}
-            />
-            <div className="sb-view-hint">
-              {viewMode === "projected" ? "Derek's pre-draft board" : "Where players were actually picked"}
-            </div>
-          </DrawerSection>
 
           {/* Filters */}
-          <DrawerSection label="Filters">
-            <div className="sb-field-group">
-              <label className="sb-field-label">Year</label>
-              <div className="sb-btn-group">
-                {[...VALID_DRAFT_YEARS].reverse().map(y => (
+          <DrawerSection label={`Filters${hasActiveFilters ? " ·" : ""}`}>
+            {hasActiveFilters && (
+              <button
+                className="sb-clear-all"
+                onClick={() => { onClearAllFilters(); }}
+                style={{ marginBottom: 4 }}
+              >Clear all filters</button>
+            )}
+
+            <FilterDropdown
+              label="Position"
+              summary={getPositionSummary(positionFilter)}
+              isOpen={openDropdown === "position"}
+              onToggle={() => toggleDropdown("position")}
+              hasSelection={positionFilter.length > 0}
+              onClear={() => onPositionFilterChange([])}
+            >
+              <div className="sb-fd-quick">
+                <button
+                  className={`sb-fd-quick-btn${positionFilter.length === 0 ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([])}
+                >All Positions</button>
+                <button
+                  className={`sb-fd-quick-btn${OFF_POSITIONS.every(p => positionFilter.includes(p)) && positionFilter.length === OFF_POSITIONS.length ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([...OFF_POSITIONS])}
+                >All Offense</button>
+                <button
+                  className={`sb-fd-quick-btn${DEF_POSITIONS.every(p => positionFilter.includes(p)) && positionFilter.length === DEF_POSITIONS.length ? " active" : ""}`}
+                  onClick={() => onPositionFilterChange([...DEF_POSITIONS])}
+                >All Defense</button>
+              </div>
+              <div className="sb-fd-separator" />
+              <div className="sb-fd-pos-grid">
+                {POSITION_ORDER.map(pos => (
                   <button
-                    key={y}
-                    className={`sb-filter-btn${year === y ? " active" : ""}`}
-                    onClick={() => handleYearChange(y)}
-                  >{y}</button>
+                    key={pos}
+                    className={`sb-fd-pos-btn${positionFilter.includes(pos) ? " active" : ""}`}
+                    onClick={() => {
+                      const next = positionFilter.includes(pos)
+                        ? positionFilter.filter(p => p !== pos)
+                        : [...positionFilter, pos];
+                      onPositionFilterChange(next);
+                    }}
+                  >{pos}</button>
                 ))}
               </div>
-            </div>
-            <div className="sb-field-group">
-              <label className="sb-field-label">Position Group</label>
-              <div className="sb-btn-group">
-                {(["all", "offense", "defense"] as const).map(v => (
-                  <button
-                    key={v}
-                    className={`sb-filter-btn${view === v ? " active" : ""}`}
-                    onClick={() => onViewChange(v)}
-                  >{v === "all" ? "All" : v.charAt(0).toUpperCase() + v.slice(1)}</button>
-                ))}
+            </FilterDropdown>
+
+            <FilterDropdown
+              label="Round"
+              summary={getRoundSummary(roundFilter)}
+              isOpen={openDropdown === "round"}
+              onToggle={() => toggleDropdown("round")}
+              hasSelection={roundFilter.length > 0}
+              onClear={() => onRoundFilterChange([])}
+            >
+              <div className="sb-fd-rounds">
+                {ROUND_OPTIONS.map(rd => {
+                  const label = rd === "UDFA" ? "UDFA" : `R${rd}`;
+                  const isSelected = roundFilter.includes(rd);
+                  return (
+                    <button
+                      key={label}
+                      className={`sb-fd-pos-btn${isSelected ? " active" : ""}`}
+                      onClick={() => {
+                        const next = isSelected
+                          ? roundFilter.filter(r => r !== rd)
+                          : [...roundFilter, rd];
+                        onRoundFilterChange(next);
+                      }}
+                    >{label}</button>
+                  );
+                })}
               </div>
-            </div>
-            <div className="sb-field-group">
+            </FilterDropdown>
+
+            <FilterDropdown
+              label="Team"
+              summary={getTeamSummary(teamFilter)}
+              isOpen={openDropdown === "team"}
+              onToggle={() => toggleDropdown("team")}
+              hasSelection={teamFilter.length > 0}
+              onClear={() => onTeamFilterChange([])}
+            >
+              <input
+                className="sb-fd-search"
+                type="text"
+                placeholder="Search teams..."
+                value={teamSearch}
+                onChange={e => setTeamSearch(e.target.value)}
+              />
+              <div className="sb-fd-list">
+                {availableTeams
+                  .filter(t => t.toLowerCase().includes(teamSearch.toLowerCase()))
+                  .map(team => {
+                    const tc = TEAM_COLORS[team];
+                    const isSelected = teamFilter.includes(team);
+                    return (
+                      <button
+                        key={team}
+                        className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
+                        onClick={() => {
+                          const next = isSelected
+                            ? teamFilter.filter(t => t !== team)
+                            : [...teamFilter, team];
+                          onTeamFilterChange(next);
+                        }}
+                      >
+                        {tc && <span className="sb-fd-swatch" style={{ background: tc.fill }} />}
+                        {team}
+                      </button>
+                    );
+                  })}
+              </div>
+            </FilterDropdown>
+
+            <FilterDropdown
+              label="School"
+              summary={getSchoolSummary(schoolFilter)}
+              isOpen={openDropdown === "school"}
+              onToggle={() => toggleDropdown("school")}
+              hasSelection={schoolFilter.length > 0}
+              onClear={() => onSchoolFilterChange([])}
+            >
+              <input
+                className="sb-fd-search"
+                type="text"
+                placeholder="Search schools..."
+                value={schoolSearch}
+                onChange={e => setSchoolSearch(e.target.value)}
+              />
+              <div className="sb-fd-list">
+                {availableSchools
+                  .filter(s => s.toLowerCase().includes(schoolSearch.toLowerCase()))
+                  .map(school => {
+                    const isSelected = schoolFilter.includes(school);
+                    return (
+                      <button
+                        key={school}
+                        className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
+                        onClick={() => {
+                          const next = isSelected
+                            ? schoolFilter.filter(s => s !== school)
+                            : [...schoolFilter, school];
+                          onSchoolFilterChange(next);
+                        }}
+                      >{school}</button>
+                    );
+                  })}
+              </div>
+            </FilterDropdown>
+
+            <div className="sb-field-group" style={{ marginTop: 4 }}>
               <button className={`sb-live-btn${liveMode ? " active" : ""}`} onClick={onLiveModeToggle}>
                 <span className="sb-live-dot" />
-                Drafted Players
+                Hide Drafted
               </button>
-              <div className="sb-field-hint">Greys out drafted players in Projected view</div>
+              <div className="sb-field-hint">Dims players who were drafted — useful during a live draft or to spot who went undrafted.</div>
             </div>
           </DrawerSection>
 
-          {/* Map Display — trails toggle only in draft-results / player-production modes */}
+          {/* Map Display */}
           {showTrailsToggle && (
             <DrawerSection label="Map Display">
               <div className="sb-field-group">
@@ -201,7 +335,7 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
           {/* Player List link */}
           <div style={{ padding: "12px 14px" }}>
             <Link
-              href={`/players?year=${year}`}
+              href="/players"
               className="sb-nav-link"
               onClick={onClose}
               style={{ display: "flex", alignItems: "center", gap: 8, borderRadius: 8, padding: "8px 10px", color: "rgba(245,240,232,0.60)", fontSize: 12, fontWeight: 600 }}
