@@ -16,7 +16,7 @@
  */
 
 import type { Player } from './sheets';
-import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, TIER_DEFS } from './chartConstants';
+import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, ROUND_EXPECTED_PCT, TIER_DEFS } from './chartConstants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -537,14 +537,6 @@ export function computeAllDotPositions(
 ): DotPosition[] {
   const { visiblePositions, colXMap, colWidths, pickToY, udfaZoneY, udfaZoneH } = layout;
 
-  // Build pick → normalized value lookup. Virtual pick 257 = undrafted (≈ last val × 0.3).
-  const pickValueMap = new Map<number, number>();
-  if (pickValueCurve && pickValueCurve.length > 0) {
-    for (const e of pickValueCurve) pickValueMap.set(e.pick, e.normalized);
-    const lastVal = pickValueCurve[pickValueCurve.length - 1]?.normalized ?? 0;
-    pickValueMap.set(257, Math.max(0, lastVal * 0.3));
-  }
-
   const udfaCenterY = udfaZoneY + udfaZoneH / 2;
   const result: DotPosition[] = [];
   const DOT_R = 6;
@@ -609,11 +601,11 @@ export function computeAllDotPositions(
         }
         // Unranked + undrafted: delta stays 0 (not a tracked projection).
 
-        // Expected value from pick_value_curve for this player's actual draft slot.
-        const pickNum = (player.pick_drafted != null && player.pick_drafted > 0)
-          ? Math.min(player.pick_drafted, 256)
-          : 257;
-        const expectedPickValue = pickValueMap.get(pickNum) ?? 0;
+        // Expected usage percentile for this player's draft round (tier-band approach).
+        // R7 and UDFA both default to 0 — any contribution from those slots is an overperformance.
+        const expectedPickValue = player.rd_drafted != null
+          ? (ROUND_EXPECTED_PCT[player.rd_drafted] ?? 0)
+          : 0;
 
         result.push({
           player,

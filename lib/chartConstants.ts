@@ -14,6 +14,24 @@ export function luminance(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
+// ── Production dot sizing ─────────────────────────────────────────────────────
+
+/**
+ * Data-driven expected usage percentile (position-normalized snap percentile)
+ * by draft round. Computed from 2018–2022 historical classes including washouts
+ * as P0. Used for production-mode dot sizing in PlayerDots.tsx.
+ */
+export const ROUND_EXPECTED_PCT: Record<number, number> = {
+  1: 78,
+  2: 69,
+  3: 47,
+  4: 35,
+  5: 22,
+  6: 9,
+  7: 0,
+};
+// Undrafted / null rd_drafted → 0 (handled at call site)
+
 // ── Position types ────────────────────────────────────────────────────────────
 
 export type Position =
