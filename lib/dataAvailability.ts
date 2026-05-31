@@ -25,6 +25,7 @@ export interface JourneyStep {
   shortLabel: string
   mode: ChartMode
   season?: number
+  isMilestone?: boolean   // true for Rookie Contract and Career
 }
 
 // First NFL season covered by the scoring dataset.
@@ -66,7 +67,6 @@ export const TICK_COLOR: Record<DataTier, string> = {
 }
 
 export function getJourneySteps(draftYear: number): JourneyStep[] {
-  const { seasonsAvailable } = getClassAvailability(draftYear)
   const steps: JourneyStep[] = []
 
   steps.push({
@@ -83,10 +83,10 @@ export function getJourneySteps(draftYear: number): JourneyStep[] {
     mode: 'draft-results',
   })
 
-  // Steps always start from the draft year so the journey timeline is accurate.
-  // Seasons before DATA_START_YEAR have null scores and render in the no-data zone.
+  // Individual year steps: Years 1–4 only (capped at DATA_END_YEAR).
   // Seasons after DATA_END_YEAR are skipped (future — no data yet).
-  for (let season = draftYear; season <= DATA_END_YEAR; season++) {
+  const maxIndividualYear = Math.min(draftYear + 3, DATA_END_YEAR)
+  for (let season = draftYear; season <= maxIndividualYear; season++) {
     steps.push({
       id: String(season),
       label: String(season),
@@ -96,11 +96,33 @@ export function getJourneySteps(draftYear: number): JourneyStep[] {
     })
   }
 
+  // Rookie Contract step: requires ≥2 seasons (Year 2 must exist)
+  if (draftYear + 1 <= DATA_END_YEAR) {
+    steps.push({
+      id: 'rookie-contract',
+      label: 'Rookie Contract',
+      shortLabel: 'RC',
+      mode: 'player-production',
+      isMilestone: true,
+    })
+  }
+
+  // Veteran step: requires ≥5 seasons
+  if (draftYear + 4 <= DATA_END_YEAR) {
+    steps.push({
+      id: 'veteran',
+      label: 'Veteran (Yrs 5+)',
+      shortLabel: 'Vet',
+      mode: 'player-production',
+    })
+  }
+
   steps.push({
     id: 'career',
     label: 'Career',
     shortLabel: 'Career',
     mode: 'career',
+    isMilestone: true,
   })
 
   return steps

@@ -639,11 +639,43 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
         return { ...step, score: pct };
       });
 
-      // Career snap percentile = mean of per-season percentiles (drives career Y-axis)
+      // Career snap percentile = mean of per-season percentiles (drives career Y-axis).
+      // Computed before the RC/Veteran summary steps are appended so those averages
+      // don't get folded back into the career number.
       const validPcts = snapStepScores.map(s => s.score).filter((s): s is number => s !== null);
       const careerSnapPct = validPcts.length > 0
         ? Math.round(validPcts.reduce((a, b) => a + b, 0) / validPcts.length)
         : null;
+
+      // Rookie Contract + Veteran summary steps (averages of per-season percentiles)
+      const playerDraftYear = parseInt(playerId.split('-').at(-1) ?? '', 10);
+      if (!isNaN(playerDraftYear)) {
+        // Rookie Contract step: average snap percentile of Years 1–4
+        const rcSteps = snapStepScores.filter(s => {
+          const season = parseInt(s.stepId, 10);
+          return !isNaN(season) && season >= playerDraftYear && season <= playerDraftYear + 3;
+        });
+        if (rcSteps.length >= 1) {
+          const rcScores = rcSteps.map(s => s.score).filter((s): s is number => s !== null);
+          const rcAvg = rcScores.length > 0
+            ? Math.round(rcScores.reduce((a, b) => a + b, 0) / rcScores.length)
+            : null;
+          snapStepScores.push({ stepId: 'rookie-contract', score: rcAvg, team: null });
+        }
+
+        // Veteran step: average snap percentile of Years 5+
+        const vetSteps = snapStepScores.filter(s => {
+          const season = parseInt(s.stepId, 10);
+          return !isNaN(season) && season >= playerDraftYear + 4;
+        });
+        if (vetSteps.length >= 1) {
+          const vetScores = vetSteps.map(s => s.score).filter((s): s is number => s !== null);
+          const vetAvg = vetScores.length > 0
+            ? Math.round(vetScores.reduce((a, b) => a + b, 0) / vetScores.length)
+            : null;
+          snapStepScores.push({ stepId: 'veteran', score: vetAvg, team: null });
+        }
+      }
 
       result.set(playerId, {
         arcScore:   careerSnapPct,

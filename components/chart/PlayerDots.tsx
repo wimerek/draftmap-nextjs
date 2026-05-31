@@ -293,6 +293,20 @@ export default function PlayerDots({
           if (chartMode === 'career') {
             showProBowl = player.seasonData?.some(sr => sr.proBowl) ?? false;
             showAllPro  = player.seasonData?.some(sr => sr.allPro)  ?? false;
+          } else if (currentStepId === 'rookie-contract') {
+            // Cumulative: any Pro Bowl or All-Pro in Years 1–4 of rookie window
+            const rcSeasons = player.seasonData?.filter(
+              sr => sr.season >= player.draft_year && sr.season <= player.draft_year + 3
+            ) ?? [];
+            showProBowl = rcSeasons.some(sr => sr.proBowl);
+            showAllPro  = rcSeasons.some(sr => sr.allPro);
+          } else if (currentStepId === 'veteran') {
+            // Cumulative: any Pro Bowl or All-Pro in Years 5+
+            const vetSeasons = player.seasonData?.filter(
+              sr => sr.season >= player.draft_year + 4
+            ) ?? [];
+            showProBowl = vetSeasons.some(sr => sr.proBowl);
+            showAllPro  = vetSeasons.some(sr => sr.allPro);
           } else if (currentStepId) {
             const season = parseInt(currentStepId, 10);
             if (!isNaN(season)) {

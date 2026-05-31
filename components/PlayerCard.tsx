@@ -64,6 +64,18 @@ function computeCardColors(player: Player, currentStepId?: string) {
     } else if (currentStepId === 'career') {
       const lastSeason = player.seasonData[player.seasonData.length - 1];
       teamCode = lastSeason?.teams[0] ?? null;
+    } else if (currentStepId === 'rookie-contract') {
+      // Most recent available season in Years 1–4
+      const rcSeasons = player.seasonData
+        .filter(r => r.season >= player.draft_year && r.season <= player.draft_year + 3)
+        .sort((a, b) => b.season - a.season);
+      teamCode = rcSeasons[0]?.teams[0] ?? null;
+    } else if (currentStepId === 'veteran') {
+      // Most recent available season in Years 5+
+      const vetSeasons = player.seasonData
+        .filter(r => r.season >= player.draft_year + 4)
+        .sort((a, b) => b.season - a.season);
+      teamCode = vetSeasons[0]?.teams[0] ?? null;
     }
   }
 
@@ -561,6 +573,20 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
       const lastSeason = player.seasonData[player.seasonData.length - 1]
       return lastSeason.teams[0] ?? '—'
     }
+    // Rookie Contract — most recent available season in Years 1–4
+    if (currentStepId === 'rookie-contract' && player.seasonData) {
+      const rcSeasons = player.seasonData
+        .filter(r => r.season >= player.draft_year && r.season <= player.draft_year + 3)
+        .sort((a, b) => b.season - a.season)
+      return rcSeasons[0]?.teams[0] ?? (player.team_drafted ?? '—')
+    }
+    // Veteran — most recent available season in Years 5+
+    if (currentStepId === 'veteran' && player.seasonData) {
+      const vetSeasons = player.seasonData
+        .filter(r => r.season >= player.draft_year + 4)
+        .sort((a, b) => b.season - a.season)
+      return vetSeasons[0]?.teams[0] ?? (player.team_drafted ?? '—')
+    }
     if (player.drafted && player.team_drafted) return player.team_drafted
     return '—'
   }, [player, currentStepId])
@@ -575,6 +601,12 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
       return player.stepScores.find(s => s.stepId === String(stepYear))?.score ?? null
     }
     if (currentStepId === 'career') return player.outcomeScore
+    if (currentStepId === 'rookie-contract') {
+      return player.stepScores.find(s => s.stepId === 'rookie-contract')?.score ?? null
+    }
+    if (currentStepId === 'veteran') {
+      return player.stepScores.find(s => s.stepId === 'veteran')?.score ?? null
+    }
     return null
   }, [player, currentStepId])
 
@@ -583,6 +615,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     const stepYear = parseInt(currentStepId, 10)
     if (!isNaN(stepYear)) return `'${String(stepYear).slice(-2)}`
     if (currentStepId === 'career') return 'Career'
+    if (currentStepId === 'rookie-contract') return 'RC'
+    if (currentStepId === 'veteran') return 'Vet'
     return null
   }, [currentStepId])
 

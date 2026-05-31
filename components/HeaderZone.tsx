@@ -76,9 +76,9 @@ export default function HeaderZone({
     const step = steps[stepIdx];
     const isActive = stepIdx === activeIdx;
     const isDone   = stepIdx < activeIdx;
-    const isCareer = step?.id === "career";
+    const isMilestone = step?.id === "career" || step?.id === "rookie-contract";
 
-    if (isCareer) {
+    if (isMilestone) {
       if (isActive) return {
         background: "#f59e0b",
         border: "2px solid #f59e0b",
@@ -111,9 +111,10 @@ export default function HeaderZone({
     };
   }
 
-  // Career circle is larger
+  // Milestone circles (Career + Rookie Contract) are larger
   function getCircleSize(step: { id: string }) {
-    return step.id === "career"
+    const isMilestone = step.id === "career" || step.id === "rookie-contract";
+    return isMilestone
       ? (isMobile ? 16 : 18)
       : (isMobile ? 11 : 13);
   }
