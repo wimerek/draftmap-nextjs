@@ -23,6 +23,9 @@ import type { ChartLayout } from "@/lib/chartMath";
 import type { ChartMode, JourneyStep } from "@/lib/dataAvailability";
 import { TIERS } from "@/lib/tierLabels";
 
+interface ZoneStat { count: number; pct: number }
+interface ZoneStats { starter?: ZoneStat; role?: ZoneStat; fringe?: ZoneStat }
+
 interface Props {
   layout: ChartLayout;
   visible: boolean;
@@ -30,6 +33,7 @@ interface Props {
   isMobile?: boolean;
   draftYear?: number;
   currentStep?: Pick<JourneyStep, 'mode' | 'season'> | null;
+  zoneStats?: ZoneStats | null;
 }
 
 function scoreToY(score: number, layout: ChartLayout): number {
@@ -47,6 +51,7 @@ export default function TierAxisLabels({
   isMobile = false,
   draftYear,
   currentStep,
+  zoneStats,
 }: Props) {
   const [entering, setEntering] = useState(false);
 
@@ -64,8 +69,7 @@ export default function TierAxisLabels({
 
   const { margin, chartW, totalChartH } = layout;
   const lineX       = margin.left;
-  const fontSize    = isMobile ? 9 : 11;
-  const LABEL_PAD_X = 8;
+  const fontSize    = isMobile ? 10 : 13;
 
   // Band coordinates for each tier
   const bands = TIERS.map((tier, i) => {
@@ -90,20 +94,42 @@ export default function TierAxisLabels({
 
   return (
     <g>
-      {/* ── Zone fills (5% opacity, one per tier band) ─────────────────── */}
+      {/* Vertical gradient overlay — warm gold at top, cool red at bottom */}
+      <defs>
+        <linearGradient id="zone-gradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#f59e0b" stopOpacity={0.12} />
+          <stop offset="40%"  stopColor="#f59e0b" stopOpacity={0} />
+          <stop offset="60%"  stopColor="#f87171" stopOpacity={0} />
+          <stop offset="100%" stopColor="#f87171" stopOpacity={0.12} />
+        </linearGradient>
+      </defs>
+
+      {/* ── Zone fills (one per tier band) ─────────────────────────────── */}
       {bands.map(({ tier, topY, bottomY }) => (
         <rect
           key={`zone-${tier.id}`}
           x={lineX} y={topY}
           width={chartW} height={bottomY - topY}
-          fill={tier.color}
-          opacity={entering ? 0.05 : 0}
+          fill={tier.fillColor}
+          opacity={entering ? tier.fillOpacity : 0}
           style={{
             transition: prefersReducedMotion ? "none" : "opacity 400ms ease 350ms",
             pointerEvents: "none",
           }}
         />
       ))}
+
+      {/* ── Gradient overlay (sits above zone fills) ───────────────────── */}
+      <rect
+        x={lineX} y={margin.top}
+        width={chartW} height={totalChartH}
+        fill="url(#zone-gradient)"
+        opacity={entering ? 1 : 0}
+        style={{
+          transition: prefersReducedMotion ? "none" : "opacity 400ms ease 350ms",
+          pointerEvents: "none",
+        }}
+      />
 
       {/* ── Hash marks at tier boundaries (bottom-to-top stagger) ─────── */}
       {TIER_BOUNDARY_SCORES.map((score, i) => {
@@ -130,33 +156,60 @@ export default function TierAxisLabels({
         );
       })}
 
-      {/* ── Tier labels centered inside each band ─────────────────────── */}
+      {/* ── Zone labels in the left margin (swatch + name + stat) ─────── */}
       {bands.map(({ tier, centerY }, i) => {
         const reverseIdx  = TIERS.length - 1 - i;
         const lineDelay   = reverseIdx * 55;
         const labelDelay  = lineDelay + 350;
+        const stat = zoneStats?.[tier.id as keyof ZoneStats];
         return (
-          <text
+          <g
             key={tier.id}
-            x={lineX + LABEL_PAD_X}
-            y={centerY}
-            textAnchor="start"
-            dominantBaseline="middle"
-            fontSize={fontSize}
-            fontWeight={700}
-            fill={tier.color}
-            letterSpacing="0.12em"
             style={{
               opacity: entering ? 1 : 0,
               transform: `translateX(${entering ? 0 : -8}px)`,
               transition: prefersReducedMotion
                 ? "opacity 150ms ease"
                 : `opacity 300ms ease-out ${labelDelay}ms, transform 300ms ease-out ${labelDelay}ms`,
-              textTransform: "uppercase",
             }}
           >
-            {tier.label}
-          </text>
+            {/* Colored swatch */}
+            <rect
+              x={12} y={centerY - 4}
+              width={8} height={8}
+              fill={tier.color}
+              rx={1}
+            />
+            {/* Zone name */}
+            <text
+              x={24}
+              y={centerY + (stat ? -9 : 0)}
+              textAnchor="start"
+              dominantBaseline="middle"
+              fontSize={fontSize}
+              fontWeight={700}
+              fill={tier.color}
+              letterSpacing="0.12em"
+              style={{ textTransform: "uppercase" }}
+            >
+              {tier.label}
+            </text>
+            {/* Zone stat — only when stats provided */}
+            {stat && (
+              <text
+                x={24}
+                y={centerY + 6}
+                textAnchor="start"
+                dominantBaseline="middle"
+                fontSize={11}
+                fontWeight={400}
+                fill={tier.color}
+                style={{ opacity: 0.65 }}
+              >
+                {stat.pct}% · {stat.count} players
+              </text>
+            )}
+          </g>
         );
       })}
 

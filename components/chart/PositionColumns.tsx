@@ -14,12 +14,13 @@ import { POSITIONS } from "@/lib/chartConstants";
 interface Props {
   layout: ChartLayout;
   isZoomedMobile?: boolean;
+  onHowToReadClick?: () => void;
 }
 
-export default function PositionColumns({ layout, isZoomedMobile = false }: Props) {
+export default function PositionColumns({ layout, isZoomedMobile = false, onHowToReadClick }: Props) {
   const {
     visiblePositions, colXMap, colWidths,
-    margin, totalChartH, hasDefense, hasOffense, sepW,
+    margin, totalChartH, hasDefense, hasOffense, sepW, pillX,
   } = layout;
 
   return (
@@ -47,7 +48,7 @@ export default function PositionColumns({ layout, isZoomedMobile = false }: Prop
                 {/* Position name — Oswald, warm white */}
                 <text
                   x={colX + cW / 2}
-                  y={margin.top * 0.52}
+                  y={margin.top * 0.50}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fontSize={17}
@@ -126,13 +127,43 @@ export default function PositionColumns({ layout, isZoomedMobile = false }: Prop
 <line
               x1={gapCenterX} y1={margin.top}
               x2={gapCenterX} y2={margin.top + totalChartH}
-              stroke="#D4A017"
-              strokeWidth={1.5}
-              opacity={0.30}
+              stroke="#94a3b8"
+              strokeWidth={0.8}
+              opacity={0.18}
             />
           </>
         );
       })()}
+
+      {/* "How to Read" trigger — right margin, vertically centered in header */}
+      {!isZoomedMobile && onHowToReadClick && (
+        <g
+          style={{ cursor: "pointer" }}
+          onClick={onHowToReadClick}
+        >
+          <circle
+            cx={pillX + 16}
+            cy={margin.top / 2}
+            r={14}
+            fill="rgba(212,160,23,0.12)"
+            stroke="#D4A017"
+            strokeWidth={1.5}
+            opacity={1.0}
+          />
+          <text
+            x={pillX + 16}
+            y={margin.top / 2 + 1}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={14}
+            fontWeight={700}
+            fill="#D4A017"
+            opacity={1.0}
+          >
+            ?
+          </text>
+        </g>
+      )}
     </g>
   );
 }

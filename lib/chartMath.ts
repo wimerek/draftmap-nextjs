@@ -293,7 +293,7 @@ export function computeChartLayout(
   const sepW = hasDefense && hasOffense ? 48 : 0;
   // margin.left: 80px — accommodates round labels + the left-side quality arrow.
   // margin.right: 160px — accommodates tier pills on the right.
-  const margin = { top: 120, right: 160, bottom: 48, left: 100 };
+  const margin = { top: 72, right: 160, bottom: 48, left: 100 };
 
   // ── Y-axis: continuous pick scale ────────────────────────────────────────
   const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px
@@ -344,7 +344,7 @@ export function computeChartLayout(
 
   // ── UDFA zone (below pick-256 line) ──────────────────────────────────────
   // Undrafted players animate here. 80px band with dashed top border.
-  const UDFA_ZONE_H = 80;
+  const UDFA_ZONE_H = 130;
   const udfaZoneY   = margin.top + totalChartH;   // top of UDFA band
   const svgH        = udfaZoneY + UDFA_ZONE_H + margin.bottom;
 
@@ -420,6 +420,36 @@ export function scoreToProductionY(score: number | null, layout: ChartLayout): n
   if (score === null) return layout.udfaZoneY + layout.udfaZoneH / 2
   const clamped = Math.max(0, Math.min(100, score))
   return layout.margin.top + layout.totalChartH * (1 - clamped / 100)
+}
+
+/**
+ * Converts a player's ST snap percentage to a 0–100 global percentile score.
+ * Based on 2026-05-31 analysis of player_seasons.csv (N=8,746 players with ST snaps).
+ * Used to position ST-primary players (wavy dot) on the Y-axis instead of
+ * their position-normalized primary snap percentile, which understates their
+ * career value.
+ */
+export function stSnapPctToGlobalPercentile(stSnapPct: number): number {
+  // Piecewise linear interpolation from empirical distribution.
+  const breakpoints: [number, number][] = [
+    [0,     0],
+    [0.023, 10],
+    [0.10,  25],
+    [0.18,  50],
+    [0.28,  65],
+    [0.38,  75],
+    [0.62,  90],
+    [1.0,   99],
+  ];
+  for (let i = 1; i < breakpoints.length; i++) {
+    const [x0, y0] = breakpoints[i - 1];
+    const [x1, y1] = breakpoints[i];
+    if (stSnapPct <= x1) {
+      const t = (stSnapPct - x0) / (x1 - x0);
+      return y0 + t * (y1 - y0);
+    }
+  }
+  return 99;
 }
 
 export interface DotPosition {
@@ -572,7 +602,7 @@ export function computeAllDotPositions(
               layout.margin.top + DOT_R,
               Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.rank!)),
             )
-          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.4);
+          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70);
 
         // ── Actual Y ─────────────────────────────────────────────────────
         // Drafted: animates to actual pick slot.
@@ -582,7 +612,7 @@ export function computeAllDotPositions(
               layout.margin.top + DOT_R,
               Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.pick_drafted)),
             )
-          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.4);
+          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70);
 
         // ── Tier-adjusted delta for dot-size encoding ─────────────────────────────────
         // Uses a tier-compressed scale so within-round movement stays small

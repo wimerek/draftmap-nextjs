@@ -10,6 +10,7 @@ import {
   computeChartLayout,
   computeAllDotPositions,
   scoreToProductionY,
+  stSnapPctToGlobalPercentile,
   type ChartLayout,
   type DotPosition,
   type ChartView,
@@ -24,6 +25,7 @@ import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
 import PlayerDots from "@/components/chart/PlayerDots";
 import UDFAZone from "@/components/chart/UDFAZone";
+import HowToReadModal from "@/components/HowToReadModal";
 import HeaderZone from "@/components/HeaderZone";
 import Sidebar, {
   type ViewMode,
@@ -265,6 +267,18 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
+  // ── "How to Read" modal ───────────────────────────────────────────────────
+  const [htrOpen, setHtrOpen] = useState(false);
+
+  // First-visit auto-open — once data has loaded.
+  useEffect(() => {
+    if (!loading && typeof window !== 'undefined') {
+      if (!localStorage.getItem('dm_htr_seen')) {
+        setHtrOpen(true);
+      }
+    }
+  }, [loading]);
+
   // ── Legacy view mode (kept for animation, PlayerDots, UDFAZone, etc.) ───
   const [viewMode,    setViewMode]    = useState<ViewMode>('projected');
   const [isAnimating, setIsAnimating] = useState(false);
@@ -382,6 +396,26 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
         const entry = (dp.player.stepScores ?? []).find(s => s.stepId === currentStepId);
         score = entry?.score ?? null;
       }
+
+      // ST-primary override: use global ST snap percentile for Y-position so
+      // special-teams aces aren't understated by their tiny position-snap share.
+      // Condition mirrors PlayerDots.tsx isSTprimary logic. Per-step only —
+      // career uses outcomeScore, which already accounts for the career arc.
+      if (score !== null && chartMode !== 'career') {
+        const season = currentStepId ? parseInt(currentStepId, 10) : NaN;
+        if (!isNaN(season)) {
+          const row = dp.player.seasonData?.find(s => s.season === season);
+          if (
+            row &&
+            row.stSnapCount != null && row.stSnapCount >= 50 &&
+            row.snapCount   != null && row.stSnapCount > row.snapCount &&
+            row.stSnapPct   != null
+          ) {
+            score = Math.min(stSnapPctToGlobalPercentile(row.stSnapPct), 62);
+          }
+        }
+      }
+
       map.set(dp.player.player_id, {
         y:       scoreToProductionY(score, layout),
         opacity: score === null ? 0.35 : 1.0,
@@ -389,6 +423,44 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
     }
     return map;
   }, [dotPositions, currentStepId, chartMode, layout]);
+
+  // Zone occupancy stats for the current draft class at the current journey step.
+  // Drives the count/percentage readouts in the left-margin zone labels and the
+  // Washed Out zone. Null in non-production steps (no career outcome to bucket).
+  const zoneStats = useMemo(() => {
+    const isProductionStep = chartMode === 'player-production' || chartMode === 'career';
+    if (!isProductionStep) return null;
+
+    const classPlayers = players.filter(p => p.draft_year === selectedYear);
+    const total = classPlayers.length;
+    if (total === 0) return null;
+
+    let starter = 0, role = 0, fringe = 0, washedOut = 0;
+
+    for (const player of classPlayers) {
+      let score: number | null = null;
+      if (chartMode === 'career') {
+        score = player.outcomeScore ?? null;
+      } else {
+        const entry = (player.stepScores ?? []).find(s => s.stepId === currentStepId);
+        score = entry?.score ?? null;
+      }
+
+      if (score === null)  washedOut++;
+      else if (score >= 65) starter++;
+      else if (score >= 25) role++;
+      else                  fringe++;
+    }
+
+    const pct = (n: number) => Math.round((n / total) * 100);
+
+    return {
+      starter:   { count: starter,   pct: pct(starter)   },
+      role:      { count: role,      pct: pct(role)      },
+      fringe:    { count: fringe,    pct: pct(fringe)    },
+      washedOut: { count: washedOut, pct: pct(washedOut) },
+    };
+  }, [players, selectedYear, chartMode, currentStepId]);
 
   // Positions that have data and are currently visible
   const visiblePositions = useMemo(
@@ -967,8 +1039,13 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 isMobile={isMobile}
                 draftYear={selectedYear}
                 currentStep={currentStep}
+                zoneStats={zoneStats}
               />
-              <PositionColumns layout={layout} isZoomedMobile={isZoomedMobile} />
+              <PositionColumns
+                layout={layout}
+                isZoomedMobile={isZoomedMobile}
+                onHowToReadClick={() => setHtrOpen(true)}
+              />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} />
               <UDFAZone
                 layout={layout}
@@ -977,6 +1054,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 isZoomedMobile={isZoomedMobile}
                 viewBoxX={mobileZoomedX}
                 viewBoxW={mobileZoomedViewBoxW || undefined}
+                washedOutStat={zoneStats?.washedOut ?? null}
               />
               <PlayerDots
                 dotPositions={dotPositions}
@@ -1046,6 +1124,9 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
 
       {/* ── Desktop floating tooltip ── */}
       {!isMobile && tooltip && <ChartTooltip {...tooltip} />}
+
+      {/* ── "How to Read" modal ── */}
+      <HowToReadModal open={htrOpen} onClose={() => setHtrOpen(false)} />
 
       {/* ── Player card (modal on desktop, bottom sheet on mobile) ── */}
       <PlayerCard

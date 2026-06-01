@@ -19,14 +19,15 @@ interface Props {
   isZoomedMobile?: boolean;
   viewBoxX?: number;
   viewBoxW?: number;
+  washedOutStat?: { count: number; pct: number } | null;
 }
 
-export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile = false, viewBoxX, viewBoxW }: Props) {
+export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile = false, viewBoxX, viewBoxW, washedOutStat }: Props) {
   const [hover, setHover] = useState(false);
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
 
   const isProductionMode = chartMode === 'player-production' || chartMode === 'career';
-  const zoneLabel = isProductionMode ? 'NO DATA' : 'UDFA';
+  const zoneLabel = isProductionMode ? 'WASHED OUT' : 'UDFA';
 
   if (isZoomedMobile) {
     const cx = viewBoxX !== undefined && viewBoxW !== undefined
@@ -64,30 +65,42 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* Background fill */}
+      {/* Background fill — darker, solid in production mode */}
       <rect
         x={bandX} y={udfaZoneY}
         width={bandW} height={udfaZoneH}
-        fill="rgba(180,170,155,0.10)"
+        fill={isProductionMode ? 'rgba(51,65,85,0.15)' : 'rgba(180,170,155,0.10)'}
       />
-      {/* Dashed top border */}
+      {/* Top separator — solid in production mode, dashed elsewhere */}
       <line
         x1={bandX} y1={udfaZoneY}
         x2={bandX + bandW} y2={udfaZoneY}
-        stroke="#B0A898"
-        strokeWidth={1}
-        strokeDasharray="6,5"
+        stroke={isProductionMode ? '#334155' : '#B0A898'}
+        strokeWidth={isProductionMode ? 1.5 : 1}
+        strokeDasharray={isProductionMode ? undefined : '6,5'}
       />
       {/* Zone label */}
       <text
         x={labelX} y={labelY}
         fontSize={10} fontWeight={700}
-        fill="#8A7F74"
+        fill={isProductionMode ? '#334155' : '#8A7F74'}
         letterSpacing={1.5}
         textAnchor="start"
       >
         {zoneLabel}
       </text>
+      {/* Zone stat (production mode only) */}
+      {isProductionMode && washedOutStat && (
+        <text
+          x={labelX} y={labelY + 14}
+          fontSize={9} fontWeight={400}
+          fill="#334155" opacity={0.75}
+          letterSpacing={1.2}
+          textAnchor="start"
+        >
+          {washedOutStat.pct}% · {washedOutStat.count} players
+        </text>
+      )}
       {/* Hover tooltip */}
       {hover && (
         <g>
@@ -102,7 +115,7 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
             x={labelX + 8} y={udfaZoneY + 18}
             fontSize={10} fill="#F5F0E8"
           >
-            {isProductionMode ? 'No production data yet' : 'Undrafted Free Agent'}
+            {isProductionMode ? 'No longer in the league' : 'Undrafted Free Agent'}
           </text>
         </g>
       )}

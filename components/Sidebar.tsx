@@ -389,16 +389,16 @@ export default function Sidebar(props: SidebarProps) {
       {/* ── HOW TO READ (collapsed by default) ── */}
       <SidebarSection label="How to Read" icon="?" defaultOpen={false} collapsed={collapsed}>
         <p className="sb-help-text">
-          <strong>Y-axis:</strong> Draft position — top picks are highest, late rounds are lowest.
+          <strong>Zones:</strong> STARTER (top), ROLE PLAYER (mid), FRINGE (bottom), WASHED OUT (below field). Based on snap share vs. peers at each position.
         </p>
         <p className="sb-help-text">
-          <strong>X-axis:</strong> Position groups, sized by class depth.
+          <strong>Journey Bar:</strong> Step through Draft Projections → Draft Results → seasons → career.
         </p>
         <p className="sb-help-text">
-          <strong>Projected view:</strong> Derek's pre-draft ranking. Dot color = college.
+          <strong>Dot size:</strong> In Draft Results, larger dots = bigger surprise vs. projection.
         </p>
         <p className="sb-help-text">
-          <strong>Drafted view:</strong> Where each player was actually picked. Color = NFL team. Larger dots = bigger surprise. Hover a dot to see projected vs. actual movement.
+          <strong>Dot color:</strong> College colors in projection; NFL team colors after draft day.
         </p>
       </SidebarSection>
 

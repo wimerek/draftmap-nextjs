@@ -224,6 +224,10 @@ export default function PlayerDots({
         const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
         const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
 
+        // Washed Out: score was null this step → sent to the below-field zone.
+        // Render as a hollow ring (team color as stroke) to read as "out of league".
+        const isWashedOut = isProductionMode && prodPos !== undefined && prodPos.opacity < 1.0;
+
         // Production mode: directional tier-band delta drives radius.
         // Overperformers (stepScore > expected) grow above BASE_R; underperformers shrink below.
         // Expected is the historical median usage percentile for this player's draft round.
@@ -316,6 +320,8 @@ export default function PlayerDots({
             }
           }
         }
+        // No awards on washed-out (out-of-league) dots.
+        if (isWashedOut) { showProBowl = false; showAllPro = false; }
 
         const dotStroke      = isMobile ? "#ffffff" : stroke;
         const dotStrokeWidth = isMobile
@@ -361,9 +367,14 @@ export default function PlayerDots({
               ) : (
                 <circle
                   cx={0} cy={0} r={r}
-                  stroke={dotStroke}
-                  strokeWidth={dotStrokeWidth}
-                  style={{ fill, opacity: dotOpacity, cursor: "pointer", transition }}
+                  stroke={isWashedOut ? fill : dotStroke}
+                  strokeWidth={isWashedOut ? 1.5 : dotStrokeWidth}
+                  style={{
+                    fill: isWashedOut ? "none" : fill,
+                    opacity: isWashedOut ? 0.50 : dotOpacity,
+                    cursor: "pointer",
+                    transition,
+                  }}
                   onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
                   onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
                   onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}

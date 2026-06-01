@@ -29,8 +29,8 @@ export default function RoundZones({ layout, mobileZoomedX, mobileZoomedViewBoxW
 
   return (
     <g>
-      {/* Round reference lines */}
-      {roundBoundaryYs.map((ry, i) => (
+      {/* Round reference lines — hidden in production/career modes (Y axis is usage score, not pick) */}
+      {chartMode !== 'player-production' && chartMode !== 'career' && roundBoundaryYs.map((ry, i) => (
         <line
           key={`rd-line-${i}`}
           x1={margin.left} y1={ry}

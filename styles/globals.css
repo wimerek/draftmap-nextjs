@@ -2144,3 +2144,46 @@ a { color: inherit; text-decoration: none; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── How to Read modal ──────────────────────────────────────────────── */
+.dm-htr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 34, 57, 0.65);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dm-htr-modal {
+  background: #F5F0E8;
+  border: 1.5px solid #D4A017;
+  border-radius: 6px;
+  padding: 28px 32px;
+  max-width: 440px;
+  width: 90vw;
+  position: relative;
+}
+.dm-htr-close {
+  position: absolute;
+  top: 12px; right: 14px;
+  background: none; border: none;
+  font-size: 16px; cursor: pointer;
+  color: #0B2239; opacity: 0.5;
+}
+.dm-htr-close:hover { opacity: 1; }
+.dm-htr-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 18px; font-weight: 700;
+  color: #0B2239;
+  margin: 0 0 20px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.dm-htr-points { display: flex; flex-direction: column; gap: 16px; }
+.dm-htr-point {
+  display: flex; gap: 12px; align-items: flex-start;
+  font-size: 13px; color: #0B2239; line-height: 1.5;
+}
+.dm-htr-icon { font-size: 16px; min-width: 20px; margin-top: 1px; }
+.dm-htr-point strong { display: block; margin-bottom: 2px; }
