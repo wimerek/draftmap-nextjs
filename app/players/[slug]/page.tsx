@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { fetchPlayers, fetchOutcomeScores, VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets';
+import { fetchPlayers, fetchOutcomeScores, VALID_DRAFT_YEARS, type Player } from '@/lib/sheets';
 import { buildSlugMap } from '@/lib/slugs';
 import PlayerCardWrapper from '@/components/PlayerCardWrapper';
 
@@ -29,15 +29,10 @@ async function getPlayerForSlug(slug: string): Promise<Player | null> {
 }
 
 export async function generateStaticParams() {
-  try {
-    const players = await fetchPlayers(CURRENT_DRAFT_YEAR);
-    const slugMap = buildSlugMap(players);
-    return players
-      .map(p => ({ slug: slugMap.get(p.player_id) }))
-      .filter((p): p is { slug: string } => p.slug !== undefined);
-  } catch {
-    return [];
-  }
+  // Player pages render on first request via ISR (revalidate=3600).
+  // Pre-generating at build time causes timeouts: fetchOutcomeScores() (10k rows)
+  // is called per page and doesn't share cache across Vercel's parallel build workers.
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
