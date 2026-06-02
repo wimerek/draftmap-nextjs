@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
 import type { Player } from "@/lib/sheets";
 import type { DisplaySeasonRow } from "@/lib/scoring";
 import { getTierForScore } from "@/lib/tierLabels";
@@ -1035,13 +1034,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
               </div>
             </div>
           </div>
-
-          {/* ── View full profile link (above Chalk Talk) ─────────────── */}
-          {playerSlug && (
-            <div className="dm-profile-link">
-              <Link href={`/players/${playerSlug}`}>View full profile →</Link>
-            </div>
-          )}
 
           {/* ── Fun Fact Panel ────────────────────────────────────────── */}
           <div className="dm-funfact">
