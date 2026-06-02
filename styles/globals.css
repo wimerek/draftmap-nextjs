@@ -2187,3 +2187,13 @@ a { color: inherit; text-decoration: none; }
 }
 .dm-htr-icon { font-size: 16px; min-width: 20px; margin-top: 1px; }
 .dm-htr-point strong { display: block; margin-bottom: 2px; }
+
+/* Standalone player page: let the card be full height, page scroll handles overflow */
+.pcm-standalone-page #pcm-wrap {
+  max-height: none;
+  overflow: visible;
+}
+.pcm-standalone-page .dm-body {
+  overflow: visible;
+  max-height: none;
+}

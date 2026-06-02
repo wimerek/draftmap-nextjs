@@ -34,6 +34,7 @@ interface PlayerCardProps {
   isMobile?: boolean;
   playerSlug?: string;
   currentStepId?: string;
+  standalone?: boolean;
 }
 
 // ── Card color resolution ─────────────────────────────────────────────────────
@@ -505,7 +506,7 @@ function weightedSnapPct(rows: DisplaySeasonRow[]): number | null {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug, currentStepId }: PlayerCardProps) {
+export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug, currentStepId, standalone = false }: PlayerCardProps) {
   if (!player) return null;
 
   const draftYear = player.draft_year;
@@ -624,16 +625,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     ? getTierForScore(activeUsage).label
     : null
 
-  return (
-    // Backdrop
-    <div
-      id="pcm-bd"
-      style={{ display: "flex" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      {/* Card */}
+  const cardWrap = (
+      /* Card */
       <div id="pcm-wrap" className="dm-card-wrap" style={cardColorVars} onClick={(e) => e.stopPropagation()}>
 
         {/* Drag handle — mobile bottom sheet only, outside dm-card-inner */}
@@ -648,7 +641,9 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
 
         {/* ── Header (pinned) ─────────────────────────────────────── */}
         <div className="dm-header">
-          <button id="pcm-close" aria-label="Close player card" onClick={onClose}>&#x2715;</button>
+          {!standalone && (
+            <button id="pcm-close" aria-label="Close player card" onClick={onClose}>&#x2715;</button>
+          )}
 
           {/* Player name bar */}
           <div className="dm-name-bar">
@@ -1088,7 +1083,23 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
 
         </div>{/* end dm-body */}
         </div>{/* end dm-card-inner */}
-      </div>{/* end pcm-wrap */}
+      </div>
+  );
+
+  if (standalone) {
+    return cardWrap;
+  }
+
+  return (
+    // Backdrop
+    <div
+      id="pcm-bd"
+      style={{ display: "flex" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      {cardWrap}
     </div>
   );
 }

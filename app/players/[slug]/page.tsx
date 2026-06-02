@@ -1,10 +1,8 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { fetchPlayers, VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets';
+import { fetchPlayers, fetchOutcomeScores, VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets';
 import { buildSlugMap } from '@/lib/slugs';
-import { fmtHeight } from '@/lib/utils';
+import PlayerCardWrapper from '@/components/PlayerCardWrapper';
 
 export const revalidate = 3600;
 
@@ -73,6 +71,21 @@ export default async function PlayerPage({ params }: Props) {
   const player = await getPlayerForSlug(params.slug);
   if (!player) notFound();
 
+  // Fetch outcome scores and all players from same draft year in parallel
+  const [outcomeMap, classPeers] = await Promise.all([
+    fetchOutcomeScores(),
+    fetchPlayers(player.draft_year),
+  ])
+
+  // Merge outcome data into player object
+  const outcome = outcomeMap.get(player.player_id)
+  const enrichedPlayer: Player = {
+    ...player,
+    outcomeScore: outcome?.arcScore ?? null,
+    stepScores:   outcome?.stepScores ?? null,
+    seasonData:   outcome?.seasonData ?? null,
+  }
+
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Person',
@@ -92,100 +105,13 @@ export default async function PlayerPage({ params }: Props) {
     } : {}),
   }
 
-  const measurables = [
-    { label: 'Height',       value: fmtHeight(player.height) },
-    { label: 'Weight',       value: player.weight    ? `${player.weight} lbs`  : '—' },
-    { label: '40-Yard Dash', value: player.forty     ? `${player.forty}s`      : '—' },
-    { label: 'Vertical',     value: player.vertical  ? `${player.vertical}"`   : '—' },
-    { label: 'Broad Jump',   value: player.broad     ? `${player.broad}"`      : '—' },
-    { label: '3-Cone',       value: player.cone3     ? `${player.cone3}s`      : '—' },
-    { label: 'Shuttle',      value: player.shuttle   ? `${player.shuttle}s`    : '—' },
-    { label: 'Bench',        value: player.bench     ? `${player.bench} reps`  : '—' },
-    { label: 'Arm Length',   value: player.arm       ? `${player.arm}"`        : '—' },
-    { label: 'Hand Size',    value: player.hand      ? `${player.hand}"`       : '—' },
-  ].filter(m => m.value !== '—');
-
   return (
-    <main className="min-h-screen bg-dm-bg px-4 py-10">
+    <main>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="space-y-1">
-          <p className="text-dm-text-secondary text-sm uppercase tracking-wider font-semibold">
-            {player.pos} · {player.school ?? '—'} · {player.draft_year} NFL Draft
-          </p>
-          <h1 className="text-4xl font-condensed font-bold text-dm-text">
-            {player.name}
-          </h1>
-        </div>
-
-        <div className="bg-dm-panel rounded-xl p-5 space-y-2">
-          <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold">
-            Projection
-          </p>
-          <p className="text-dm-text text-lg">
-            Round {player.rd ?? '—'} · Overall #{player.rank ?? '—'}
-          </p>
-        </div>
-
-        {player.drafted && (
-          <div className="bg-dm-panel rounded-xl p-5 space-y-2">
-            <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold">
-              Draft Result
-            </p>
-            <p className="text-dm-text text-lg">
-              {player.team_drafted ?? '—'} · Round {player.rd_drafted ?? '—'}, Pick {player.pick_drafted ?? '—'}
-            </p>
-          </div>
-        )}
-
-        {measurables.length > 0 && (
-          <div className="bg-dm-panel rounded-xl p-5">
-            <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold mb-3">
-              Measurables
-            </p>
-            <dl className="grid grid-cols-2 gap-y-2 text-sm">
-              {measurables.map(m => (
-                <Fragment key={m.label}>
-                  <dt className="text-dm-text-secondary">{m.label}</dt>
-                  <dd className="text-dm-text">{m.value}</dd>
-                </Fragment>
-              ))}
-            </dl>
-          </div>
-        )}
-
-        {(player.s1 || player.s2 || player.s3) && (
-          <div className="bg-dm-panel rounded-xl p-5">
-            <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold mb-3">
-              Strengths
-            </p>
-            <ul className="space-y-1 text-sm text-dm-text">
-              {[player.s1, player.s2, player.s3].filter(Boolean).map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {player.notes && (
-          <div className="bg-dm-panel rounded-xl p-5">
-            <p className="text-dm-text-secondary text-xs uppercase tracking-wider font-semibold mb-3">
-              Notes
-            </p>
-            <p className="text-dm-text text-sm leading-relaxed">{player.notes}</p>
-          </div>
-        )}
-
-        <Link
-          href={`/draft/${player.draft_year}?pos=${player.pos}`}
-          className="inline-block text-dm-text-secondary hover:text-dm-text text-sm transition-colors"
-        >
-          View on DraftMap →
-        </Link>
-      </div>
+      <PlayerCardWrapper player={enrichedPlayer} players={classPeers} />
     </main>
   );
 }
