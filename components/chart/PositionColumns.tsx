@@ -8,16 +8,23 @@
  *   - Variable column widths via colWidths[pos] from ChartLayout.
  *   - DEFENSE / OFFENSE labels always visible (no zoom threshold).
  */
+import { useRouter } from "next/navigation";
 import type { ChartLayout } from "@/lib/chartMath";
 import { POSITIONS } from "@/lib/chartConstants";
+import { positionToSlug, isSupportedTwinYear } from "@/lib/twinConfig";
 
 interface Props {
   layout: ChartLayout;
   isZoomedMobile?: boolean;
   onHowToReadClick?: () => void;
+  /** Currently viewed class year — headers link to /draft/{year}/{pos} for it. */
+  linkYear?: number;
 }
 
-export default function PositionColumns({ layout, isZoomedMobile = false, onHowToReadClick }: Props) {
+export default function PositionColumns({ layout, isZoomedMobile = false, onHowToReadClick, linkYear }: Props) {
+  const router = useRouter();
+  // Headers link only for years that have twin position pages (avoids 404s).
+  const linksEnabled = linkYear != null && isSupportedTwinYear(linkYear) && !isZoomedMobile;
   const {
     visiblePositions, colXMap, colWidths,
     margin, totalChartH, hasDefense, hasOffense, sepW, pillX,
@@ -45,7 +52,7 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
                 {/* Header background — dark navy */}
                 <rect x={colX} y={0} width={cW} height={margin.top} fill="#0B2239" />
 
-                {/* Position name — Oswald, warm white */}
+                {/* Position name — Oswald, warm white. Links to the twin position page. */}
                 <text
                   x={colX + cW / 2}
                   y={margin.top * 0.50}
@@ -56,6 +63,9 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
                   fontFamily="Oswald, sans-serif"
                   fill="#F5F0E8"
                   letterSpacing={1.4}
+                  className={linksEnabled ? "twin-pos-header-link" : undefined}
+                  style={linksEnabled ? { cursor: "pointer" } : undefined}
+                  onClick={linksEnabled ? () => router.push(`/draft/${linkYear}/${positionToSlug(pos)}`) : undefined}
                 >
                   {pos}
                 </text>

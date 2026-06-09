@@ -515,6 +515,26 @@ export const TEAM_COLORS: Record<string, TeamColor> = (() => {
   return map;
 })();
 
+/** Canonical full team name ("Indianapolis Colts") for any alias (city/abbr/full). */
+export const TEAM_FULL_NAME: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const [aliases] of _TEAMS) {
+    const full = aliases[0];
+    for (const alias of aliases) {
+      map[alias] = full;
+      map[alias.toUpperCase()] = full;
+      map[alias.toLowerCase()] = full;
+    }
+  }
+  return map;
+})();
+
+/** Resolve a raw team string (city/abbr/full) to its canonical full name; falls back to input. */
+export function resolveTeamName(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return TEAM_FULL_NAME[raw] ?? TEAM_FULL_NAME[raw.toLowerCase()] ?? raw;
+}
+
 /** Resolve NFL team colors from any team string format.
  *  Accepts: full name ("Kansas City Chiefs"), abbreviation ("KC"), city ("Kansas City").
  *  Falls back to DraftMap brand navy/gold if team is not found.

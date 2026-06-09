@@ -40,6 +40,17 @@ import MobileRoundTicks from "@/components/chart/MobileRoundTicks";
 
 interface DraftChartProps {
   year?: number;
+  /**
+   * Seed the position filter on mount (crawlable-twin position pages render at a
+   * clean URL with no ?pos= param). Feeds the SAME positionFilter state the URL
+   * param does — not a separate filtering path. Ignored if ?pos= is present.
+   */
+  initialPosition?: string;
+  /**
+   * Seed the journey step on mount (e.g. "draft" to land on draft results).
+   * Feeds the SAME currentStepId state ?step= does. Ignored if ?step= is present.
+   */
+  initialStepId?: string;
 }
 
 // ── Tooltip (desktop only) ────────────────────────────────────────────────────
@@ -155,19 +166,26 @@ function overviewViewBox(layout: ChartLayout): [number, number, number, number] 
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DraftChart({ year = 2026 }: DraftChartProps) {
+export default function DraftChart({ year = 2026, initialPosition, initialStepId }: DraftChartProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // ── Delta-2: Journey navigation state ────────────────────────────────────
   const [selectedYear,  setSelectedYear]  = useState<number>(year);
   const [currentStepId, setCurrentStepId] = useState<string>(() =>
-    searchParams.get('step') ?? 'projection'
+    searchParams.get('step') ?? initialStepId ?? 'projection'
   );
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Sync selectedYear when the URL year prop changes (e.g. back-button)
+  // Sync selectedYear when the URL year prop changes (e.g. back-button).
+  // Skip the first run so a seeded initialStepId (e.g. "draft" on twin position
+  // pages) isn't reset to 'projection' on mount.
+  const didMountYearSync = useRef(false);
   useEffect(() => {
+    if (!didMountYearSync.current) {
+      didMountYearSync.current = true;
+      return;
+    }
     setSelectedYear(year);
     setCurrentStepId('projection');
     setIsPlaying(false);
@@ -255,7 +273,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
   // ── Filter state ─────────────────────────────────────────────────────────
   const [positionFilter, setPositionFilter] = useState<string[]>(() => {
     const pos = searchParams.get('pos');
-    if (!pos) return [];
+    if (!pos) return initialPosition ? [initialPosition] : [];
     if (pos === 'offense') return ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
     if (pos === 'defense') return ['EDGE', 'DT', 'LB', 'CB', 'S'];
     return pos.split(',').filter(Boolean);
@@ -1045,6 +1063,7 @@ export default function DraftChart({ year = 2026 }: DraftChartProps) {
                 layout={layout}
                 isZoomedMobile={isZoomedMobile}
                 onHowToReadClick={() => setHtrOpen(true)}
+                linkYear={selectedYear}
               />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} />
               <UDFAZone
