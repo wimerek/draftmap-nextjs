@@ -42,7 +42,7 @@ export const TIERS: Tier[] = [
     label: 'ROLE PLAYER',
     color: '#15803d',
     fillColor: '#15803d',   // same — forest green reads correctly at this opacity
-    fillOpacity: 0.18,
+    fillOpacity: 0.13,
     minScore: 25,
   },
   {

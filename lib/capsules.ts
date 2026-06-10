@@ -95,7 +95,14 @@ function steal(prep: PreppedClass, position: string, year: number): Capsule | nu
 
 // ── Capsule 2: THE CONVICTION PICK ────────────────────────────────────────────
 function conviction(prep: PreppedClass, position: string, year: number): Capsule | null {
-  const candidates = prep.drafted.filter((p) => p.delta != null && p.delta < 0);
+  // Eligible = drafted, valued ahead of the board (Δ < 0), AND on the draftable
+  // board to begin with (consensus rank ≤ totalPicks). The rank ceiling excludes
+  // deep consensus-tail noise (e.g. #488 drafted at 218) that isn't a real
+  // "valued above the board" call. Runner-ups slice from this list, so they
+  // inherit the same eligibility.
+  const candidates = prep.drafted.filter(
+    (p) => p.delta != null && p.delta < 0 && (p.player.rank as number) <= prep.totalPicks,
+  );
   if (candidates.length === 0) return null;
 
   // Biggest negative Δ (drafted furthest ahead of the board); tie-break: lower rank.
