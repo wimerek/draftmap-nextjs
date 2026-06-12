@@ -1,37 +1,49 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { notFound } from 'next/navigation';
 import { fetchPlayers, fetchOutcomeScores, VALID_DRAFT_YEARS, type Player } from '@/lib/sheets';
 import { buildSlugMap } from '@/lib/slugs';
 import PlayerCardWrapper from '@/components/PlayerCardWrapper';
 
-export const revalidate = 3600;
+// Player profile data changes rarely; live-draft freshness is handled by the
+// /api route handlers (60s), so daily revalidation is sufficient here.
+export const revalidate = 86400;
 
 interface Props {
   params: { slug: string };
 }
 
-async function fetchAllPlayers(): Promise<Player[]> {
-  const results = await Promise.all(VALID_DRAFT_YEARS.map(y => fetchPlayers(y)));
-  return results.flat();
-}
+// Cache the all-years fetch + parse + slug-map build as one unit across
+// requests, so crawlers walking ~500 player URLs don't re-run it per page.
+// Map serialized as entries (Maps don't survive the cache's JSON round-trip).
+const getCachedPlayersAndSlugs = unstable_cache(
+  async (): Promise<{ players: Player[]; slugEntries: Array<[string, string]> }> => {
+    const results = await Promise.all(VALID_DRAFT_YEARS.map(y => fetchPlayers(y)));
+    const players = results.flat();
+    return { players, slugEntries: Array.from(buildSlugMap(players).entries()) };
+  },
+  ['players-slug-map-v1'],
+  { revalidate: 3600 }
+);
 
-async function getPlayerForSlug(slug: string): Promise<Player | null> {
-  const allPlayers = await fetchAllPlayers();
-  const slugMap = buildSlugMap(allPlayers);
-  const playerById = new Map(allPlayers.map(p => [p.player_id, p]));
-  let found: Player | null = null;
-  slugMap.forEach((s, pid) => {
-    if (s === slug && found === null) {
-      found = playerById.get(pid) ?? null;
-    }
-  });
-  return found;
-}
+// React.cache dedupes within a request: generateMetadata + the page body
+// share a single execution instead of running this twice.
+const getPlayerForSlug = cache(async (slug: string): Promise<Player | null> => {
+  const { players, slugEntries } = await getCachedPlayersAndSlugs();
+  const playerById = new Map(players.map(p => [p.player_id, p]));
+  for (const [pid, s] of slugEntries) {
+    if (s === slug) return playerById.get(pid) ?? null;
+  }
+  return null;
+});
 
 export async function generateStaticParams() {
-  // Player pages render on first request via ISR (revalidate=3600).
+  // Player pages render on first request via ISR (revalidate=86400).
   // Pre-generating at build time causes timeouts: fetchOutcomeScores() (10k rows)
-  // is called per page and doesn't share cache across Vercel's parallel build workers.
+  // doesn't share cache across Vercel's parallel build workers. With the
+  // unstable_cache compute caching now in place, restoring current-year
+  // params is a future option if build time allows.
   return [];
 }
 
