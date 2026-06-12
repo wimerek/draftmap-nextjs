@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { fetchPlayers, fetchOutcomeScores } from "@/lib/sheets";
+import { fetchPlayers, fetchOutcomeScores, fetchSecondContracts, resolveVerdicts } from "@/lib/sheets";
 
 export const revalidate = 300;
 
@@ -24,12 +24,15 @@ export async function GET(request: NextRequest) {
     const isLive = searchParams.get("live") === "1";
     const skipScores = searchParams.get("scores") === "0";
 
-    const [players, outcomeScores] = await Promise.all([
+    // Verdicts are always fetched (cheap, slug-keyed) — the resolved jellyfish
+    // (beat 3) needs verdict_share even on the scores=0 fast path.
+    const [players, outcomeScores, verdictMap] = await Promise.all([
       fetchPlayers(year),
       skipScores ? Promise.resolve(new Map()) : fetchOutcomeScores(),
+      fetchSecondContracts(),
     ]);
 
-    // Attach outcome scores, step scores, and season data (null when no data for this player)
+    // Attach outcome scores, step scores, season data, and usage (null when no data)
     const scored = players.map(p => {
       const od = outcomeScores.get(p.player_id);
       return {
@@ -37,11 +40,15 @@ export async function GET(request: NextRequest) {
         outcomeScore: od?.arcScore   ?? null,
         stepScores:   od?.stepScores ?? null,
         seasonData:   od?.seasonData ?? null,
+        usage:        od?.usage      ?? null,
       };
     });
 
+    // Join second-contract verdicts; collect resolved-class join failures.
+    const { players: withVerdicts, unmatched } = resolveVerdicts(scored, verdictMap);
+
     // Sort: by round, then by rank within round (rank=0 treated as 9999)
-    const sorted = [...scored].sort((a, b) => {
+    const sorted = [...withVerdicts].sort((a, b) => {
       const rdA = a.rd ?? 99;
       const rdB = b.rd ?? 99;
       if (rdA !== rdB) return rdA - rdB;

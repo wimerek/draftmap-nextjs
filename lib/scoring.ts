@@ -425,6 +425,15 @@ export function computePercentile(value: number, cohortValues: number[]): number
 }
 
 /**
+ * Percentile (0–100) of `value` within `pool`. Semantic alias for
+ * computePercentile, named for the Act 3 career-usage pool pass in lib/sheets.ts
+ * (verdict brief b). Pure — caller assembles the pool; this only ranks.
+ */
+export function percentileWithinPool(value: number, pool: number[]): number {
+  return computePercentile(value, pool)
+}
+
+/**
  * Average non-null values from a year-by-year snap percentage array.
  * Returns null if the array contains no usable data points.
  */

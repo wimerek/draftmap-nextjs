@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
-import { TEAM_COLORS } from "@/lib/chartConstants";
+import { TEAM_COLORS, resolveTeamColors } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import {
   computeChartLayout,
   computeAllDotPositions,
+  computeJellyfishLayout,
   scoreToProductionY,
   stSnapPctToGlobalPercentile,
   type ChartLayout,
@@ -17,6 +18,10 @@ import {
   type PickValueEntry,
 } from "@/lib/chartMath";
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
+import { getVerdictMaturity } from "@/lib/verdict";
+import { usageTierLabel } from "@/lib/act3Constants";
+import { fmtHeight } from "@/lib/utils";
+import JellyfishField from "@/components/chart/JellyfishField";
 import PlayerCard from "@/components/PlayerCard";
 import TierBands from "@/components/chart/TierBands";
 import TierArrows from "@/components/chart/TierArrows";
@@ -102,6 +107,125 @@ function ChartTooltip({ player, x, y }: TooltipState) {
   );
 }
 
+// ── Act 3 resolved hover card (verdict brief b, Part 8) ─────────────────────────
+
+function fmtMoney(n: number | null): string {
+  if (n == null) return "—";
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
+  return `$${Math.round(n)}`;
+}
+
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  const s = ["th", "st", "nd", "rd"];
+  return `${n}${s[n % 10] ?? "th"}`;
+}
+
+/** Tier hero + raw-deal line. Block label is "THE SECOND CONTRACT", never "verdict". */
+function verdictBlock2(
+  v: NonNullable<Player["verdict"]>,
+  noneCount: number,
+): { hero: string; gold: boolean; sub: string | null; deal: string | null } {
+  const gtd = fmtMoney(v.gtdDollars);
+  switch (v.tier) {
+    case "PREMIUM":
+      return { hero: "TOP-OF-MARKET GUARANTEES", gold: true, sub: null,
+        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
+    case "SOLID":
+      return { hero: "MULTI-YEAR GUARANTEES", gold: false, sub: null,
+        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
+    case "BRIDGE": {
+      let deal: string;
+      if (v.tagOption === "5th_year_option") deal = `5th-year option exercised · ${v.signingTeam ?? "—"}`;
+      else if (v.tagOption === "franchise_tag") deal = "franchise tag"; // forward-compat (unused today)
+      else deal = `1 yr · ${gtd} guaranteed`;
+      return { hero: "ONE YEAR, TOP RATE", gold: false, sub: null, deal };
+    }
+    case "PROVE_IT":
+      return { hero: "LITTLE TO NO GUARANTEES", gold: false, sub: null,
+        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
+    case "NONE":
+    default:
+      return { hero: "NO NEW CONTRACT", gold: false,
+        sub: `never signed again · one of ${noneCount}`, deal: null };
+  }
+}
+
+function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCount: number }) {
+  const v = player.verdict;
+  const strip = resolveTeamColors(player.team_drafted).primary;
+  const ivory = "#F5F0E8";
+
+  const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
+  const pickStr = player.pick_drafted ? `Pick ${player.pick_drafted}` : "UDFA";
+  const identity = [player.pos, player.team_drafted ?? "—", pickStr, hw]
+    .filter(Boolean)
+    .join(" · ");
+
+  const b2 = v ? verdictBlock2(v, noneCount) : null;
+
+  // Block 3 — usage
+  const usage = player.usage;
+  let block3: ReactNode = <span style={{ color: "rgba(245,240,232,0.5)" }}>—</span>;
+  if (usage) {
+    if (usage.qualified && usage.careerUsagePercentile != null) {
+      const tier = usageTierLabel(usage.careerUsagePercentile) ?? "—";
+      block3 = (
+        <>
+          <strong style={{ color: ivory }}>{tier}</strong>
+          <span style={{ color: "rgba(245,240,232,0.7)" }}>
+            {" "}· {ordinal(usage.careerUsagePercentile)} pct usage
+          </span>
+        </>
+      );
+    } else {
+      // Unqualified — raw snap share + games, NEVER a fabricated rank.
+      const sharePct = usage.careerUsage != null ? `${Math.round(usage.careerUsage * 100)}% snaps` : "—";
+      block3 = (
+        <span style={{ color: "rgba(245,240,232,0.7)" }}>
+          {sharePct}{usage.games != null ? ` · ${usage.games} g` : ""} — too few snaps to rank
+        </span>
+      );
+    }
+  }
+
+  return (
+    <div className="dm-tooltip" style={{ left: x, top: y, width: 250, background: "#0B2239", padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 4, background: strip }} />
+      <div style={{ padding: "10px 12px" }}>
+        {/* Block 1 — identity */}
+        <div style={{ fontWeight: 700, color: "#F5F0E8", fontSize: 13 }}>{player.name}</div>
+        <div style={{ color: "rgba(245,240,232,0.65)", fontSize: 11, marginTop: 2 }}>{identity}</div>
+
+        {/* Block 2 — the second contract */}
+        {b2 && (
+          <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+            <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>THE SECOND CONTRACT</div>
+            <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: b2.gold ? "#D4A017" : "#F5F0E8" }}>
+              {b2.hero}
+            </div>
+            {b2.sub && <div style={{ fontSize: 11, color: "rgba(245,240,232,0.7)", marginTop: 1 }}>{b2.sub}</div>}
+            {b2.deal && <div style={{ fontSize: 11, color: "rgba(245,240,232,0.7)", marginTop: 1 }}>{b2.deal}</div>}
+          </div>
+        )}
+
+        {/* Block 3 — on the field */}
+        <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+          <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>ON THE FIELD</div>
+          <div style={{ fontSize: 11, marginTop: 2 }}>{block3}</div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
+          › Click dot for full Player Card
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Chart borders ─────────────────────────────────────────────────────────────
 
 function ChartBorders({ layout }: { layout: ChartLayout }) {
@@ -175,7 +299,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [currentStepId, setCurrentStepId] = useState<string>(() =>
     searchParams.get('step') ?? initialStepId ?? 'projection'
   );
-  const [isPlaying, setIsPlaying] = useState(false);
+  // isPlaying retained as a no-op latch (several handlers still clear it); the
+  // auto-play button was removed with the multi-step bar (journey bar v3 navigates).
+  const [, setIsPlaying] = useState(false);
 
   // Sync selectedYear when the URL year prop changes (e.g. back-button).
   // Skip the first run so a seeded initialStepId (e.g. "draft" on twin position
@@ -197,7 +323,14 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     () => journeySteps.find(s => s.id === currentStepId) ?? journeySteps[0],
     [journeySteps, currentStepId],
   );
-  const chartMode: ChartMode = currentStep?.mode ?? 'projection';
+
+  // Verdict ('4 YEARS LATER' for a RESOLVED class) is a synthetic step id not in
+  // getJourneySteps — its mode is derived here so the rest of the step machinery
+  // (which finds nothing for 'verdict') falls through harmlessly to projection.
+  const isResolvedClass = getVerdictMaturity(selectedYear) === 'resolved';
+  const chartMode: ChartMode = currentStepId === 'verdict'
+    ? 'verdict'
+    : (currentStep?.mode ?? 'projection');
 
   // Derived viewMode for backward compat with existing chart/sidebar
   const legacyViewMode: ViewMode = chartMode === 'projection' ? 'projected' : 'drafted';
@@ -225,29 +358,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       if (yAxisTimerRef.current) clearTimeout(yAxisTimerRef.current);
     };
   }, [currentStepId, journeySteps]);
-
-  // ── Play button auto-advance ──────────────────────────────────────────────
-  // Use a ref so the interval closure stays stable (only depends on isPlaying).
-  // The ref is updated every render so it always sees current state without
-  // the interval needing to be torn down and recreated on every step change.
-  // isAnimating guard prevents advancing mid-animation (dot transition can take
-  // several seconds — don't skip to the next step while dots are still moving).
-  const advanceStepRef = useRef<(() => void) | null>(null);
-  advanceStepRef.current = () => {
-    if (isAnimating) return;
-    const currentIdx = journeySteps.findIndex(s => s.id === currentStepId);
-    if (currentIdx === journeySteps.length - 1) {
-      setIsPlaying(false);
-      return;
-    }
-    animateToStep(journeySteps[currentIdx + 1].id);
-  };
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    const interval = setInterval(() => advanceStepRef.current?.(), 1500);
-    return () => clearInterval(interval);
-  }, [isPlaying]);
 
   // ── Data ─────────────────────────────────────────────────────────────────
   const [players,   setPlayers]   = useState<Player[]>([]);
@@ -398,6 +508,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const dotPositions = useMemo<DotPosition[]>(
     () => computeAllDotPositions(players, layout, pickValueCurve),
     [players, layout, pickValueCurve],
+  );
+
+  // Resolved jellyfish layout — only built when beat 3 of a resolved class is active.
+  const jellyfishLayout = useMemo(
+    () => (chartMode === 'verdict' ? computeJellyfishLayout(players) : null),
+    [chartMode, players],
   );
 
   // Per-dot production Y positions and opacities for the current journey step.
@@ -863,18 +979,26 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     animateToStep(stepId);
   }, [animateToStep]);
 
-  const handlePlayToggle = useCallback(() => {
-    setIsPlaying(p => {
-      if (!p) {
-        // If at last step, reset to start before playing
-        const steps = getJourneySteps(selectedYear);
-        if (currentStepId === steps[steps.length - 1]?.id) {
-          setCurrentStepId('projection');
-        }
-      }
-      return !p;
-    });
-  }, [selectedYear, currentStepId]);
+  // ── Journey Bar v3: three beats → step ids ────────────────────────────────
+  // Beat 1 THE BOARD → projection · Beat 2 DRAFT DAY → draft ·
+  // Beat 3 "4 YEARS LATER" → verdict (resolved class) or career (pending class).
+  const activeBeat: 1 | 2 | 3 =
+    chartMode === 'projection'    ? 1 :
+    chartMode === 'draft-results' ? 2 :
+    3; // player-production / career / verdict
+
+  const handleSelectBeat = useCallback((beat: 1 | 2 | 3) => {
+    setIsPlaying(false);
+    if (beat === 1) { animateToStep('projection'); return; }
+    if (beat === 2) { animateToStep('draft'); return; }
+    // Beat 3 — resolved class shows the jellyfish (instant); pending keeps the
+    // existing career view (deployability rule: old classes untouched until brief c).
+    if (getVerdictMaturity(selectedYear) === 'resolved') {
+      setCurrentStepId('verdict');
+    } else {
+      animateToStep('career');
+    }
+  }, [animateToStep, selectedYear]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -978,7 +1102,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       <Sidebar {...sidebarProps} />
 
       {/* ── Mobile top bar ── */}
-      {isMobile && !loading && !error && (
+      {isMobile && !loading && !error && chartMode !== 'verdict' && (
         <MobileTopBar
           posLabel={visiblePositions[mobilePosIdx] ?? ""}
           posIdx={mobilePosIdx}
@@ -999,11 +1123,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
         <HeaderZone
           selectedYear={selectedYear}
           onYearChange={handleYearChange}
-          currentStepId={currentStepId}
-          onStepChange={handleStepChange}
           availableYears={[...VALID_DRAFT_YEARS]}
-          isPlaying={isPlaying}
-          onPlayToggle={handlePlayToggle}
+          activeBeat={activeBeat}
+          onSelectBeat={handleSelectBeat}
         />
 
         {loading && null}
@@ -1021,6 +1143,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onTouchEnd={onTouchEnd}
             onClick={isMobile && mobileView === "overview" ? handleMobileChartTap : undefined}
           >
+            {chartMode === 'verdict' && jellyfishLayout ? (
+              <JellyfishField
+                layout={jellyfishLayout}
+                isMobile={isMobile}
+                onDotClick={handleDotClick}
+                onDotHover={handleDotHover}
+                onDotLeave={handleDotLeave}
+              />
+            ) : (
             <svg
               width={isMobile ? "100%" : layout.svgW}
               height={isMobile ? undefined : layout.svgH}
@@ -1113,12 +1244,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               )}
               <ChartBorders layout={layout} />
             </svg>
+            )}
           </div>
         )}
       </main>
 
       {/* ── Mobile pagination dots ── */}
-      {isMobile && !loading && !error && (
+      {isMobile && !loading && !error && chartMode !== 'verdict' && (
         <div className="mb-pagination" aria-hidden="true">
           {visiblePositions.map((pos, i) => (
             <div
@@ -1142,7 +1274,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       />
 
       {/* ── Desktop floating tooltip ── */}
-      {!isMobile && tooltip && <ChartTooltip {...tooltip} />}
+      {!isMobile && tooltip && (
+        chartMode === 'verdict'
+          ? <VerdictHoverCard {...tooltip} noneCount={jellyfishLayout?.noneCount ?? 0} />
+          : <ChartTooltip {...tooltip} />
+      )}
 
       {/* ── "How to Read" modal ── */}
       <HowToReadModal open={htrOpen} onClose={() => setHtrOpen(false)} />

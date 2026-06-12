@@ -11,7 +11,7 @@
 
 export type DataTier = 'full' | 'partial' | 'pending'
 
-export type ChartMode = 'projection' | 'draft-results' | 'player-production' | 'career'
+export type ChartMode = 'projection' | 'draft-results' | 'player-production' | 'career' | 'verdict'
 
 export interface ClassDataAvailability {
   year: number

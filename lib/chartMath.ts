@@ -17,6 +17,12 @@
 
 import type { Player } from './sheets';
 import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, ROUND_EXPECTED_PCT, TIER_DEFS } from './chartConstants';
+import type { ContractTier, Verdict } from './verdict';
+import {
+  PAID_REGION_BOTTOM, PROVE_IT_STRIP_Y, NONE_STRIP_Y, STRIP_JITTER_PX,
+  WALL_TIER_ORDER, WALL_NODE_W, WALL_GAP, WALL_MIN_NODE_H, WALL_RIGHT_PAD,
+  TIER_THREAD_COLOR,
+} from './act3Constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -650,4 +656,255 @@ export function computeAllDotPositions(
   });
 
   return result;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ACT 3 — RESOLVED JELLYFISH FIELD (verdict brief b)
+//  Pure layout only: capital-X, √(verdict_share) Y, floor strips, tier wall,
+//  combed threads. No SVG, no population/percentile data (that's lib/sheets.ts).
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Median of a numeric list (null when empty). */
+function median(nums: number[]): number | null {
+  if (nums.length === 0) return null;
+  const s = [...nums].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** sqrt(verdict_share) → Y fraction within the PAID region [0 (top) .. PAID_REGION_BOTTOM]. */
+function paidShareToYFraction(share: number): number {
+  const clamped = Math.max(0, Math.min(1, share));
+  return (1 - Math.sqrt(clamped)) * PAID_REGION_BOTTOM;
+}
+
+/** Class-local context the Y strategy needs (e.g. per-tier median share for ST null-share imputation). */
+export interface JellyfishYContext {
+  /** Median verdict_share within the rendered class, per paid tier. */
+  tierMedianShare: Partial<Record<ContractTier, number>>;
+}
+
+/**
+ * Y-fraction strategy: verdict → [0 (top) .. 1 (bottom)] of the plotting band.
+ * SWAPPABLE — brief c plugs in a usage-percentile strategy without rewriting the
+ * field. The resolved strategy below is the verdict-share √ scale + floor strips.
+ */
+export type JellyfishYStrategy = (verdict: Verdict, ctx: JellyfishYContext) => number;
+
+export const resolvedShareYStrategy: JellyfishYStrategy = (v, ctx) => {
+  if (v.tier === 'NONE')     return NONE_STRIP_Y;     // lowest floor strip
+  if (v.tier === 'PROVE_IT') return PROVE_IT_STRIP_Y; // floor strip above NONE
+  // Paid tier (BRIDGE/SOLID/PREMIUM): continuous √-share region.
+  // ST specialists carry a null share (no market line) → impute the tier's
+  // class-local median share as a PLOTTING coordinate only (membership exact,
+  // position approximate). Never rendered as a share number.
+  const share = v.verdictShare ?? ctx.tierMedianShare[v.tier] ?? 0;
+  return paidShareToYFraction(share);
+};
+
+export interface JellyfishDot {
+  player: Player;
+  /** Null for a join-failure "data-gap" dot (drafted resolved-class player, no row). */
+  verdict: Verdict | null;
+  tier: ContractTier | null;
+  x: number;
+  y: number;
+  isDataGap: boolean;
+  isUDFA: boolean;
+  /** Bezier path dot→wall node, slot-combed within its tier. Null for data-gap dots. */
+  threadPath: string | null;
+  threadColor: string;
+}
+
+export interface JellyfishWallNode {
+  tier: ContractTier;
+  x: number;        // left edge
+  y: number;        // top
+  h: number;
+  cy: number;       // vertical center (used for label placement)
+  count: number;
+  pct: number;      // share of the field universe (verdict dots)
+  color: string;
+  label: string;
+}
+
+export interface JellyfishLayout {
+  svgW: number;
+  svgH: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+  bandTop: number;
+  bandH: number;
+  maxPick: number;
+  /** Left edge of the tier wall (thread target X). */
+  wallX: number;
+  wallNodeW: number;
+  dots: JellyfishDot[];
+  wallNodes: JellyfishWallNode[];
+  /** N — size of the field universe (verdict dots; excludes data-gap). */
+  fieldCount: number;
+  /** Count of explicit NONE verdicts in the class (hover denominator). */
+  noneCount: number;
+  /** Count of muted data-gap (join-failure) dots rendered. */
+  dataGapCount: number;
+  /** Y-fraction strips, exposed so the field can label/separate floor regions. */
+  proveItStripY: number;
+  noneStripY: number;
+}
+
+const JELLYFISH_SVG_W = 1600;
+const JELLYFISH_SVG_H = 960;
+
+/**
+ * Build the resolved jellyfish layout for one resolved draft class.
+ *
+ * Universe (ONE definition, per a2): verdict dots (contract-row players ≡
+ * "played a snap") plus drafted-no-verdict data-gap dots (join failures). An
+ * undrafted player with no row never snapped and is excluded.
+ *
+ * @param players  the full resolved-class player list, each with `.verdict` joined
+ * @param yStrategy swappable Y mapping (default: verdict-share √ + floor strips)
+ */
+export function computeJellyfishLayout(
+  players: Player[],
+  yStrategy: JellyfishYStrategy = resolvedShareYStrategy,
+): JellyfishLayout {
+  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  const svgW = JELLYFISH_SVG_W;
+  const svgH = JELLYFISH_SVG_H;
+  const bandTop = margin.top;
+  const bandH = svgH - margin.top - margin.bottom;
+
+  // Field universe: verdict dots + drafted-no-verdict data-gaps.
+  const dotsInput = players.filter(p => p.verdict !== null || p.drafted);
+  const verdictPlayers = dotsInput.filter(p => p.verdict !== null);
+
+  // X domain — class's actual max pick (do NOT hardcode 256; 2021 ran to 259).
+  const picks = dotsInput
+    .map(p => p.pick_drafted)
+    .filter((x): x is number => x != null && x > 0);
+  const maxPick = picks.length ? Math.max(...picks) : 256;
+
+  // L→R: pick scale · UDFA gutter · tier wall (far right margin).
+  const wallX     = svgW - margin.right;
+  const gutterX   = wallX - 42;            // UDFA dots column
+  const pickLeft  = margin.left;
+  const pickRight = gutterX - 34;          // right edge of the pick scale
+  const xScale = (pick: number): number =>
+    maxPick <= 1
+      ? pickLeft
+      : pickLeft + ((pick - 1) / (maxPick - 1)) * (pickRight - pickLeft);
+
+  // Class-local per-tier median share (for ST null-share imputation).
+  const tierMedianShare: Partial<Record<ContractTier, number>> = {};
+  (['BRIDGE', 'SOLID', 'PREMIUM'] as ContractTier[]).forEach(tier => {
+    const shares = verdictPlayers
+      .filter(p => p.verdict!.tier === tier && p.verdict!.verdictShare != null)
+      .map(p => p.verdict!.verdictShare as number);
+    const med = median(shares);
+    if (med !== null) tierMedianShare[tier] = med;
+  });
+  const yCtx: JellyfishYContext = { tierMedianShare };
+
+  // ── Wall nodes ─────────────────────────────────────────────────────────────
+  const tierCounts = new Map<ContractTier, number>();
+  for (const p of verdictPlayers) {
+    const t = p.verdict!.tier;
+    tierCounts.set(t, (tierCounts.get(t) ?? 0) + 1);
+  }
+  const fieldCount = verdictPlayers.length;
+
+  const usableH = bandH - (WALL_TIER_ORDER.length - 1) * WALL_GAP;
+  const wallNodes: JellyfishWallNode[] = [];
+  let cursorY = bandTop;
+  for (const tier of WALL_TIER_ORDER) {
+    const count = tierCounts.get(tier) ?? 0;
+    const h = Math.max(WALL_MIN_NODE_H, fieldCount > 0 ? (count / fieldCount) * usableH : 0);
+    wallNodes.push({
+      tier,
+      x: wallX,
+      y: cursorY,
+      h,
+      cy: cursorY + h / 2,
+      count,
+      pct: fieldCount > 0 ? Math.round((count / fieldCount) * 100) : 0,
+      color: TIER_THREAD_COLOR[tier],
+      label: tier.replace('_', ' '),
+    });
+    cursorY += h + WALL_GAP;
+  }
+  const wallNodeByTier = new Map(wallNodes.map(n => [n.tier, n]));
+
+  // ── Dots (positions + tier; threads filled after slot-combing) ──────────────
+  const building: JellyfishDot[] = [];
+
+  for (const p of dotsInput) {
+    const v = p.verdict;
+    const isUDFA = p.pick_drafted == null || p.pick_drafted <= 0;
+    const x = isUDFA ? gutterX : xScale(p.pick_drafted as number);
+    // Deterministic per-dot jitter seed (stable across renders).
+    const seed = (hashStr(p.player_id) % 1000) / 1000 - 0.5; // [-0.5, 0.5)
+
+    if (v === null) {
+      // Data-gap (join failure): muted, mid-band, no thread, no tier.
+      const y = bandTop + 0.5 * bandH + seed * STRIP_JITTER_PX * 2;
+      building.push({
+        player: p, verdict: null, tier: null, x, y,
+        isDataGap: true, isUDFA, threadPath: null, threadColor: '',
+      });
+      continue;
+    }
+
+    let yFrac = yStrategy(v, yCtx);
+    // Floor strips and ST null-share rows are co-linear — add a small deterministic
+    // jitter so the flat row doesn't read as an artifact (X = capital still separates).
+    const isFloor = v.tier === 'NONE' || v.tier === 'PROVE_IT';
+    const isImputed = (v.tier === 'BRIDGE' || v.tier === 'SOLID' || v.tier === 'PREMIUM') && v.verdictShare == null;
+    if (isFloor || isImputed) {
+      yFrac += (seed * STRIP_JITTER_PX) / bandH;
+    }
+    building.push({
+      player: p, verdict: v, tier: v.tier, x, y: bandTop + yFrac * bandH,
+      isDataGap: false, isUDFA, threadPath: null,
+      threadColor: TIER_THREAD_COLOR[v.tier],
+    });
+  }
+
+  // ── Threads — slot-comb within each tier, sorted by field-Y ──────────────────
+  const byTier = new Map<ContractTier, JellyfishDot[]>();
+  for (const d of building) {
+    if (d.verdict === null) continue;
+    const list = byTier.get(d.verdict.tier) ?? [];
+    list.push(d);
+    byTier.set(d.verdict.tier, list);
+  }
+  byTier.forEach((list, tier) => {
+    const node = wallNodeByTier.get(tier);
+    if (!node) return;
+    const sorted = [...list].sort((a, b) => a.y - b.y);
+    sorted.forEach((d, i) => {
+      const targetY = node.y + ((i + 0.5) / sorted.length) * node.h;
+      d.threadPath = jellyfishThreadPath(d.x, d.y, node.x, targetY);
+    });
+  });
+
+  const dots: JellyfishDot[] = building;
+
+  return {
+    svgW, svgH, margin, bandTop, bandH, maxPick,
+    wallX, wallNodeW: WALL_NODE_W,
+    dots, wallNodes,
+    fieldCount,
+    noneCount: tierCounts.get('NONE') ?? 0,
+    dataGapCount: building.filter(d => d.isDataGap).length,
+    proveItStripY: bandTop + PROVE_IT_STRIP_Y * bandH,
+    noneStripY: bandTop + NONE_STRIP_Y * bandH,
+  };
+}
+
+/** Horizontal S-curve bezier from a dot to its wall node. */
+function jellyfishThreadPath(x0: number, y0: number, x1: number, y1: number): string {
+  const dx = x1 - x0;
+  const cx1 = x0 + dx * 0.42;
+  const cx2 = x0 + dx * 0.72;
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} C ${cx1.toFixed(1)} ${y0.toFixed(1)}, ${cx2.toFixed(1)} ${y1.toFixed(1)}, ${x1.toFixed(1)} ${y1.toFixed(1)}`;
 }

@@ -45,6 +45,8 @@ function makePlayer(overrides: Partial<Player>): Player {
     stepScores:       null,
     seasonData:       overrides.seasonData ?? null,
     fun_fact_override: overrides.fun_fact_override ?? null,
+    verdict:          overrides.verdict ?? null,
+    usage:            overrides.usage ?? null,
   };
 }
 

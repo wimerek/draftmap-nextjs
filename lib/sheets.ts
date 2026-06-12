@@ -10,8 +10,10 @@
  * Set SHEETS_SPREADSHEET_ID in .env.local and Vercel environment variables.
  */
 
-import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution } from './scoring'
+import { unstable_cache } from 'next/cache'
+import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution, percentileWithinPool } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
+import { Verdict, getVerdictMaturity } from './verdict'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,6 +110,40 @@ export interface Player {
 
   /** Per-season display rows for the stat grid. Null for classes without data. */
   seasonData: DisplaySeasonRow[] | null;
+
+  /**
+   * Second-contract verdict (Act 3 resolved field). Authoritative when present.
+   * Null = pending class (not yet resolved) OR — for a RESOLVED class — a slug
+   * join failure (a2 guarantees explicit NONE rows, so absence is never a NONE).
+   * The resolved jellyfish renders a null-verdict dot in a muted "data-gap" state.
+   */
+  verdict: Verdict | null;
+
+  /** Career-usage profile (Act 3 hover Block 3). Null for players with no seasons data. */
+  usage: UsageProfile | null;
+}
+
+/**
+ * Per-player career-usage summary, derived from player_seasons at fetch time.
+ *
+ * Note on row semantics: `career_usage` is a career-level value (constant across
+ * a player's season rows), but `played_position` and `usage_qualified` are
+ * per-SEASON. Player-level values are aggregated here:
+ *   - careerUsage     = the constant career_usage value
+ *   - playedPosition  = the modal non-empty per-season played_position
+ *   - qualified       = true if ANY season row is usage_qualified (reuses the
+ *                       precomputed MIN_GAMES_QUALIFY=6 flag without re-deriving it)
+ *   - careerUsagePercentile = percentile of careerUsage within the player's
+ *                       played_position QUALIFIED pool; null when unqualified,
+ *                       no played_position, or no careerUsage.
+ */
+export interface UsageProfile {
+  careerUsage: number | null;
+  playedPosition: string | null;
+  qualified: boolean;
+  careerUsagePercentile: number | null;
+  /** Total games played across all seasons — for the unqualified hover register. */
+  games: number | null;
 }
 
 // ── Year constants ─────────────────────────────────────────────────────────────
@@ -240,6 +276,8 @@ function mapRow(row: SheetsRawRow): Player {
     outcomeScore: null,
     stepScores:   null,
     seasonData:   null,
+    verdict:      null,
+    usage:        null,
   };
 }
 
@@ -413,6 +451,8 @@ export interface PlayerOutcomeData {
   arcScore:   number | null;
   stepScores: StepScore[];
   seasonData: DisplaySeasonRow[];
+  /** Career-usage profile (Act 3 hover). Pool-derived at fetch time. */
+  usage:      UsageProfile | null;
 }
 
 function buildSeasonData(
@@ -521,21 +561,26 @@ function buildSeasonData(
  *
  * Returns an empty Map on any fetch or parse failure so the API degrades
  * gracefully (dots render grey rather than erroring).
+ *
+ * The expensive work (CSV parse + ARC percentile scoring) is wrapped in
+ * unstable_cache so it runs at most once per revalidation window per server
+ * instance — NOT on every page render. The cached payload is an array of
+ * entries (Maps don't JSON-serialize); fetchOutcomeScores() rehydrates the Map.
+ * Failures throw inside the cached fn so an empty result is never cached.
  */
-export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeData>> {
+async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcomeData]>> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) return new Map();
+  if (!spreadsheetId) return [];
 
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=player_seasons`;
 
-  try {
     // player_seasons is historical data — revalidate once per day, not every 5 min.
     // This is the largest payload (9k+ rows) and the primary cause of slow cold loads.
     const [res, teamRecordsMap] = await Promise.all([
       fetch(url, { next: { revalidate: 86400 } }),
       fetchTeamRecords(),
     ])
-    if (!res.ok) return new Map();
+    if (!res.ok) throw new Error(`player_seasons fetch failed: ${res.status}`);
 
     const csv  = await res.text();
     const rows = parseCSV(csv) as unknown as Record<string, string>[];
@@ -623,6 +668,65 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
     };
     // ── End snap percentile lookup ────────────────────────────────────────────
 
+    // ── Career-usage profile + percentile pool (Act 3 verdict brief b) ────────
+    // Mirrors the cross-population snap-percentile pass above, but over the
+    // CAREER-level career_usage values. Per-player aggregation (see UsageProfile):
+    //   careerUsage    = constant career_usage (career-level; same on every row)
+    //   playedPosition = modal non-empty per-season played_position
+    //   qualified      = ANY season usage_qualified === TRUE  (consumes the
+    //                    precomputed MIN_GAMES_QUALIFY=6 flag — threshold NOT
+    //                    re-derived here; that constant is brief c's)
+    //   games          = total games_played
+    // The reference pool is QUALIFIED-only (Baseball Savant / PFR / PFF
+    // convention — an unqualified cameo never enters the distribution).
+    interface UsageAgg { careerUsage: number | null; playedPosition: string | null; qualified: boolean; games: number; }
+    const usageAgg = new Map<string, UsageAgg>();
+    rawByPlayer.forEach((rowList, pid) => {
+      let careerUsage: number | null = null;
+      let qualified = false;
+      let games = 0;
+      const posCounts = new Map<string, number>();
+      for (const row of rowList) {
+        const cu = toFloat(row.career_usage);
+        if (cu !== null) careerUsage = cu;
+        if ((row.usage_qualified ?? '').trim().toUpperCase() === 'TRUE') qualified = true;
+        const pp = (row.played_position ?? '').trim();
+        if (pp) posCounts.set(pp, (posCounts.get(pp) ?? 0) + 1);
+        games += toInt(row.games_played) ?? 0;
+      }
+      let playedPosition: string | null = null;
+      let bestCount = 0;
+      posCounts.forEach((c, pos) => {
+        if (c > bestCount) { bestCount = c; playedPosition = pos; }
+      });
+      usageAgg.set(pid, { careerUsage, playedPosition, qualified, games });
+    });
+
+    // Reference pool: qualified players' careerUsage, keyed by played_position.
+    const usagePoolByPos = new Map<string, number[]>();
+    usageAgg.forEach(({ careerUsage, playedPosition, qualified }) => {
+      if (!qualified || playedPosition === null || careerUsage === null) return;
+      const list = usagePoolByPos.get(playedPosition) ?? [];
+      list.push(careerUsage);
+      usagePoolByPos.set(playedPosition, list);
+    });
+
+    const usageByPlayer = new Map<string, UsageProfile>();
+    usageAgg.forEach(({ careerUsage, playedPosition, qualified, games }, pid) => {
+      let careerUsagePercentile: number | null = null;
+      if (qualified && playedPosition !== null && careerUsage !== null) {
+        careerUsagePercentile = percentileWithinPool(careerUsage, usagePoolByPos.get(playedPosition) ?? []);
+      }
+      usageByPlayer.set(pid, {
+        careerUsage,
+        playedPosition,
+        qualified,
+        careerUsagePercentile,
+        games: games > 0 ? games : null,
+      });
+    });
+    // ── End career-usage pool ─────────────────────────────────────────────────
+
     const scored = normalizeScoreDistribution(scoreAllFromSeasons(allSeasons, awards));
 
     const result = new Map<string, PlayerOutcomeData>();
@@ -681,10 +785,114 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
         arcScore:   careerSnapPct,
         stepScores: snapStepScores,
         seasonData: buildSeasonData(rawRows, outcome, teamRecordsMap),
+        usage:      usageByPlayer.get(playerId) ?? null,
       });
     });
-    return result;
+    return Array.from(result.entries());
+}
+
+const getCachedOutcomeScoreEntries = unstable_cache(
+  computeOutcomeScoreEntries,
+  ['outcome-scores-v1'],
+  { revalidate: 86400 }
+);
+
+export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeData>> {
+  try {
+    return new Map(await getCachedOutcomeScoreEntries());
   } catch {
     return new Map();
   }
+}
+
+// ── Second-contract verdicts ────────────────────────────────────────────────
+
+/**
+ * Fetch the `second_contracts` tab and key it by player_id slug.
+ *
+ * Mirrors fetchOutcomeScores: env guard, ISR, graceful empty-Map on failure.
+ * One row per resolved-or-already-signed player. Explicit NONE rows exist for
+ * resolved classes (2018–2021); 2022 is partial. `verdict_share` is precomputed
+ * (a2) and may be null (NONE rows; positions with no market line).
+ */
+export async function fetchSecondContracts(): Promise<Map<string, Verdict>> {
+  const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) return new Map();
+
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=second_contracts`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 300 } });
+    if (!res.ok) return new Map();
+    const csv  = await res.text();
+    const rows = parseCSV(csv) as unknown as Record<string, string>[];
+
+    const map = new Map<string, Verdict>();
+    for (const row of rows) {
+      const playerId = toStr(row.player_id);
+      const tier     = toStr(row.contract_tier);
+      if (!playerId || !tier) continue;
+      map.set(playerId, {
+        playerId,
+        tier: tier as Verdict['tier'],
+        contractYears: toInt(row.contract_years),
+        gtdDollars:    toFloat(row.gtd_dollars),
+        gtdPctOfCap:   toFloat(row.gtd_pct_of_cap),
+        apy:           toFloat(row.apy),
+        signingTeam:   toStr(row.signing_team),
+        signingYear:   toInt(row.signing_year),
+        tagOption:     (row.tag_option ?? '').trim(),
+        verdictShare:  toFloat(row.verdict_share),
+        notes:         toStr(row.notes),
+      });
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+/** Result of joining verdicts onto a class's players. */
+export interface VerdictJoinResult {
+  players: Player[];
+  /**
+   * player_ids of RESOLVED-class players with no second_contracts row — a slug
+   * join failure (a2 guarantees explicit NONE rows, so absence is never a NONE).
+   * Empty for healthy data. Exposed for the scoreboard "⚠ N unmatched" line (brief d).
+   */
+  unmatched: string[];
+}
+
+/**
+ * Attach verdicts to players by slug and surface join failures.
+ *
+ *   row present                          → verdict authoritative (incl. explicit NONE)
+ *   row absent  & class pending          → verdict stays null (belongs to pending view)
+ *   row absent  & class resolved         → JOIN FAILURE: verdict null + unmatched id
+ *
+ * The resolved jellyfish renders null-verdict dots in a muted "data-gap" state
+ * (layer 1); this returns the unmatched ids (layer 2) and console.warns them
+ * (layer 3). Absence must NEVER silently mean NONE.
+ */
+export function resolveVerdicts(players: Player[], verdictMap: Map<string, Verdict>): VerdictJoinResult {
+  const unmatched: string[] = [];
+  const joined = players.map(p => {
+    const v = verdictMap.get(p.player_id) ?? null;
+    // Only DRAFTED resolved-class players are unconditionally in a2's universe
+    // ("drafted-unconditional + UDFAs with ≥1 snap"), so a missing row there is a
+    // real slug failure. An undrafted player with no row simply never snapped —
+    // he is absent from the field, not a join failure.
+    if (!v && p.drafted && getVerdictMaturity(p.draft_year) === 'resolved') {
+      unmatched.push(p.player_id);
+    }
+    return { ...p, verdict: v };
+  });
+
+  if (unmatched.length > 0) {
+    console.warn(
+      `[verdict] ${unmatched.length} resolved-class player(s) had no second_contracts row (slug mismatch — NOT a NONE): ${unmatched.join(', ')}`
+    );
+  }
+
+  return { players: joined, unmatched };
 }
