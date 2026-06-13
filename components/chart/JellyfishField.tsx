@@ -16,13 +16,17 @@
  */
 
 import type { Player } from "@/lib/sheets";
-import type { JellyfishLayout } from "@/lib/chartMath";
+import type { JellyfishLayout, PendingZone } from "@/lib/chartMath";
 import { resolveTeamColors } from "@/lib/chartConstants";
 import {
   DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
   DATA_GAP_FILL, DATA_GAP_STROKE, WALL_TIER_ORDER, TIER_THREAD_COLOR,
   WALL_LABEL_DX,
+  COULDNT_STICK_FILL, COULDNT_STICK_STROKE,
+  ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W,
+  ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
+  RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
 } from "@/lib/act3Constants";
 
 const PARCHMENT = "#F5F0E8";
@@ -36,9 +40,13 @@ interface JellyfishFieldProps {
   onDotLeave: () => void;
 }
 
-export default function JellyfishField({
-  layout, isMobile, onDotClick, onDotHover, onDotLeave,
-}: JellyfishFieldProps) {
+export default function JellyfishField(props: JellyfishFieldProps) {
+  // Pending / floor fields are net-new render layers, keyed off layout.mode.
+  // The resolved branch below is left untouched (DO-NOT-TOUCH).
+  if (props.layout.mode === "pending") return <PendingJellyfishField {...props} />;
+  if (props.layout.mode === "floor")   return <FloorJellyfishField {...props} />;
+
+  const { layout, isMobile, onDotClick, onDotHover, onDotLeave } = props;
   const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH } = layout;
 
   return (
@@ -185,13 +193,244 @@ export default function JellyfishField({
         Where the league&apos;s money landed — {layout.fieldCount} players
       </text>
 
-      {/* Capital axis hint. */}
-      <text x={margin.left} y={bandTop + bandH + 34} fontSize={10} fill="#6B7280">
-        ← earlier pick (more draft capital)
+      {/* Round-start anchors + axis hairline (ride-along — all three field modes). */}
+      <RoundAnchorAxis layout={layout} />
+    </svg>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Shared sub-components (round-start X axis + zone edge-tabs)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Round-start anchor labels on the X axis (Part 6b). No tick gridlines; low-
+ *  contrast text. Round boundaries come from the class's own pick→round data. */
+function RoundAnchorAxis({ layout }: { layout: JellyfishLayout }) {
+  const { roundAnchors, bandTop, bandH, margin, wallX } = layout;
+  const y = bandTop + bandH + 34;
+  const ruleY = bandTop + bandH + 20; // full-width hairline just above the RD label row
+  return (
+    <g aria-hidden="true">
+      {/* Axis furniture: a single full-width hairline (NOT a round gridline). */}
+      <line x1={margin.left} y1={ruleY} x2={wallX} y2={ruleY} stroke={RD_AXIS_RULE_COLOR} strokeWidth={1} />
+      {roundAnchors.map(a => (
+        <text
+          key={`rd-${a.rd}`}
+          x={a.x}
+          y={y}
+          fontSize={9.5}
+          fill={RD_LABEL_COLOR}
+          textAnchor="middle"
+          fontWeight={600}
+          letterSpacing={0.6}
+        >
+          {a.label}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+const TAB_W = 150;
+const TAB_H = 18;
+
+/** A pending-field edge-tab label, flush to the left frame (Part 3c). The
+ *  boundary line launches from the tab's right edge, hairline-gapped around text. */
+function ZoneTab({
+  zone, x0, lineX2, faint,
+}: { zone: PendingZone; x0: number; lineX2: number; faint: boolean }) {
+  const tabTop = zone.y - TAB_H / 2;
+  const labelOpacity = faint ? 0.32 : 1;
+  return (
+    <g aria-hidden="true" opacity={labelOpacity}>
+      {zone.hasLine && (
+        <line
+          x1={x0 + TAB_W + 6} y1={zone.y} x2={lineX2} y2={zone.y}
+          stroke={ZONE_LINE_COLOR}
+          strokeWidth={1}
+          strokeDasharray={zone.dashed ? "3 3" : undefined}
+          opacity={faint ? 0.4 : 0.55}
+        />
+      )}
+      <rect x={x0} y={tabTop} width={TAB_W} height={TAB_H} fill={ZONE_TAB_FILL} rx={2} />
+      <rect x={x0} y={tabTop} width={ZONE_TAB_BAR_W} height={TAB_H} fill={ZONE_TAB_BAR} />
+      <text x={x0 + 10} y={zone.y + 4} fontSize={12} fontWeight={600} fill={ZONE_LABEL_COLOR} letterSpacing={2}>
+        {zone.label}
+        <tspan fontSize={9.5} fontWeight={400} fill={ZONE_COUNT_COLOR} letterSpacing={0.48}>
+          {`  · ${zone.count}`}
+        </tspan>
       </text>
-      <text x={wallX - 120} y={bandTop + bandH + 34} fontSize={10} fill="#6B7280">
-        later · undrafted →
+    </g>
+  );
+}
+
+/** Team-colored field dot with hover/click (shared by pending + floor). */
+function FieldDot({
+  d, isMobile, onDotClick, onDotHover, onDotLeave, muted,
+}: {
+  d: JellyfishLayout["dots"][number];
+  isMobile: boolean;
+  onDotClick: (p: Player) => void;
+  onDotHover: (p: Player, x: number, y: number) => void;
+  onDotLeave: () => void;
+  muted?: boolean;
+}) {
+  const p = d.player;
+  const teamColors = resolveTeamColors(p.team_drafted);
+  return (
+    <circle
+      cx={d.x} cy={d.y} r={DOT_R}
+      fill={muted ? DATA_GAP_FILL : teamColors.primary}
+      stroke={muted ? DATA_GAP_STROKE : NAVY}
+      strokeWidth={1}
+      opacity={muted ? 0.85 : 1}
+      style={{ cursor: "pointer" }}
+      onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
+      onMouseLeave={isMobile ? undefined : onDotLeave}
+      onClick={() => onDotClick(p)}
+    />
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PENDING FIELD (Parts 2–3, 6b)
+// ════════════════════════════════════════════════════════════════════════════
+
+function PendingJellyfishField({
+  layout, isMobile, onDotClick, onDotHover, onDotLeave,
+}: JellyfishFieldProps) {
+  const { svgW, svgH, margin, wallX, dots, bandTop, bandH, zones, stripTopY } = layout;
+  const stripTop = stripTopY ?? bandTop + bandH;
+
+  return (
+    <svg
+      width={isMobile ? "100%" : svgW}
+      height={isMobile ? undefined : svgH}
+      viewBox={isMobile ? `0 0 ${svgW} ${svgH}` : undefined}
+      style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
+    >
+      {/* Background — parchment. */}
+      <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
+
+      {/* COULDN'T STICK strip — the ONE place that keeps a grey fill (trapdoor). */}
+      <rect
+        x={margin.left} y={stripTop}
+        width={wallX - margin.left} height={bandTop + bandH - stripTop}
+        fill={COULDNT_STICK_FILL}
+      />
+      <line
+        x1={margin.left} y1={stripTop} x2={wallX} y2={stripTop}
+        stroke={COULDNT_STICK_STROKE} strokeWidth={1} strokeDasharray="3 3" opacity={0.5}
+      />
+
+      {/* Zone boundary lines + edge-tabs (counts on ALL tabs, live-shifting). */}
+      <g>
+        {(zones ?? []).map(z => (
+          <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
+        ))}
+      </g>
+
+      {/* Dots — strip dots take the grey/unranked ink (locked register); body dots
+          keep team colors. */}
+      <g>
+        {dots.map(d => (
+          <FieldDot
+            key={`dot-${d.player.player_id}`}
+            d={d} isMobile={isMobile}
+            muted={d.y >= stripTop}
+            onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+          />
+        ))}
+      </g>
+
+      {/* Field title (left). */}
+      <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
+        ON THE FIELD
       </text>
+      <text x={margin.left} y={bandTop - 12} fontSize={11} fill="#6B7280">
+        Still on the rookie deal — where they line up · {dots.length} players
+      </text>
+
+      <RoundAnchorAxis layout={layout} />
+    </svg>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  CAPITAL-FLOOR STATE (Part 4) — static; the 2→3 animation is Epsilon 5.
+// ════════════════════════════════════════════════════════════════════════════
+
+function FloorJellyfishField({
+  layout, isMobile, onDotClick, onDotHover, onDotLeave,
+}: JellyfishFieldProps) {
+  const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH, zones, stripTopY, floorY, scoreboardText } = layout;
+  const stripTop = stripTopY ?? bandTop + bandH;
+  const floor = floorY ?? bandTop + 0.82 * bandH;
+
+  return (
+    <svg
+      width={isMobile ? "100%" : svgW}
+      height={isMobile ? undefined : svgH}
+      viewBox={isMobile ? `0 0 ${svgW} ${svgH}` : undefined}
+      style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
+    >
+      <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
+
+      {/* Faint EMPTY zone tabs above (counts 0 — nobody has played yet). */}
+      <g>
+        {(zones ?? []).map(z => (
+          <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint />
+        ))}
+      </g>
+
+      {/* COULDN'T STICK vacant — dashed top edge, no fill. */}
+      <line
+        x1={margin.left} y1={stripTop} x2={wallX} y2={stripTop}
+        stroke={COULDNT_STICK_STROKE} strokeWidth={1} strokeDasharray="3 3" opacity={0.3}
+      />
+
+      {/* Dashed-empty wall (outline only — no tier has been earned yet). */}
+      <g fill="none">
+        {wallNodes.map(n => (
+          <rect
+            key={`wall-${n.tier}`}
+            x={n.x} y={n.y} width={wallNodeW} height={n.h}
+            stroke={n.color} strokeWidth={1} strokeDasharray="3 3" opacity={0.4} rx={2}
+          />
+        ))}
+      </g>
+
+      {/* The floor line + the full drafted class pinned on it in pick order. */}
+      <line
+        x1={margin.left} y1={floor} x2={wallX} y2={floor}
+        stroke={NAVY} strokeWidth={1} opacity={0.18}
+      />
+      <g>
+        {dots.map(d => (
+          <FieldDot
+            key={`dot-${d.player.player_id}`}
+            d={d} isMobile={isMobile}
+            onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+          />
+        ))}
+      </g>
+
+      {/* Field title (left). */}
+      <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
+        ON THE CLOCK
+      </text>
+      <text x={margin.left} y={bandTop - 12} fontSize={11} fill="#6B7280">
+        Drafted, not yet snapped — {dots.length} players on the floor
+      </text>
+
+      {/* Scoreboard area — static text label (the live scoreboard is brief d). */}
+      {scoreboardText && (
+        <text x={wallX} y={bandTop - 16} fontSize={13} fontWeight={700} fill={NAVY} textAnchor="end" letterSpacing={1}>
+          {scoreboardText}
+        </text>
+      )}
+
+      <RoundAnchorAxis layout={layout} />
     </svg>
   );
 }

@@ -144,6 +144,34 @@ export interface UsageProfile {
   careerUsagePercentile: number | null;
   /** Total games played across all seasons — for the unqualified hover register. */
   games: number | null;
+
+  // ── Brief c additions (pending usage field) ──────────────────────────────
+  /**
+   * Per-season pooled snap_pct, draft_year-forward only (pre-draft collision rows
+   * where season < draft_year are excluded — same guard a3 uses). Drives the
+   * Block-3 season-usage sparkline (a dot at every data point). snapPct is the
+   * games-weighted pooled rate for the season; null when the season has no rate.
+   */
+  seasons: Array<{ season: number; snapPct: number | null }>;
+  /** Career special-teams snaps (Σ st_snap_count). */
+  stCareerSnaps: number;
+  /** Career scrimmage snaps (Σ snap_count). */
+  scrimCareerSnaps: number;
+  /**
+   * ST-primary = (career ST snaps > career scrimmage snaps) AND (career ST ≥ 50).
+   * The 50-snap floor SUBSTITUTES for MIN_GAMES qualification: an ST-primary
+   * player is placed by his ST percentile even when usage_qualified is false.
+   */
+  stPrimary: boolean;
+  /** Per-season ST snap share (st_snap_pct), draft_year-forward. ST-primary sparkline. */
+  stSeasons: Array<{ season: number; stShare: number | null }>;
+  /**
+   * Global percentile (0–100) of this player's career ST snap share within the
+   * pool of ALL ST-primary players (position-agnostic). Null when not ST-primary.
+   * Derived at fetch time, never stored. The pending field rescales this into the
+   * ST_CEILING band; the hover shows the RAW value LABELED as an ST percentile.
+   */
+  stPercentile: number | null;
 }
 
 // ── Year constants ─────────────────────────────────────────────────────────────
@@ -679,13 +707,30 @@ async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcom
     //   games          = total games_played
     // The reference pool is QUALIFIED-only (Baseball Savant / PFR / PFF
     // convention — an unqualified cameo never enters the distribution).
-    interface UsageAgg { careerUsage: number | null; playedPosition: string | null; qualified: boolean; games: number; }
+    //
+    // Brief c additions (computed in this SAME cached pass): per-season snap_pct
+    // array (sparkline), ST aggregates + stPrimary flag, per-season ST share, and
+    // a SECOND global cross-population pass for the ST percentile. K/P/LS are
+    // already excluded upstream (project_usage_metric) — they never reach here.
+    interface UsageAgg {
+      careerUsage: number | null;
+      playedPosition: string | null;
+      qualified: boolean;
+      games: number;
+      stCareerSnaps: number;
+      scrimCareerSnaps: number;
+      stSeasons: Array<{ season: number; stShare: number | null }>;
+    }
     const usageAgg = new Map<string, UsageAgg>();
     rawByPlayer.forEach((rowList, pid) => {
       let careerUsage: number | null = null;
       let qualified = false;
       let games = 0;
+      let stCareerSnaps = 0;
+      let scrimCareerSnaps = 0;
       const posCounts = new Map<string, number>();
+      // Per-season ST share, games/count-weighted across multi-team rows.
+      const stBySeason = new Map<number, { wpct: number; count: number }>();
       for (const row of rowList) {
         const cu = toFloat(row.career_usage);
         if (cu !== null) careerUsage = cu;
@@ -693,13 +738,32 @@ async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcom
         const pp = (row.played_position ?? '').trim();
         if (pp) posCounts.set(pp, (posCounts.get(pp) ?? 0) + 1);
         games += toInt(row.games_played) ?? 0;
+        stCareerSnaps    += toFloat(row.st_snap_count) ?? 0;
+        scrimCareerSnaps += toFloat(row.snap_count)    ?? 0;
+        const season  = toInt(row.season);
+        const stPct   = toFloat(row.st_snap_pct);
+        const stCount = toFloat(row.st_snap_count);
+        if (season !== null && stPct !== null) {
+          const prev = stBySeason.get(season) ?? { wpct: 0, count: 0 };
+          const w = stCount ?? 0;
+          stBySeason.set(season, { wpct: prev.wpct + stPct * w, count: prev.count + w });
+        }
       }
       let playedPosition: string | null = null;
       let bestCount = 0;
       posCounts.forEach((c, pos) => {
         if (c > bestCount) { bestCount = c; playedPosition = pos; }
       });
-      usageAgg.set(pid, { careerUsage, playedPosition, qualified, games });
+      const stSeasons = Array.from(stBySeason.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([season, { wpct, count }]) => ({
+          season,
+          stShare: count > 0 ? wpct / count : null,
+        }));
+      usageAgg.set(pid, {
+        careerUsage, playedPosition, qualified, games,
+        stCareerSnaps, scrimCareerSnaps, stSeasons,
+      });
     });
 
     // Reference pool: qualified players' careerUsage, keyed by played_position.
@@ -711,18 +775,43 @@ async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcom
       usagePoolByPos.set(playedPosition, list);
     });
 
+    // ST-primary flag + global ST-share pool (Part 1c). career ST snap SHARE =
+    // ST / (ST + scrimmage). The pool is position-agnostic — every ST-primary
+    // player, league-wide — because a gunner competes against gunners, not his
+    // listed position. Percentile derived below, never stored.
+    const stPrimaryOf = (a: UsageAgg): boolean =>
+      a.stCareerSnaps > a.scrimCareerSnaps && a.stCareerSnaps >= 50;
+    const stShareOf = (a: UsageAgg): number => {
+      const total = a.stCareerSnaps + a.scrimCareerSnaps;
+      return total > 0 ? a.stCareerSnaps / total : 0;
+    };
+    const stSharePool: number[] = [];
+    usageAgg.forEach(agg => { if (stPrimaryOf(agg)) stSharePool.push(stShareOf(agg)); });
+
     const usageByPlayer = new Map<string, UsageProfile>();
-    usageAgg.forEach(({ careerUsage, playedPosition, qualified, games }, pid) => {
+    usageAgg.forEach((agg, pid) => {
+      const { careerUsage, playedPosition, qualified, games, stCareerSnaps, scrimCareerSnaps, stSeasons } = agg;
       let careerUsagePercentile: number | null = null;
       if (qualified && playedPosition !== null && careerUsage !== null) {
         careerUsagePercentile = percentileWithinPool(careerUsage, usagePoolByPos.get(playedPosition) ?? []);
       }
+      const stPrimary = stPrimaryOf(agg);
+      const stPercentile = stPrimary ? percentileWithinPool(stShareOf(agg), stSharePool) : null;
+      const seasons = Array.from((playerSeasonSnap.get(pid) ?? new Map<number, number>()).entries())
+        .sort(([a], [b]) => a - b)
+        .map(([season, snapPct]) => ({ season, snapPct }));
       usageByPlayer.set(pid, {
         careerUsage,
         playedPosition,
         qualified,
         careerUsagePercentile,
         games: games > 0 ? games : null,
+        seasons,
+        stCareerSnaps,
+        scrimCareerSnaps,
+        stPrimary,
+        stSeasons,
+        stPercentile,
       });
     });
     // ── End career-usage pool ─────────────────────────────────────────────────

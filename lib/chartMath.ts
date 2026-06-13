@@ -15,13 +15,16 @@
  * for PlayerCard.tsx and future features (force simulation, results view).
  */
 
-import type { Player } from './sheets';
+import type { Player, UsageProfile } from './sheets';
 import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, ROUND_EXPECTED_PCT, TIER_DEFS } from './chartConstants';
 import type { ContractTier, Verdict } from './verdict';
 import {
   PAID_REGION_BOTTOM, PROVE_IT_STRIP_Y, NONE_STRIP_Y, STRIP_JITTER_PX,
   WALL_TIER_ORDER, WALL_NODE_W, WALL_GAP, WALL_MIN_NODE_H, WALL_RIGHT_PAD,
   TIER_THREAD_COLOR,
+  LANE_PX, LANE_EDGE_JITTER_PX, ST_CEILING, GUTTER_SPREAD_PX,
+  PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC, PENDING_FRINGE_TAB_PCT,
+  USAGE_TIER_THRESHOLDS, STRIP_LABEL_VERDICT_AFTER_SEASONS,
 } from './act3Constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -685,13 +688,28 @@ export interface JellyfishYContext {
 }
 
 /**
- * Y-fraction strategy: verdict → [0 (top) .. 1 (bottom)] of the plotting band.
- * SWAPPABLE — brief c plugs in a usage-percentile strategy without rewriting the
- * field. The resolved strategy below is the verdict-share √ scale + floor strips.
+ * Generalized Y-strategy input (brief c, Part 1a). The resolved field maps from a
+ * Verdict; the pending field maps from a UsageProfile. One strategy signature
+ * carries both so the field is genuinely swappable. computeJellyfishLayout already
+ * iterates players that carry both `.verdict` and `.usage`.
  */
-export type JellyfishYStrategy = (verdict: Verdict, ctx: JellyfishYContext) => number;
+export interface JellyfishYInput {
+  verdict: Verdict | null;
+  usage: UsageProfile | null;
+}
 
-export const resolvedShareYStrategy: JellyfishYStrategy = (v, ctx) => {
+/**
+ * Y-fraction strategy: input → [0 (top) .. 1 (bottom)] of the plotting band.
+ * SWAPPABLE — resolved = verdict-share √ scale; pending = usage-percentile
+ * waterfall (pendingUsageYStrategy below).
+ */
+export type JellyfishYStrategy = (input: JellyfishYInput, ctx: JellyfishYContext) => number;
+
+export const resolvedShareYStrategy: JellyfishYStrategy = (input, ctx) => {
+  // 1a behavior-preserving adaptation: read the verdict off the generalized input.
+  // The resolved field only ever feeds verdict-bearing dots; guard defensively.
+  const v = input.verdict;
+  if (!v) return NONE_STRIP_Y;
   if (v.tier === 'NONE')     return NONE_STRIP_Y;     // lowest floor strip
   if (v.tier === 'PROVE_IT') return PROVE_IT_STRIP_Y; // floor strip above NONE
   // Paid tier (BRIDGE/SOLID/PREMIUM): continuous √-share region.
@@ -728,6 +746,25 @@ export interface JellyfishWallNode {
   label: string;
 }
 
+/** Round-start X anchor (Part 6b): the first pick of each round, computed from
+ *  the class's OWN pick→round data (compensatory picks shift boundaries by year).
+ *  Shared by all three field modes. */
+export interface JellyfishRoundAnchor {
+  rd: number;
+  pick: number;
+  x: number;
+  label: string; // 'RD 1' .. 'RD 7'
+}
+
+/** A labeled zone boundary in the pending field (Part 3). */
+export interface PendingZone {
+  label: string;            // 'STARTER' | 'ROLE PLAYER' | 'FRINGE' | "COULDN'T STICK"
+  y: number;                // boundary line / tab Y (px)
+  count: number;            // live count of dots in the zone (counts on ALL tabs)
+  hasLine: boolean;         // FRINGE is a tab-only label (no horizontal divider)
+  dashed: boolean;          // the COULDN'T STICK strip top edge
+}
+
 export interface JellyfishLayout {
   svgW: number;
   svgH: number;
@@ -749,10 +786,60 @@ export interface JellyfishLayout {
   /** Y-fraction strips, exposed so the field can label/separate floor regions. */
   proveItStripY: number;
   noneStripY: number;
+
+  // ── Brief c additions ─────────────────────────────────────────────────────
+  /** Which field this layout describes; JellyfishField branches off it. */
+  mode: 'resolved' | 'pending' | 'floor';
+  /** Round-start X anchors (ride-along — both field modes). */
+  roundAnchors: JellyfishRoundAnchor[];
+  /** Pending-field zone boundaries + edge-tab labels (pending mode only). */
+  zones?: PendingZone[];
+  /** Top edge (px) of the COULDN'T STICK strip (pending mode only). */
+  stripTopY?: number;
+  /** Count of qualified dots that fell to the strip via the null-percentile
+   *  fail-safe (Step-0 data failures, console.warned). 0 for healthy data. */
+  warnCount?: number;
+  /** Floor Y (px) the drafted class is pinned to (floor mode only). */
+  floorY?: number;
+  /** Static scoreboard label, e.g. 'FIRST SNAPS — SEPTEMBER 2026' (floor mode). */
+  scoreboardText?: string;
 }
 
 const JELLYFISH_SVG_W = 1600;
 const JELLYFISH_SVG_H = 960;
+
+// ── Shared field helpers (resolved + pending + floor) ─────────────────────────
+
+/**
+ * Round-start X anchors (Part 6b ride-along). The first pick of each round is
+ * derived from the class's OWN pick→round data — never hardcoded 33/65/97, since
+ * compensatory picks move round boundaries year to year.
+ */
+function jellyfishRoundAnchors(
+  players: Player[],
+  xScale: (pick: number) => number,
+): JellyfishRoundAnchor[] {
+  const firstPickByRd = new Map<number, number>();
+  for (const p of players) {
+    const rd = p.rd_drafted;
+    const pk = p.pick_drafted;
+    if (rd == null || pk == null || pk <= 0) continue;
+    const cur = firstPickByRd.get(rd);
+    if (cur == null || pk < cur) firstPickByRd.set(rd, pk);
+  }
+  return Array.from(firstPickByRd.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([rd, pick]) => ({ rd, pick, x: xScale(pick), label: `RD ${rd}` }));
+}
+
+/**
+ * Deterministic UDFA-gutter X offset (Part 6b), seeded by player_id so dots are
+ * stable across renders (no reflow). Shared by both gutters.
+ */
+function gutterDotX(gutterX: number, playerId: string): number {
+  const t = (hashStr(playerId) % 1000) / 1000 - 0.5; // [-0.5, 0.5)
+  return gutterX + t * GUTTER_SPREAD_PX;
+}
 
 /**
  * Build the resolved jellyfish layout for one resolved draft class.
@@ -793,6 +880,9 @@ export function computeJellyfishLayout(
     maxPick <= 1
       ? pickLeft
       : pickLeft + ((pick - 1) / (maxPick - 1)) * (pickRight - pickLeft);
+
+  // Round-start X anchors (ride-along — shared with the pending/floor fields).
+  const roundAnchors = jellyfishRoundAnchors(dotsInput, xScale);
 
   // Class-local per-tier median share (for ST null-share imputation).
   const tierMedianShare: Partial<Record<ContractTier, number>> = {};
@@ -840,7 +930,8 @@ export function computeJellyfishLayout(
   for (const p of dotsInput) {
     const v = p.verdict;
     const isUDFA = p.pick_drafted == null || p.pick_drafted <= 0;
-    const x = isUDFA ? gutterX : xScale(p.pick_drafted as number);
+    // Gutter-spread ride-along (Part 6b): UDFA dots fan out deterministically.
+    const x = isUDFA ? gutterDotX(gutterX, p.player_id) : xScale(p.pick_drafted as number);
     // Deterministic per-dot jitter seed (stable across renders).
     const seed = (hashStr(p.player_id) % 1000) / 1000 - 0.5; // [-0.5, 0.5)
 
@@ -854,7 +945,7 @@ export function computeJellyfishLayout(
       continue;
     }
 
-    let yFrac = yStrategy(v, yCtx);
+    let yFrac = yStrategy({ verdict: v, usage: p.usage ?? null }, yCtx);
     // Floor strips and ST null-share rows are co-linear — add a small deterministic
     // jitter so the flat row doesn't read as an artifact (X = capital still separates).
     const isFloor = v.tier === 'NONE' || v.tier === 'PROVE_IT';
@@ -898,6 +989,8 @@ export function computeJellyfishLayout(
     dataGapCount: building.filter(d => d.isDataGap).length,
     proveItStripY: bandTop + PROVE_IT_STRIP_Y * bandH,
     noneStripY: bandTop + NONE_STRIP_Y * bandH,
+    mode: 'resolved',
+    roundAnchors,
   };
 }
 
@@ -907,4 +1000,306 @@ function jellyfishThreadPath(x0: number, y0: number, x1: number, y1: number): st
   const cx1 = x0 + dx * 0.42;
   const cx2 = x0 + dx * 0.72;
   return `M ${x0.toFixed(1)} ${y0.toFixed(1)} C ${cx1.toFixed(1)} ${y0.toFixed(1)}, ${cx2.toFixed(1)} ${y1.toFixed(1)}, ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ACT 3 — PENDING USAGE FIELD + CAPITAL FLOOR (brief c)
+//  Usage-percentile Y (the waterfall), the zone system, and the 2026 floor state.
+//  Shares X-axis + gutter + svg geometry with the resolved field; adds zones.
+// ════════════════════════════════════════════════════════════════════════════
+
+const STARTER_PCT = USAGE_TIER_THRESHOLDS[0].min; // 65 — TRUE percentile threshold
+const ROLE_PCT    = USAGE_TIER_THRESHOLDS[1].min; // 25 — TRUE percentile threshold
+
+/**
+ * Maturity-conditional strip label (Gate-2 Fix 4 — Derek-locked). Counts distinct
+ * completed seasons across the class's usage.seasons (already draft_year-forward
+ * filtered — same source selectClassState reads, NO calendar math). A young class
+ * (≤ 2 completed seasons) must NOT speak verdict language — the strip reads "TOO FEW
+ * SNAPS"; a mature class (≥ STRIP_LABEL_VERDICT_AFTER_SEASONS) reads "COULDN'T STICK".
+ */
+function stripLabelForClass(players: Player[]): string {
+  const seasons = new Set<number>();
+  for (const p of players) {
+    for (const s of p.usage?.seasons ?? []) seasons.add(s.season);
+  }
+  return seasons.size >= STRIP_LABEL_VERDICT_AFTER_SEASONS ? "COULDN'T STICK" : "TOO FEW SNAPS";
+}
+
+/**
+ * Map a percentile (0–100) into the usage-body Y-fraction. The body spans
+ * [PENDING_HEADROOM_FRAC .. COULDNT_STICK_STRIP_TOP_FRAC]; 100 → just below the
+ * top headroom, 0 → the strip's top edge. The zone lines (P65/P25) land at their
+ * TRUE percentile positions through this same mapping.
+ */
+function bodyPercentileToYFraction(pct: number): number {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const top = PENDING_HEADROOM_FRAC;
+  const bottom = COULDNT_STICK_STRIP_TOP_FRAC;
+  return top + (1 - clamped / 100) * (bottom - top);
+}
+
+/** Vertical center of the COULDN'T STICK strip (Y-fraction). */
+function couldntStickCenterYFraction(): number {
+  return (COULDNT_STICK_STRIP_TOP_FRAC + 1) / 2;
+}
+
+const EMPTY_Y_CTX: JellyfishYContext = { tierMedianShare: {} };
+
+/**
+ * Pending Y-resolution WATERFALL (Part 2). Every pending dot gets its Y from
+ * EXACTLY ONE path, evaluated top to bottom.
+ */
+export const pendingUsageYStrategy: JellyfishYStrategy = (input) => {
+  const u = input.usage;
+
+  // STEP 1 — ST-primary. SEAM REQ 1: the career-ST ≥ 50 floor SUBSTITUTES for
+  // MIN_GAMES qualification — an ST-primary player with usage_qualified == false
+  // STILL gets his ST-percentile Y and is NEVER routed to step 3 (50 ST snaps is a
+  // real sample; without this a future "fix" dumps gunners in the strip). Anchor:
+  // beau-brade-s-mar-2024 (ST 400 / scrim 12 / qualified FALSE).
+  if (u && u.stPrimary) {
+    // Rescale the global ST percentile [0,100] → [0,ST_CEILING] (RESCALE, not
+    // clamp), then place at that visual height. Rescaled-45 lands at P45 visual
+    // height (mid Role Player) = "elite special-teamer = top role player, never a
+    // starter by volume." ST is woven INTO the usage body, NOT a separate band.
+    // SEAM REQ 2: the rescaled value is a PLOTTING COORDINATE ONLY, never displayed;
+    // the hover shows the RAW stPercentile labeled as an ST percentile.
+    const rescaled = ((u.stPercentile ?? 0) / 100) * ST_CEILING;
+    return bodyPercentileToYFraction(rescaled);
+  }
+
+  // STEP 2 — qualified usage. careerUsagePercentile maps into the usage body;
+  // the zone thresholds keep TRUE percentiles (P65 Starter / P25 Role).
+  if (u && u.qualified && u.careerUsagePercentile != null) {
+    return bodyPercentileToYFraction(u.careerUsagePercentile);
+  }
+
+  // STEP 3 — unqualified (or no usage) → the COULDN'T STICK strip, unranked.
+  // GATE-1 FIX: a *qualified* player with a null careerUsagePercentile is a Step-0
+  // data failure, not an expected state — he fails safe here, but the LAYOUT also
+  // console.warns his player_id (do not silently strip a starter).
+  return couldntStickCenterYFraction();
+};
+
+// ── No-fire lanes (Part 3) ────────────────────────────────────────────────────
+
+/** A boundary a no-fire lane protects. `oneSidedUp` = borders the fill below it
+ *  (the strip's dashed top): push dots UP into the open field only. */
+export interface NoFireBoundary { y: number; oneSidedUp?: boolean; }
+
+/** Optional deterministic in-lane jitter (px), seeded by player_id. 0 disables. */
+function laneJitter(playerId: string): number {
+  if (LANE_EDGE_JITTER_PX === 0) return 0;
+  return ((hashStr(playerId) % 1000) / 1000) * LANE_EDGE_JITTER_PX;
+}
+
+/**
+ * Push any dot landing within LANE_PX/2 of a boundary to the lane edge on its
+ * TRUE side — membership never flips (Y is monotonic in percentile, so pixel side
+ * == membership side), max distortion = half a lane. Its OWN pure function, knobbed
+ * by LANE_PX / LANE_EDGE_JITTER_PX. Mutates dot.y in place.
+ */
+export function applyNoFireLanes(dots: JellyfishDot[], boundaries: NoFireBoundary[]): void {
+  const half = LANE_PX / 2;
+  for (const d of dots) {
+    for (const b of boundaries) {
+      const dist = d.y - b.y; // <0 above, >0 below
+      if (Math.abs(dist) >= half) continue;
+      if (b.oneSidedUp) {
+        // Strip top edge: open field above, fill below. Dots above push UP;
+        // dots already inside the strip (dist > 0) stay put. A qualified dot sitting
+        // EXACTLY on the strip top (dist == 0) is pushed up into the field, not left
+        // straddling the boundary (membership is pct >= threshold = Fringe, not strip).
+        if (dist <= 0) d.y = b.y - half - laneJitter(d.player.player_id);
+      } else {
+        // Two-sided: snap to the edge on the side the dot is already on.
+        // Tie (exactly on the line) → up, matching pct>=threshold membership.
+        if (dist <= 0) d.y = b.y - half - laneJitter(d.player.player_id);
+        else           d.y = b.y + half + laneJitter(d.player.player_id);
+      }
+    }
+  }
+}
+
+// ── Pending field layout (Parts 2–3, 6b) ──────────────────────────────────────
+
+export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
+  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  const svgW = JELLYFISH_SVG_W;
+  const svgH = JELLYFISH_SVG_H;
+  const bandTop = margin.top;
+  const bandH = svgH - margin.top - margin.bottom;
+
+  // Field universe (same "played a snap" rule as resolved): drafted players +
+  // UDFAs who earned a snap (Universal gutter rule — a UDFA earns his dot when he
+  // earns a snap). A drafted pick always renders.
+  const dotsInput = players.filter(p => p.drafted || (p.usage?.seasons?.length ?? 0) > 0);
+
+  const picks = dotsInput.map(p => p.pick_drafted).filter((x): x is number => x != null && x > 0);
+  const maxPick = picks.length ? Math.max(...picks) : 256;
+
+  const wallX     = svgW - margin.right;
+  const gutterX   = wallX - 42;
+  const pickLeft  = margin.left;
+  const pickRight = gutterX - 34;
+  const xScale = (pick: number): number =>
+    maxPick <= 1 ? pickLeft : pickLeft + ((pick - 1) / (maxPick - 1)) * (pickRight - pickLeft);
+  const roundAnchors = jellyfishRoundAnchors(dotsInput, xScale);
+
+  const fracToY = (f: number): number => bandTop + f * bandH;
+  const stripTopY = fracToY(COULDNT_STICK_STRIP_TOP_FRAC);
+
+  // ── Dots: waterfall Y (px), strip jitter, then no-fire displacement ─────────
+  let warnCount = 0;
+  const building: JellyfishDot[] = [];
+  for (const p of dotsInput) {
+    const u = p.usage ?? null;
+    // Surface the Step-0 fail-safe: a qualified player with a null percentile who is
+    // NOT ST-primary should never silently land in the strip.
+    if (u && u.qualified && u.careerUsagePercentile == null && !u.stPrimary) {
+      console.warn(
+        `[pending] qualified player has null careerUsagePercentile — routed to COULDN'T STICK as a fail-safe (Step-0 data failure, investigate): ${p.player_id}`,
+      );
+      warnCount++;
+    }
+    const isUDFA = p.pick_drafted == null || p.pick_drafted <= 0;
+    const x = isUDFA ? gutterDotX(gutterX, p.player_id) : xScale(p.pick_drafted as number);
+
+    let yFrac = pendingUsageYStrategy({ verdict: null, usage: u }, EMPTY_Y_CTX);
+    // Co-linear strip dots: tiny deterministic jitter so a flat row doesn't read as
+    // an artifact (X = pick still separates). Strip dots only.
+    if (yFrac >= COULDNT_STICK_STRIP_TOP_FRAC) {
+      const seed = (hashStr(p.player_id) % 1000) / 1000 - 0.5;
+      yFrac += (seed * STRIP_JITTER_PX) / bandH;
+    }
+    building.push({
+      player: p, verdict: null, tier: null, x, y: fracToY(yFrac),
+      isDataGap: false, isUDFA, threadPath: null, threadColor: '',
+    });
+  }
+
+  // ── Zone counts (by the dot's pre-displacement visual zone) ─────────────────
+  const starterLineY = fracToY(bodyPercentileToYFraction(STARTER_PCT));
+  const roleLineY    = fracToY(bodyPercentileToYFraction(ROLE_PCT));
+  const fringeTabY   = fracToY(bodyPercentileToYFraction(PENDING_FRINGE_TAB_PCT));
+
+  let nStarter = 0, nRole = 0, nFringe = 0, nStrip = 0;
+  for (const d of building) {
+    if (d.y < starterLineY)      nStarter++;
+    else if (d.y < roleLineY)    nRole++;
+    else if (d.y <= stripTopY)   nFringe++; // a dot EXACTLY on the strip top is Fringe, not strip
+    else                         nStrip++;
+  }
+
+  const stripLabel = stripLabelForClass(players);
+  const zones: PendingZone[] = [
+    { label: 'STARTER',     y: starterLineY, count: nStarter, hasLine: true,  dashed: false },
+    { label: 'ROLE PLAYER', y: roleLineY,    count: nRole,    hasLine: true,  dashed: false },
+    { label: 'FRINGE',      y: fringeTabY,   count: nFringe,  hasLine: false, dashed: false },
+    { label: stripLabel,    y: stripTopY,    count: nStrip,   hasLine: true,  dashed: true  },
+  ];
+
+  // ── No-fire lanes — every labeled boundary; the strip top is one-sided (up). ─
+  applyNoFireLanes(building, [
+    { y: starterLineY },
+    { y: roleLineY },
+    { y: fringeTabY },
+    { y: stripTopY, oneSidedUp: true },
+  ]);
+
+  return {
+    svgW, svgH, margin, bandTop, bandH, maxPick,
+    wallX, wallNodeW: WALL_NODE_W,
+    dots: building, wallNodes: [],
+    fieldCount: building.length,
+    noneCount: 0,
+    dataGapCount: 0,
+    proveItStripY: stripTopY,
+    noneStripY: stripTopY,
+    mode: 'pending',
+    roundAnchors,
+    zones,
+    stripTopY,
+    warnCount,
+  };
+}
+
+// ── 2026 capital-floor layout (Part 4) ─────────────────────────────────────────
+
+export function computeFloorLayout(players: Player[], draftYear: number): JellyfishLayout {
+  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  const svgW = JELLYFISH_SVG_W;
+  const svgH = JELLYFISH_SVG_H;
+  const bandTop = margin.top;
+  const bandH = svgH - margin.top - margin.bottom;
+
+  // Floor state reads the full DRAFTED class on the floor in pick order (being
+  // drafted is the evidence). Universal gutter rule: a zero-season class has no
+  // snaps and no contracts → the gutter is empty automatically (drafted picks only).
+  const dotsInput = players.filter(p => p.pick_drafted != null && p.pick_drafted > 0);
+
+  const picks = dotsInput.map(p => p.pick_drafted as number);
+  const maxPick = picks.length ? Math.max(...picks) : 256;
+
+  const wallX     = svgW - margin.right;
+  const gutterX   = wallX - 42;
+  const pickLeft  = margin.left;
+  const pickRight = gutterX - 34;
+  const xScale = (pick: number): number =>
+    maxPick <= 1 ? pickLeft : pickLeft + ((pick - 1) / (maxPick - 1)) * (pickRight - pickLeft);
+  const roundAnchors = jellyfishRoundAnchors(dotsInput, xScale);
+
+  const fracToY = (f: number): number => bandTop + f * bandH;
+  const stripTopY = fracToY(COULDNT_STICK_STRIP_TOP_FRAC);
+
+  // Dependency direction (Part 4): c OWNS the target frame. Epsilon 5's eventual
+  // stage-1-end (2→3) frame must MATCH this static floor state, not the reverse.
+  const floorY = fracToY(0.82);
+
+  const building: JellyfishDot[] = dotsInput.map(p => ({
+    player: p, verdict: null, tier: null,
+    x: xScale(p.pick_drafted as number), y: floorY,
+    isDataGap: false, isUDFA: false, threadPath: null, threadColor: '',
+  }));
+
+  // Faint EMPTY zone tabs above (counts 0 — nobody has played yet). The strip label
+  // follows the same maturity rule: a zero-season class reads "TOO FEW SNAPS · 0".
+  const stripLabel = stripLabelForClass(players);
+  const zones: PendingZone[] = [
+    { label: 'STARTER',     y: fracToY(bodyPercentileToYFraction(STARTER_PCT)), count: 0, hasLine: true,  dashed: false },
+    { label: 'ROLE PLAYER', y: fracToY(bodyPercentileToYFraction(ROLE_PCT)),    count: 0, hasLine: true,  dashed: false },
+    { label: 'FRINGE',      y: fracToY(bodyPercentileToYFraction(PENDING_FRINGE_TAB_PCT)), count: 0, hasLine: false, dashed: false },
+    { label: stripLabel,    y: stripTopY, count: 0, hasLine: true, dashed: true },
+  ];
+
+  // Dashed-empty wall: the 5 tier nodes as equal-height outlines (no fill).
+  const usableH = bandH - (WALL_TIER_ORDER.length - 1) * WALL_GAP;
+  const nodeH = Math.max(WALL_MIN_NODE_H, usableH / WALL_TIER_ORDER.length);
+  let cursorY = bandTop;
+  const wallNodes: JellyfishWallNode[] = WALL_TIER_ORDER.map(tier => {
+    const node: JellyfishWallNode = {
+      tier, x: wallX, y: cursorY, h: nodeH, cy: cursorY + nodeH / 2,
+      count: 0, pct: 0, color: TIER_THREAD_COLOR[tier], label: tier.replace('_', ' '),
+    };
+    cursorY += nodeH + WALL_GAP;
+    return node;
+  });
+
+  return {
+    svgW, svgH, margin, bandTop, bandH, maxPick,
+    wallX, wallNodeW: WALL_NODE_W,
+    dots: building, wallNodes,
+    fieldCount: building.length,
+    noneCount: 0,
+    dataGapCount: 0,
+    proveItStripY: stripTopY,
+    noneStripY: stripTopY,
+    mode: 'floor',
+    roundAnchors,
+    zones,
+    stripTopY,
+    floorY,
+    scoreboardText: `FIRST SNAPS — SEPTEMBER ${draftYear}`,
+  };
 }

@@ -10,6 +10,8 @@ import {
   computeChartLayout,
   computeAllDotPositions,
   computeJellyfishLayout,
+  computePendingFieldLayout,
+  computeFloorLayout,
   scoreToProductionY,
   stSnapPctToGlobalPercentile,
   type ChartLayout,
@@ -18,7 +20,7 @@ import {
   type PickValueEntry,
 } from "@/lib/chartMath";
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
-import { getVerdictMaturity } from "@/lib/verdict";
+import { selectClassState } from "@/lib/classMaturity";
 import { usageTierLabel } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
@@ -226,6 +228,132 @@ function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCoun
   );
 }
 
+// ── Act 3 PENDING hover card (brief c, Part 5) ──────────────────────────────────
+// One hover component, middle block evolves (b's architecture). No legal words,
+// no award line (brief e). Block 2 hero = STILL ON ROOKIE DEAL; Block 3 = usage
+// tier + percentile + season-usage sparkline.
+
+/**
+ * Mini season sparkline — a dot at EVERY data point (a one-season player reads as
+ * one season of evidence). Values are RATES (0–1); the headline carries the
+ * percentile. UNIT DISCIPLINE: the caller labels the axis so a 70% snap share and
+ * a 70th percentile can never be read as the same number.
+ */
+function Sparkline({ points }: { points: Array<{ season: number; value: number | null }> }) {
+  const W = 132, H = 26, PAD = 4;
+  const pts = points.filter(p => p.value != null) as Array<{ season: number; value: number }>;
+  if (pts.length === 0) return null;
+  const xs = pts.map((_, i) => pts.length === 1 ? W / 2 : PAD + (i / (pts.length - 1)) * (W - 2 * PAD));
+  const ys = pts.map(p => PAD + (1 - Math.max(0, Math.min(1, p.value))) * (H - 2 * PAD));
+  const path = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
+  return (
+    <svg width={W} height={H} style={{ display: "block", marginTop: 4 }}>
+      {pts.length > 1 && (
+        <path d={path} fill="none" stroke="rgba(212,160,23,0.55)" strokeWidth={1.2} />
+      )}
+      {xs.map((x, i) => (
+        <circle key={i} cx={x} cy={ys[i]} r={2.1} fill="#D4A017" stroke="#0B2239" strokeWidth={0.5} />
+      ))}
+    </svg>
+  );
+}
+
+function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMode: ChartMode }) {
+  const strip = resolveTeamColors(player.team_drafted).primary;
+  const ivory = "#F5F0E8";
+  const dim   = "rgba(245,240,232,0.7)";
+
+  // Block 1 — identity (same shape as resolved).
+  const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
+  const isUDFA = !(player.pick_drafted && player.pick_drafted > 0);
+  const pickStr = isUDFA ? "UDFA" : `Pick ${player.pick_drafted}`;
+  const identity = [player.pos, player.team_drafted ?? "—", pickStr, hw].filter(Boolean).join(" · ");
+
+  // Block 2 — STILL ON ROOKIE DEAL. Deterministic from draft year + round (NOT
+  // contract data): base CBA = 4 years; R1 appends the 5th-year team option (as an
+  // option — never asserted as exercised); UDFA = 3-year deal, no option line.
+  const dy = player.draft_year;
+  let dealLine: string;
+  if (isUDFA)                       dealLine = `Rookie deal through ${dy + 2}`;
+  else if (player.rd_drafted === 1) dealLine = `Rookie deal through ${dy + 3} · + team option ${dy + 4}`;
+  else                              dealLine = `Rookie deal through ${dy + 3}`;
+
+  // Block 3 — ON THE FIELD. Exactly one path, mirroring the placement waterfall.
+  const u = player.usage;
+  let headline: ReactNode;
+  let sparkPoints: Array<{ season: number; value: number | null }> = [];
+  let sparkLabel = "";
+
+  if (u && u.stPrimary) {
+    // ST-primary: show the RAW stPercentile labeled ST (never a position-usage rank).
+    headline = (
+      <>
+        <strong style={{ color: ivory }}>Core special-teamer</strong>
+        {u.stPercentile != null && (
+          <span style={{ color: dim }}> · {ordinal(Math.round(u.stPercentile))} pct ST snaps</span>
+        )}
+      </>
+    );
+    sparkPoints = u.stSeasons.map(s => ({ season: s.season, value: s.stShare }));
+    sparkLabel = "ST snap share / season";
+  } else if (u && u.qualified && u.careerUsagePercentile != null) {
+    const tier = usageTierLabel(u.careerUsagePercentile) ?? "—";
+    headline = (
+      <>
+        <strong style={{ color: ivory }}>{tier}</strong>
+        <span style={{ color: dim }}> · {ordinal(u.careerUsagePercentile)} pct usage</span>
+      </>
+    );
+    sparkPoints = (u.seasons ?? []).map(s => ({ season: s.season, value: s.snapPct }));
+    sparkLabel = "snap share / season";
+  } else {
+    // Unqualified / strip — or a floor dot that hasn't snapped yet.
+    const hasSeasons = (u?.seasons?.length ?? 0) > 0;
+    if (chartMode === "floor" && !hasSeasons) {
+      headline = <span style={{ color: dim }}>Yet to take an NFL snap</span>;
+    } else {
+      headline = <span style={{ color: dim }}>too few snaps to rank yet</span>;
+    }
+    sparkPoints = (u?.seasons ?? []).map(s => ({ season: s.season, value: s.snapPct }));
+    sparkLabel = "snap share / season";
+  }
+
+  return (
+    <div className="dm-tooltip" style={{ left: x, top: y, width: 250, background: "#0B2239", padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 4, background: strip }} />
+      <div style={{ padding: "10px 12px" }}>
+        {/* Block 1 — identity */}
+        <div style={{ fontWeight: 700, color: "#F5F0E8", fontSize: 13 }}>{player.name}</div>
+        <div style={{ color: "rgba(245,240,232,0.65)", fontSize: 11, marginTop: 2 }}>{identity}</div>
+
+        {/* Block 2 — still on rookie deal */}
+        <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+          <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>ROOKIE DEAL</div>
+          <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: "#F5F0E8" }}>STILL ON ROOKIE DEAL</div>
+          <div style={{ fontSize: 11, color: dim, marginTop: 1 }}>{dealLine}</div>
+        </div>
+
+        {/* Block 3 — on the field */}
+        <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+          <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>ON THE FIELD</div>
+          <div style={{ fontSize: 11, marginTop: 2 }}>{headline}</div>
+          {sparkPoints.some(p => p.value != null) && (
+            <>
+              <Sparkline points={sparkPoints} />
+              <div style={{ fontSize: 9, color: "rgba(245,240,232,0.4)", marginTop: 1 }}>{sparkLabel}</div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
+          › Click dot for full Player Card
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Chart borders ─────────────────────────────────────────────────────────────
 
 function ChartBorders({ layout }: { layout: ChartLayout }) {
@@ -296,9 +424,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // ── Delta-2: Journey navigation state ────────────────────────────────────
   const [selectedYear,  setSelectedYear]  = useState<number>(year);
-  const [currentStepId, setCurrentStepId] = useState<string>(() =>
-    searchParams.get('step') ?? initialStepId ?? 'projection'
-  );
+  const [currentStepId, setCurrentStepId] = useState<string>(() => {
+    // Beat-3 collapses to ONE synthetic id 'act3'; the field is derived at render
+    // time (selectClassState below). Map any legacy beat-3 id from the URL/seed.
+    const raw = searchParams.get('step') ?? initialStepId ?? 'projection';
+    return (raw === 'verdict' || raw === 'pending-field' || raw === 'floor') ? 'act3' : raw;
+  });
   // isPlaying retained as a no-op latch (several handlers still clear it); the
   // auto-play button was removed with the multi-step bar (journey bar v3 navigates).
   const [, setIsPlaying] = useState(false);
@@ -324,16 +455,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     [journeySteps, currentStepId],
   );
 
-  // Verdict ('4 YEARS LATER' for a RESOLVED class) is a synthetic step id not in
-  // getJourneySteps — its mode is derived here so the rest of the step machinery
-  // (which finds nothing for 'verdict') falls through harmlessly to projection.
-  const isResolvedClass = getVerdictMaturity(selectedYear) === 'resolved';
-  const chartMode: ChartMode = currentStepId === 'verdict'
-    ? 'verdict'
-    : (currentStep?.mode ?? 'projection');
-
-  // Derived viewMode for backward compat with existing chart/sidebar
-  const legacyViewMode: ViewMode = chartMode === 'projection' ? 'projected' : 'drafted';
+  // chartMode is derived AFTER the players state is declared — beat 3 ('act3')
+  // resolves its field from the loaded class data, not from a value captured at
+  // click time. See the act3Mode useMemo further down.
 
   // ── Y-axis animation phase ────────────────────────────────────────────────
   type YAxisPhase = 'projection' | 'results';
@@ -372,6 +496,31 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [pickValueCurve, setPickValueCurve] = useState<PickValueEntry[]>([]);
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
+
+  // ── Beat-3 ('act3') field — DERIVED at render time, not captured at click ──
+  // selectClassState on an empty players array returns 'floor'; deriving here
+  // (recomputed whenever `players` changes) self-corrects after a year's fetch
+  // lands, so a beat-3 click fired mid-fetch can't stick 'floor' across a year
+  // scrub. The three field modes are no longer distinct step ids — they fan out
+  // from this one selector:
+  //   resolved → the verdict jellyfish (brief b)
+  //   pending  → the usage field (brief c)
+  //   floor    → the 2026 capital-floor state (brief c)
+  const act3Mode: ChartMode = useMemo(() => {
+    const state = selectClassState(players, selectedYear);
+    return state === 'resolved' ? 'verdict' : state === 'pending' ? 'pending' : 'floor';
+  }, [players, selectedYear]);
+
+  // 'act3' is a synthetic beat-3 step id not in getJourneySteps — its mode comes
+  // from act3Mode above; everything else falls through to the step's own mode.
+  const chartMode: ChartMode =
+    currentStepId === 'act3' ? act3Mode : (currentStep?.mode ?? 'projection');
+
+  // A "field" mode is any of the three Act-3 beat-3 fields (resolved/pending/floor).
+  const isFieldMode = chartMode === 'verdict' || chartMode === 'pending' || chartMode === 'floor';
+
+  // Derived viewMode for backward compat with existing chart/sidebar
+  const legacyViewMode: ViewMode = chartMode === 'projection' ? 'projected' : 'drafted';
 
   // Reset showLines to true when entering a mode that supports trails
   useEffect(() => {
@@ -510,11 +659,14 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     [players, layout, pickValueCurve],
   );
 
-  // Resolved jellyfish layout — only built when beat 3 of a resolved class is active.
-  const jellyfishLayout = useMemo(
-    () => (chartMode === 'verdict' ? computeJellyfishLayout(players) : null),
-    [chartMode, players],
-  );
+  // Beat-3 field layout — built per field mode (resolved jellyfish / pending usage
+  // field / 2026 capital floor). Null in the non-field journey steps.
+  const jellyfishLayout = useMemo(() => {
+    if (chartMode === 'verdict') return computeJellyfishLayout(players);
+    if (chartMode === 'pending') return computePendingFieldLayout(players);
+    if (chartMode === 'floor')   return computeFloorLayout(players, selectedYear);
+    return null;
+  }, [chartMode, players, selectedYear]);
 
   // Per-dot production Y positions and opacities for the current journey step.
   // Recomputed whenever the step or chart mode changes.
@@ -991,14 +1143,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setIsPlaying(false);
     if (beat === 1) { animateToStep('projection'); return; }
     if (beat === 2) { animateToStep('draft'); return; }
-    // Beat 3 — resolved class shows the jellyfish (instant); pending keeps the
-    // existing career view (deployability rule: old classes untouched until brief c).
-    if (getVerdictMaturity(selectedYear) === 'resolved') {
-      setCurrentStepId('verdict');
-    } else {
-      animateToStep('career');
-    }
-  }, [animateToStep, selectedYear]);
+    // Beat 3 — ONE synthetic id. The field is derived at render time from the
+    // loaded class data (act3Mode), NOT captured here, so a click fired while a
+    // year's fetch is still in flight self-corrects once the data lands (all
+    // instant; the 2→3 pivot animation is Epsilon 5 and does not exist yet).
+    setCurrentStepId('act3');
+  }, [animateToStep]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -1102,7 +1252,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       <Sidebar {...sidebarProps} />
 
       {/* ── Mobile top bar ── */}
-      {isMobile && !loading && !error && chartMode !== 'verdict' && (
+      {isMobile && !loading && !error && !isFieldMode && (
         <MobileTopBar
           posLabel={visiblePositions[mobilePosIdx] ?? ""}
           posIdx={mobilePosIdx}
@@ -1143,7 +1293,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onTouchEnd={onTouchEnd}
             onClick={isMobile && mobileView === "overview" ? handleMobileChartTap : undefined}
           >
-            {chartMode === 'verdict' && jellyfishLayout ? (
+            {isFieldMode && jellyfishLayout ? (
               <JellyfishField
                 layout={jellyfishLayout}
                 isMobile={isMobile}
@@ -1250,7 +1400,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       </main>
 
       {/* ── Mobile pagination dots ── */}
-      {isMobile && !loading && !error && chartMode !== 'verdict' && (
+      {isMobile && !loading && !error && !isFieldMode && (
         <div className="mb-pagination" aria-hidden="true">
           {visiblePositions.map((pos, i) => (
             <div
@@ -1277,7 +1427,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       {!isMobile && tooltip && (
         chartMode === 'verdict'
           ? <VerdictHoverCard {...tooltip} noneCount={jellyfishLayout?.noneCount ?? 0} />
-          : <ChartTooltip {...tooltip} />
+          : (chartMode === 'pending' || chartMode === 'floor')
+            ? <PendingHoverCard {...tooltip} chartMode={chartMode} />
+            : <ChartTooltip {...tooltip} />
       )}
 
       {/* ── "How to Read" modal ── */}
