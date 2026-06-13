@@ -23,7 +23,8 @@ import {
   WALL_TIER_ORDER, WALL_NODE_W, WALL_GAP, WALL_MIN_NODE_H, WALL_RIGHT_PAD,
   TIER_THREAD_COLOR,
   LANE_PX, LANE_EDGE_JITTER_PX, ST_CEILING, GUTTER_SPREAD_PX,
-  PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC, PENDING_FRINGE_TAB_PCT,
+  PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC,
+  ZONE_TAB_INSET_PX, ZONE_TAB_H, LANE_TAB_PAD,
   USAGE_TIER_THRESHOLDS, STRIP_LABEL_VERDICT_AFTER_SEASONS,
 } from './act3Constants';
 
@@ -759,10 +760,12 @@ export interface JellyfishRoundAnchor {
 /** A labeled zone boundary in the pending field (Part 3). */
 export interface PendingZone {
   label: string;            // 'STARTER' | 'ROLE PLAYER' | 'FRINGE' | "COULDN'T STICK"
-  y: number;                // boundary line / tab Y (px)
+  y: number;                // boundary LINE Y (px) — drawn only when hasLine
+  tabY: number;             // edge-tab CENTER Y (px) — just inside the zone's top (Part 2 grammar)
   count: number;            // live count of dots in the zone (counts on ALL tabs)
   hasLine: boolean;         // FRINGE is a tab-only label (no horizontal divider)
   dashed: boolean;          // the COULDN'T STICK strip top edge
+  tint: boolean;            // navy-tint tab rect; false for the strip tab (text+bar only, Part 3)
 }
 
 export interface JellyfishLayout {
@@ -1084,9 +1087,22 @@ export const pendingUsageYStrategy: JellyfishYStrategy = (input) => {
 
 // ── No-fire lanes (Part 3) ────────────────────────────────────────────────────
 
-/** A boundary a no-fire lane protects. `oneSidedUp` = borders the fill below it
- *  (the strip's dashed top): push dots UP into the open field only. */
-export interface NoFireBoundary { y: number; oneSidedUp?: boolean; }
+/**
+ * A boundary a no-fire lane protects. The ABOVE-side reach is always LANE_PX/2 (keep
+ * dots off the line). The BELOW-side reach defaults to LANE_PX/2 but is widened (via
+ * `below`) under any line that carries a tab just beneath it, so the lane extends
+ * past the tab text (Brief c.2 Part 4 — lanes follow the text).
+ *   - `oneSidedUp`   = borders the fill below it (strip's dashed top): push dots UP
+ *     into the open field only; the strip interior is left untouched.
+ *   - `oneSidedDown` = borders the open field below it (the STARTER tab at the field
+ *     top): push dots DOWN past the tab only; nothing sits above the field top.
+ */
+export interface NoFireBoundary {
+  y: number;
+  oneSidedUp?: boolean;
+  oneSidedDown?: boolean;
+  below?: number; // below-side reach (px); defaults to LANE_PX/2
+}
 
 /** Optional deterministic in-lane jitter (px), seeded by player_id. 0 disables. */
 function laneJitter(playerId: string): number {
@@ -1095,28 +1111,30 @@ function laneJitter(playerId: string): number {
 }
 
 /**
- * Push any dot landing within LANE_PX/2 of a boundary to the lane edge on its
- * TRUE side — membership never flips (Y is monotonic in percentile, so pixel side
- * == membership side), max distortion = half a lane. Its OWN pure function, knobbed
- * by LANE_PX / LANE_EDGE_JITTER_PX. Mutates dot.y in place.
+ * Push any dot landing inside a boundary's lane to the lane edge on its TRUE side —
+ * membership never flips (Y is monotonic in percentile, so pixel side == membership
+ * side). The above edge is always LANE_PX/2; the below edge widens to clear tab text.
+ * Tie (exactly on a two-sided line) → up, matching pct>=threshold membership. Its OWN
+ * pure function, knobbed by LANE_PX / LANE_EDGE_JITTER_PX. Mutates dot.y in place.
  */
 export function applyNoFireLanes(dots: JellyfishDot[], boundaries: NoFireBoundary[]): void {
   const half = LANE_PX / 2;
   for (const d of dots) {
     for (const b of boundaries) {
+      const below = b.below ?? half;
       const dist = d.y - b.y; // <0 above, >0 below
-      if (Math.abs(dist) >= half) continue;
       if (b.oneSidedUp) {
-        // Strip top edge: open field above, fill below. Dots above push UP;
-        // dots already inside the strip (dist > 0) stay put. A qualified dot sitting
-        // EXACTLY on the strip top (dist == 0) is pushed up into the field, not left
-        // straddling the boundary (membership is pct >= threshold = Fringe, not strip).
-        if (dist <= 0) d.y = b.y - half - laneJitter(d.player.player_id);
+        // Open field above, fill below: dots within the above reach push UP; dots
+        // already inside the fill (dist > 0) stay put. A dot exactly on the line
+        // (dist == 0) is pushed up (membership = pct>=threshold = the zone above).
+        if (dist <= 0 && dist > -half) d.y = b.y - half - laneJitter(d.player.player_id);
+      } else if (b.oneSidedDown) {
+        // Open field below only: dots within the below reach push DOWN past the tab.
+        if (dist >= 0 && dist < below) d.y = b.y + below + laneJitter(d.player.player_id);
       } else {
-        // Two-sided: snap to the edge on the side the dot is already on.
-        // Tie (exactly on the line) → up, matching pct>=threshold membership.
-        if (dist <= 0) d.y = b.y - half - laneJitter(d.player.player_id);
-        else           d.y = b.y + half + laneJitter(d.player.player_id);
+        // Two-sided: snap to the nearer edge on the side the dot is already on.
+        if (dist <= 0 && dist > -half)      d.y = b.y - half - laneJitter(d.player.player_id);
+        else if (dist > 0 && dist < below)  d.y = b.y + below + laneJitter(d.player.player_id);
       }
     }
   }
@@ -1180,9 +1198,9 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
   }
 
   // ── Zone counts (by the dot's pre-displacement visual zone) ─────────────────
-  const starterLineY = fracToY(bodyPercentileToYFraction(STARTER_PCT));
-  const roleLineY    = fracToY(bodyPercentileToYFraction(ROLE_PCT));
-  const fringeTabY   = fracToY(bodyPercentileToYFraction(PENDING_FRINGE_TAB_PCT));
+  const headroomTopY = fracToY(PENDING_HEADROOM_FRAC); // field top (above STARTER)
+  const starterLineY = fracToY(bodyPercentileToYFraction(STARTER_PCT)); // P65 line
+  const roleLineY    = fracToY(bodyPercentileToYFraction(ROLE_PCT));    // P25 line
 
   let nStarter = 0, nRole = 0, nFringe = 0, nStrip = 0;
   for (const d of building) {
@@ -1192,20 +1210,25 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
     else                         nStrip++;
   }
 
+  // Tab grammar (Part 2): every tab sits just INSIDE THE TOP of the zone it names.
+  // Boundary LINES stay at P65 / P25 / strip-top; only the labels move under them.
   const stripLabel = stripLabelForClass(players);
   const zones: PendingZone[] = [
-    { label: 'STARTER',     y: starterLineY, count: nStarter, hasLine: true,  dashed: false },
-    { label: 'ROLE PLAYER', y: roleLineY,    count: nRole,    hasLine: true,  dashed: false },
-    { label: 'FRINGE',      y: fringeTabY,   count: nFringe,  hasLine: false, dashed: false },
-    { label: stripLabel,    y: stripTopY,    count: nStrip,   hasLine: true,  dashed: true  },
+    { label: 'STARTER',     y: starterLineY, tabY: headroomTopY + ZONE_TAB_INSET_PX, count: nStarter, hasLine: true,  dashed: false, tint: true  },
+    { label: 'ROLE PLAYER', y: roleLineY,    tabY: starterLineY + ZONE_TAB_INSET_PX, count: nRole,    hasLine: true,  dashed: false, tint: true  },
+    { label: 'FRINGE',      y: roleLineY,    tabY: roleLineY + ZONE_TAB_INSET_PX,    count: nFringe,  hasLine: false, dashed: false, tint: true  },
+    { label: stripLabel,    y: stripTopY,    tabY: stripTopY + ZONE_TAB_INSET_PX,    count: nStrip,   hasLine: false, dashed: true,  tint: false },
   ];
 
-  // ── No-fire lanes — every labeled boundary; the strip top is one-sided (up). ─
+  // ── No-fire lanes — every labeled boundary; the below side clears its tab text
+  //    (Part 4). Field top: one-sided down (STARTER tab). Strip top: one-sided up
+  //    (strip interior left untouched). ───────────────────────────────────────
+  const belowReach = ZONE_TAB_INSET_PX + ZONE_TAB_H / 2 + LANE_TAB_PAD;
   applyNoFireLanes(building, [
-    { y: starterLineY },
-    { y: roleLineY },
-    { y: fringeTabY },
-    { y: stripTopY, oneSidedUp: true },
+    { y: headroomTopY, oneSidedDown: true, below: belowReach }, // STARTER tab (field top)
+    { y: starterLineY, below: belowReach },                     // P65 line → ROLE PLAYER tab below
+    { y: roleLineY,    below: belowReach },                     // P25 line → FRINGE tab below
+    { y: stripTopY,    oneSidedUp: true },                      // strip top (interior unchanged)
   ]);
 
   return {
@@ -1263,14 +1286,19 @@ export function computeFloorLayout(players: Player[], draftYear: number): Jellyf
     isDataGap: false, isUDFA: false, threadPath: null, threadColor: '',
   }));
 
-  // Faint EMPTY zone tabs above (counts 0 — nobody has played yet). The strip label
-  // follows the same maturity rule: a zero-season class reads "TOO FEW SNAPS · 0".
+  // Faint EMPTY zone tabs above (counts 0 — nobody has played yet). Same tab grammar
+  // as the pending field (Part 2/5): tabs sit just inside the top of each zone, lines
+  // stay at P65 / P25 / strip-top. The strip label follows the maturity rule: a
+  // zero-season class reads "TOO FEW SNAPS · 0".
+  const headroomTopY = fracToY(PENDING_HEADROOM_FRAC);
+  const starterLineY = fracToY(bodyPercentileToYFraction(STARTER_PCT));
+  const roleLineY    = fracToY(bodyPercentileToYFraction(ROLE_PCT));
   const stripLabel = stripLabelForClass(players);
   const zones: PendingZone[] = [
-    { label: 'STARTER',     y: fracToY(bodyPercentileToYFraction(STARTER_PCT)), count: 0, hasLine: true,  dashed: false },
-    { label: 'ROLE PLAYER', y: fracToY(bodyPercentileToYFraction(ROLE_PCT)),    count: 0, hasLine: true,  dashed: false },
-    { label: 'FRINGE',      y: fracToY(bodyPercentileToYFraction(PENDING_FRINGE_TAB_PCT)), count: 0, hasLine: false, dashed: false },
-    { label: stripLabel,    y: stripTopY, count: 0, hasLine: true, dashed: true },
+    { label: 'STARTER',     y: starterLineY, tabY: headroomTopY + ZONE_TAB_INSET_PX, count: 0, hasLine: true,  dashed: false, tint: true  },
+    { label: 'ROLE PLAYER', y: roleLineY,    tabY: starterLineY + ZONE_TAB_INSET_PX, count: 0, hasLine: true,  dashed: false, tint: true  },
+    { label: 'FRINGE',      y: roleLineY,    tabY: roleLineY + ZONE_TAB_INSET_PX,    count: 0, hasLine: false, dashed: false, tint: true  },
+    { label: stripLabel,    y: stripTopY,    tabY: stripTopY + ZONE_TAB_INSET_PX,    count: 0, hasLine: false, dashed: true,  tint: false },
   ];
 
   // Dashed-empty wall: the 5 tier nodes as equal-height outlines (no fill).

@@ -20,6 +20,14 @@ export const DOT_R = 4.5; // locked working value — tune on real render
 export const DATA_GAP_FILL   = '#C9CDD2'; // locked working value — tune on real render
 export const DATA_GAP_STROKE = '#9099A1'; // locked working value — tune on real render
 
+/**
+ * Unranked / "unpaid" strip dot ink (pending + floor fields). Reuses the PROVE-IT
+ * grey ink family (TIER_THREAD_COLOR.PROVE_IT) — the strip is the unranked register,
+ * NOT a data-gap alarm. Distinct from DATA_GAP_FILL/STROKE, which stay reserved for
+ * the resolved-field join-failure dots. Rendered at full opacity over the grey fill.
+ */
+export const UNRANKED_DOT_FILL = '#7A828D'; // locked working value — tune on real render
+
 // ── Threads ───────────────────────────────────────────────────────────────────
 
 /** Thread opacity gradient — faint at the dot, firmer toward the wall. */
@@ -172,7 +180,9 @@ export const PENDING_HEADROOM_FRAC = 0.06; // tune on real render
 /** Top edge (Y-fraction) of the COULDN'T STICK strip — the body's lower bound. */
 export const COULDNT_STICK_STRIP_TOP_FRAC = 0.86; // tune on real render
 
-/** Percentile (within the fringe band) used to place the FRINGE edge-tab label. */
+/** DEPRECATED (Brief c.2 Part 2): the FRINGE tab now follows the uniform placement
+ *  grammar — it sits just below the P25 line (ZONE_TAB_INSET_PX), no longer at a
+ *  percentile. Kept only to record the prior placement; not read by the layout. */
 export const PENDING_FRINGE_TAB_PCT = 10; // tune on real render
 
 /** Grey fill of the COULDN'T STICK strip (the trapdoor). */
@@ -183,6 +193,26 @@ export const COULDNT_STICK_STROKE = '#9099A1';                // dashed top edge
 export const ZONE_TAB_FILL        = 'rgba(11,34,57,0.05)'; // ~5% navy tint
 export const ZONE_TAB_BAR         = '#0B2239';             // 2.5px navy bookmark bar
 export const ZONE_TAB_BAR_W       = 2.5;
+
+/** Edge-tab box geometry (px). Shared by the renderer (tab rect) AND the no-fire
+ *  lane math (the below-side reach that clears tab text) — one place. */
+export const ZONE_TAB_W = 150;
+export const ZONE_TAB_H = 18;
+
+/**
+ * Tab placement grammar (Brief c.2 Part 2): every edge tab sits just INSIDE THE TOP
+ * of the zone it names — its center is offset this many px below that zone's top
+ * (band-chart convention). The boundary LINES stay at their true positions; only the
+ * label tabs move under them, so the name under each fence tells you what's below it.
+ */
+export const ZONE_TAB_INSET_PX = 14; // locked working value — tune on real render
+
+/**
+ * Small extra pad (px) the no-fire lane reaches PAST a tab's bottom edge, so a dot
+ * never collides with tab text (Brief c.2 Part 4). Below-side lane reach =
+ * ZONE_TAB_INSET_PX + ZONE_TAB_H/2 + LANE_TAB_PAD.
+ */
+export const LANE_TAB_PAD = 6; // locked working value — tune on real render
 export const ZONE_LINE_COLOR      = 'rgba(11,34,57,0.78)'; // hairline boundary, navy ~0.78
 export const ZONE_LABEL_COLOR     = 'rgba(11,34,57,0.78)';
 export const ZONE_COUNT_COLOR     = 'rgba(11,34,57,0.55)';

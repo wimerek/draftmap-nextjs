@@ -164,3 +164,71 @@ for (const dy of [2021, 2022, 2023, 2024, 2025]) {
   console.log(`  ${dy}: completedSeasons=${count} → "${label}"`);
 }
 console.log('  EXPECT: 2025 → "TOO FEW SNAPS" (1 season); 2022 → "COULDN\'T STICK" (>=3 seasons)');
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ACC 10 (Brief c.2): label grammar — no pending dot overlaps a tab rect and no
+//  dot lands within LANE_PX/2 of a boundary line. Mirrors the new tab placement
+//  (every tab just INSIDE the top of its zone) + the asymmetric no-fire lanes
+//  (above = LANE_PX/2, below = clear the tab text). Pure mirror of act3Constants.
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\n=== ACC 10: label grammar — no dot overlaps a tab rect / sits on a boundary ===');
+
+// Tab geometry (mirror act3Constants.ts).
+const ZONE_TAB_INSET_PX = 14, ZONE_TAB_H = 18, LANE_TAB_PAD = 6;
+const HALF = LANE_PX / 2;                                    // 14 — above-side reach
+const BELOW = ZONE_TAB_INSET_PX + ZONE_TAB_H / 2 + LANE_TAB_PAD; // 29 — below-side reach
+const EPS = 1e-6;
+
+const headroomTopY = fracToY(HEADROOM);
+const starterLineY = fracToY(bodyPct(STARTER_PCT)); // P65
+const roleLineY    = fracToY(bodyPct(ROLE_PCT));    // P25
+const stripTopY    = fracToY(STRIP_TOP);
+
+// The three full-width boundary LINES (STARTER tab has none — it's the field top).
+const LINES = [starterLineY, roleLineY, stripTopY];
+// Tab CENTERS — each just inside the top of the zone it names (Part 2 grammar).
+const TAB_CENTERS = [
+  headroomTopY + ZONE_TAB_INSET_PX, // STARTER (field top)
+  starterLineY + ZONE_TAB_INSET_PX, // ROLE PLAYER (below P65)
+  roleLineY + ZONE_TAB_INSET_PX,    // FRINGE (below P25)
+  stripTopY + ZONE_TAB_INSET_PX,    // strip (inside the strip)
+];
+// No-fire lanes (mirror applyNoFireLanes; LANE_EDGE_JITTER_PX == 0 so no jitter).
+const BOUNDARIES = [
+  { y: headroomTopY, oneSidedDown: true, below: BELOW }, // STARTER tab (field top)
+  { y: starterLineY, below: BELOW },                     // P65 → ROLE tab below
+  { y: roleLineY,    below: BELOW },                     // P25 → FRINGE tab below
+  { y: stripTopY,    oneSidedUp: true },                 // strip top (interior untouched)
+];
+function applyLanes(y) {
+  for (const b of BOUNDARIES) {
+    const below = b.below ?? HALF;
+    const dist = y - b.y;
+    if (b.oneSidedUp) {
+      if (dist <= 0 && dist > -HALF) y = b.y - HALF;
+    } else if (b.oneSidedDown) {
+      if (dist >= 0 && dist < below) y = b.y + below;
+    } else {
+      if (dist <= 0 && dist > -HALF)     y = b.y - HALF;
+      else if (dist > 0 && dist < below) y = b.y + below;
+    }
+  }
+  return y;
+}
+
+let totalDots = 0, lineViolations = 0, tabViolations = 0;
+for (const dy of [2021, 2022, 2023, 2024, 2025]) {
+  for (const pid of agg.keys()) {
+    if (!pid.endsWith(`-${dy}`)) continue;
+    const r = place(pid);
+    if (r.step === 'NO-DATA' || r.y == null) continue;
+    const y = applyLanes(r.y);
+    totalDots++;
+    for (const ly of LINES) if (Math.abs(y - ly) < HALF - EPS) lineViolations++;
+    for (const tc of TAB_CENTERS) if (y > tc - ZONE_TAB_H / 2 - EPS && y < tc + ZONE_TAB_H / 2 + EPS) tabViolations++;
+  }
+}
+console.log(`  dots checked: ${totalDots}`);
+console.log(`  within LANE_PX/2 (${HALF}) of a boundary line: ${lineViolations}  (expect 0)`);
+console.log(`  inside a tab rect Y-band: ${tabViolations}  (expect 0)`);
+console.log(`  ACC 10 ${lineViolations === 0 && tabViolations === 0 ? 'PASS' : 'FAIL'}`);

@@ -21,10 +21,10 @@ import { resolveTeamColors } from "@/lib/chartConstants";
 import {
   DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
-  DATA_GAP_FILL, DATA_GAP_STROKE, WALL_TIER_ORDER, TIER_THREAD_COLOR,
+  DATA_GAP_FILL, DATA_GAP_STROKE, UNRANKED_DOT_FILL, WALL_TIER_ORDER, TIER_THREAD_COLOR,
   WALL_LABEL_DX,
   COULDNT_STICK_FILL, COULDNT_STICK_STROKE,
-  ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W,
+  ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
 } from "@/lib/act3Constants";
@@ -231,30 +231,31 @@ function RoundAnchorAxis({ layout }: { layout: JellyfishLayout }) {
   );
 }
 
-const TAB_W = 150;
-const TAB_H = 18;
-
-/** A pending-field edge-tab label, flush to the left frame (Part 3c). The
- *  boundary line launches from the tab's right edge, hairline-gapped around text. */
+/** A pending-field edge-tab label, flush to the left frame (Part 3c). The boundary
+ *  LINE (when present) sits at zone.y, full width; the label TAB sits at zone.tabY —
+ *  just inside the top of the zone it names (Part 2 grammar). The strip tab renders
+ *  text + bookmark bar only — no tint rect (Part 3); the other three keep the tint. */
 function ZoneTab({
   zone, x0, lineX2, faint,
 }: { zone: PendingZone; x0: number; lineX2: number; faint: boolean }) {
-  const tabTop = zone.y - TAB_H / 2;
+  const tabTop = zone.tabY - ZONE_TAB_H / 2;
   const labelOpacity = faint ? 0.32 : 1;
   return (
     <g aria-hidden="true" opacity={labelOpacity}>
       {zone.hasLine && (
         <line
-          x1={x0 + TAB_W + 6} y1={zone.y} x2={lineX2} y2={zone.y}
+          x1={x0} y1={zone.y} x2={lineX2} y2={zone.y}
           stroke={ZONE_LINE_COLOR}
           strokeWidth={1}
           strokeDasharray={zone.dashed ? "3 3" : undefined}
           opacity={faint ? 0.4 : 0.55}
         />
       )}
-      <rect x={x0} y={tabTop} width={TAB_W} height={TAB_H} fill={ZONE_TAB_FILL} rx={2} />
-      <rect x={x0} y={tabTop} width={ZONE_TAB_BAR_W} height={TAB_H} fill={ZONE_TAB_BAR} />
-      <text x={x0 + 10} y={zone.y + 4} fontSize={12} fontWeight={600} fill={ZONE_LABEL_COLOR} letterSpacing={2}>
+      {zone.tint && (
+        <rect x={x0} y={tabTop} width={ZONE_TAB_W} height={ZONE_TAB_H} fill={ZONE_TAB_FILL} rx={2} />
+      )}
+      <rect x={x0} y={tabTop} width={ZONE_TAB_BAR_W} height={ZONE_TAB_H} fill={ZONE_TAB_BAR} />
+      <text x={x0 + 10} y={zone.tabY + 4} fontSize={12} fontWeight={600} fill={ZONE_LABEL_COLOR} letterSpacing={2}>
         {zone.label}
         <tspan fontSize={9.5} fontWeight={400} fill={ZONE_COUNT_COLOR} letterSpacing={0.48}>
           {`  · ${zone.count}`}
@@ -280,10 +281,10 @@ function FieldDot({
   return (
     <circle
       cx={d.x} cy={d.y} r={DOT_R}
-      fill={muted ? DATA_GAP_FILL : teamColors.primary}
-      stroke={muted ? DATA_GAP_STROKE : NAVY}
+      fill={muted ? UNRANKED_DOT_FILL : teamColors.primary}
+      stroke={NAVY}
       strokeWidth={1}
-      opacity={muted ? 0.85 : 1}
+      opacity={1}
       style={{ cursor: "pointer" }}
       onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
       onMouseLeave={isMobile ? undefined : onDotLeave}
