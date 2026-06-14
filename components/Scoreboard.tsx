@@ -190,6 +190,9 @@ export default function Scoreboard({
 
   // ── Per-pick ticker (RAF; pause-aware via ref so a pause toggle never restarts it) ─
   const [tickIdx, setTickIdx] = useState(0);
+  // Last pick the State-2 caption successfully rendered. Lets the slot survive a
+  // transient tickIdx/draftedSorted desync without blanking OR crashing.
+  const lastPickRef = useRef<Player | null>(null);
   const pausedRef = useRef(paused);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   useEffect(() => {
@@ -256,26 +259,47 @@ export default function Scoreboard({
   if (animating1to2 && draftedSorted.length > 0) {
     // ── State 2: 1→2 per-pick caption (slot NEVER blanks mid-show) ──────────────
     live = "off"; // high-frequency hero — no SR spam (Part 2 ARIA)
-    const p = draftedSorted[Math.min(tickIdx, draftedSorted.length - 1)];
-    const colors = resolveTeamColors(p.team_drafted);
-    const code = teamCodeFromFullName(resolveTeamName(p.team_drafted));
-    const k = posTaken.get(p.player_id) ?? 1;
-    caption = (
-      <>
-        <div className="sb-hero sb-hero--pick">
-          <span className="sb-pick-slot">R{p.rd_drafted ?? "—"} · PICK {p.pick_drafted}</span>
-          <span
-            className="sb-team-chip"
-            style={{ background: colors.primary, color: colors.onPrimary }}
-            aria-hidden="true"
-          >{code}</span>
-        </div>
-        <div className="sb-def">
-          <strong>{p.name}</strong> · {p.pos}
-        </div>
-        <div className="sb-util">{ordinal(k)} {p.pos} taken</div>
-      </>
-    );
+    // Defensive: clamp the index and NEVER read .team_drafted off an undefined
+    // player. A tickIdx/draftedSorted desync (observed on 2026's projection-less
+    // partial-draft shape) was returning undefined here and throwing mid-RAF.
+    // Math.max guards a stale/negative/NaN tickIdx; ?? falls back to the last
+    // good pick so the slot holds its caption instead of blanking or crashing.
+    const idx = Math.min(Math.max(tickIdx, 0), draftedSorted.length - 1);
+    const p = draftedSorted[idx] ?? lastPickRef.current;
+    if (!p) {
+      // No safe player yet — log the live shape so the desync can be traced, then
+      // keep the slot present but inert for this frame (no crash, no blank reflow).
+      if (typeof console !== "undefined") {
+        console.warn(
+          `[scoreboard] State-2 ticker desync for ${selectedYear}: ` +
+            `players.length=${players.length} draftedSorted.length=${draftedSorted.length} ` +
+            `tickIdx=${tickIdx} idx=${idx} ` +
+            `firstPickShape=${JSON.stringify(draftedSorted[0])}`,
+        );
+      }
+      caption = <div className="sb-def">&nbsp;</div>;
+    } else {
+      lastPickRef.current = p; // cache the last good pick for the fallback above
+      const colors = resolveTeamColors(p.team_drafted);
+      const code = teamCodeFromFullName(resolveTeamName(p.team_drafted));
+      const k = posTaken.get(p.player_id) ?? 1;
+      caption = (
+        <>
+          <div className="sb-hero sb-hero--pick">
+            <span className="sb-pick-slot">R{p.rd_drafted ?? "—"} · PICK {p.pick_drafted}</span>
+            <span
+              className="sb-team-chip"
+              style={{ background: colors.primary, color: colors.onPrimary }}
+              aria-hidden="true"
+            >{code}</span>
+          </div>
+          <div className="sb-def">
+            <strong>{p.name}</strong> · {p.pos}
+          </div>
+          <div className="sb-util">{ordinal(k)} {p.pos} taken</div>
+        </>
+      );
+    }
   } else if (chartMode === "projection") {
     // ── State 1: Act 1 rest ─────────────────────────────────────────────────────
     if (!stats.hasProjection) {
