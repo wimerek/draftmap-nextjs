@@ -557,6 +557,21 @@ export function resolveTeamColors(rawTeam: string | null | undefined): {
   return { primary: effectivePrimary, secondary: effectiveSecondary, onPrimary, onSecondary };
 }
 
+/** Team colors for a CHART DOT: brand fill + secondary stroke, with NO luminance
+ *  contrast-flip. The flip in resolveTeamColors() is for card panels (dark bg +
+ *  readable text); on a small dot over parchment it demotes bright-fill teams
+ *  (SEA/PIT/JAX/TEN/LV/NO) to their near-black secondary. This keeps Act 3 dots
+ *  identical to Acts 1/2 (PlayerDots production: fill=tc.fill, stroke=tc.secondary).
+ *  resolveTeamColors() is intentionally left untouched (the player card needs it).
+ *  Falls back to brand navy fill / gold stroke for an unmatched team. */
+export function teamDotColors(rawTeam: string | null | undefined): { fill: string; stroke: string } {
+  const FALLBACK = { fill: '#0B2239', stroke: '#D4A017' };
+  if (!rawTeam) return FALLBACK;
+  const entry = TEAM_COLORS[rawTeam] ?? TEAM_COLORS[rawTeam.toLowerCase()] ?? null;
+  if (!entry) return FALLBACK;
+  return { fill: entry.fill, stroke: entry.secondary };
+}
+
 /** Resolve school colors for pre-draft player card headers. */
 export function resolveSchoolColors(school: string | null | undefined): {
   primary: string;

@@ -17,7 +17,7 @@
 
 import type { Player } from "@/lib/sheets";
 import type { JellyfishLayout, PendingZone } from "@/lib/chartMath";
-import { resolveTeamColors } from "@/lib/chartConstants";
+import { teamDotColors } from "@/lib/chartConstants";
 import {
   DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
@@ -169,7 +169,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
               </circle>
             );
           }
-          const teamColors = resolveTeamColors(p.team_drafted);
+          const teamColors = teamDotColors(p.team_drafted);
           return (
             <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
               {/* Grab ring — flares toward the thread (wall) side. */}
@@ -182,8 +182,8 @@ export default function JellyfishField(props: JellyfishFieldProps) {
               />
               <circle
                 cx={d.x} cy={d.y} r={DOT_R}
-                fill={teamColors.primary}
-                stroke={NAVY}
+                fill={teamColors.fill}
+                stroke={teamColors.stroke}
                 strokeWidth={1}
                 onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
                 onMouseLeave={isMobile ? undefined : onDotLeave}
@@ -288,12 +288,12 @@ function FieldDot({
   muted?: boolean;
 }) {
   const p = d.player;
-  const teamColors = resolveTeamColors(p.team_drafted);
+  const teamColors = teamDotColors(p.team_drafted);
   return (
     <circle
       cx={d.x} cy={d.y} r={DOT_R}
-      fill={muted ? UNRANKED_DOT_FILL : teamColors.primary}
-      stroke={NAVY}
+      fill={muted ? UNRANKED_DOT_FILL : teamColors.fill}
+      stroke={muted ? NAVY : teamColors.stroke}
       strokeWidth={1}
       opacity={1}
       style={{ cursor: "pointer" }}
