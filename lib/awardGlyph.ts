@@ -14,18 +14,8 @@
  *             (ST All-Pro / ST Pro Bowl). Lowest rung. Never the position Pro-Bowl glyph.
  */
 import type { Player } from "./sheets";
-import type { DisplaySeasonRow } from "./scoring";
 
 export type AwardGlyph = "crown" | "sparkle" | "chevron" | "S" | null;
-
-/** ST-primary season: more raw ST snaps than scrimmage snaps, and >= 50 ST snaps
- *  (the locked 3a trigger; excludes garbage-time ST reps). */
-function isSTPrimarySeason(r: DisplaySeasonRow): boolean {
-  return (
-    r.stSnapCount != null && r.stSnapCount >= 50 &&
-    r.snapCount != null && r.stSnapCount > r.snapCount
-  );
-}
 
 export function rookieAwardGlyph(player: Player): AwardGlyph {
   const seasons = player.seasonData;
@@ -38,6 +28,6 @@ export function rookieAwardGlyph(player: Player): AwardGlyph {
   if (win.some((s) => s.allPro || s.allPro2nd)) return "crown";
   if (win.some((s) => s.proBowl)) return "sparkle";
   if (win.some((s) => s.allRookie)) return "chevron";
-  if (win.some((s) => s.stAllPro || s.stProBowl || isSTPrimarySeason(s))) return "S";
+  if (player.usage?.stPrimary || win.some((s) => s.stAllPro || s.stProBowl)) return "S";
   return null;
 }

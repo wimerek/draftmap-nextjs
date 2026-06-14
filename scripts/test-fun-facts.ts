@@ -73,7 +73,10 @@ function makeSeason(season: number, stats: Partial<DisplaySeasonRow>): DisplaySe
     defInts:         stats.defInts ?? null,
     passDeflections: stats.passDeflections ?? null,
     allPro:            stats.allPro ?? false,
+    allPro2nd:         stats.allPro2nd ?? false,
+    mvp:               stats.mvp ?? false,
     proBowl:           stats.proBowl ?? false,
+    allRookie:         stats.allRookie ?? false,
     teamRecord:        stats.teamRecord ?? null,
     arcScore:          stats.arcScore ?? null,
     stSnapPct:         stats.stSnapPct ?? null,
@@ -84,6 +87,7 @@ function makeSeason(season: number, stats: Partial<DisplaySeasonRow>): DisplaySe
     kickoffReturnYards: stats.kickoffReturnYards ?? null,
     specialTeamsTds:   stats.specialTeamsTds ?? null,
     stProBowl:         stats.stProBowl ?? false,
+    stAllPro:          stats.stAllPro ?? false,
   };
 }
 
