@@ -18,6 +18,7 @@
 import type { Player } from "@/lib/sheets";
 import type { JellyfishLayout, PendingZone } from "@/lib/chartMath";
 import { teamDotColors } from "@/lib/chartConstants";
+import { rookieAwardGlyph, type AwardGlyph } from "@/lib/awardGlyph";
 import {
   DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
@@ -28,6 +29,7 @@ import {
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
   PENDING_REACH_THREAD_OPACITY,
+  GLYPH_FILL, GLYPH_KEYLINE, GLYPH_KEYLINE_W, GLYPH_DOT_FRAC,
 } from "@/lib/act3Constants";
 
 const PARCHMENT = "#F5F0E8";
@@ -170,6 +172,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
             );
           }
           const teamColors = teamDotColors(p.team_drafted);
+          const glyph = rookieAwardGlyph(p);
           return (
             <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
               {/* Grab ring — flares toward the thread (wall) side. */}
@@ -189,6 +192,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
                 onMouseLeave={isMobile ? undefined : onDotLeave}
                 onClick={() => onDotClick(p)}
               />
+              <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={DOT_R} />
             </g>
           );
         })}
@@ -276,6 +280,43 @@ function ZoneTab({
   );
 }
 
+/** One award glyph centered on a dot — ivory fill + navy keyline, painted under the
+ *  fill so the outline reads at small size. Highest rung only (rookieAwardGlyph).
+ *  pointer-events off so the dot keeps its own hover/click. */
+function AwardGlyphMark({
+  glyph, cx, cy, r,
+}: { glyph: AwardGlyph; cx: number; cy: number; r: number }) {
+  if (!glyph) return null;
+  const s = r * GLYPH_DOT_FRAC; // glyph half-extent (px), decoupled from DOT_R
+  if (glyph === "S") {
+    return (
+      <text
+        x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
+        fontSize={s * 2.2} fontWeight={800} fontFamily="Oswald, sans-serif"
+        fill={GLYPH_FILL} stroke={GLYPH_KEYLINE} strokeWidth={GLYPH_KEYLINE_W}
+        paintOrder="stroke" style={{ pointerEvents: "none" }}
+      >S</text>
+    );
+  }
+  const pt = (x: number, y: number) => `${(cx + x * s).toFixed(2)},${(cy + y * s).toFixed(2)}`;
+  const poly = (pts: Array<[number, number]>) => "M" + pts.map(([x, y]) => pt(x, y)).join("L") + "Z";
+  let d = "";
+  if (glyph === "crown") {
+    d = poly([[-1, 0.5], [-0.78, -0.12], [-0.4, 0.22], [0, -0.55], [0.4, 0.22], [0.78, -0.12], [1, 0.5]]);
+  } else if (glyph === "sparkle") {
+    d = poly([[0, -1], [0.2, -0.2], [1, 0], [0.2, 0.2], [0, 1], [-0.2, 0.2], [-1, 0], [-0.2, -0.2]]);
+  } else { // chevron — rising double
+    d = poly([[-0.9, -0.12], [0, -0.62], [0.9, -0.12], [0.9, 0.16], [0, -0.34], [-0.9, 0.16]])
+      + poly([[-0.9, 0.5], [0, 0.0], [0.9, 0.5], [0.9, 0.78], [0, 0.28], [-0.9, 0.78]]);
+  }
+  return (
+    <path
+      d={d} fill={GLYPH_FILL} stroke={GLYPH_KEYLINE} strokeWidth={GLYPH_KEYLINE_W}
+      strokeLinejoin="round" paintOrder="stroke" style={{ pointerEvents: "none" }}
+    />
+  );
+}
+
 /** Team-colored field dot with hover/click (shared by pending + floor). */
 function FieldDot({
   d, isMobile, onDotClick, onDotHover, onDotLeave, muted,
@@ -289,18 +330,22 @@ function FieldDot({
 }) {
   const p = d.player;
   const teamColors = teamDotColors(p.team_drafted);
+  const glyph = rookieAwardGlyph(p);
   return (
-    <circle
-      cx={d.x} cy={d.y} r={DOT_R}
-      fill={muted ? UNRANKED_DOT_FILL : teamColors.fill}
-      stroke={muted ? NAVY : teamColors.stroke}
-      strokeWidth={1}
-      opacity={1}
-      style={{ cursor: "pointer" }}
-      onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
-      onMouseLeave={isMobile ? undefined : onDotLeave}
-      onClick={() => onDotClick(p)}
-    />
+    <g>
+      <circle
+        cx={d.x} cy={d.y} r={DOT_R}
+        fill={muted ? UNRANKED_DOT_FILL : teamColors.fill}
+        stroke={muted ? NAVY : teamColors.stroke}
+        strokeWidth={1}
+        opacity={1}
+        style={{ cursor: "pointer" }}
+        onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
+        onMouseLeave={isMobile ? undefined : onDotLeave}
+        onClick={() => onDotClick(p)}
+      />
+      <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={DOT_R} />
+    </g>
   );
 }
 
