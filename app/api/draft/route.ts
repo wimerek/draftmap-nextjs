@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
       year,
       count: sorted.length,
       players: sorted,
+      // Rider 2 (brief d): resolved-class join failures, surfaced by the scoreboard
+      // as the muted "⚠ N unmatched" line. The data layer already computes this; the
+      // route previously discarded it.
+      unmatched,
     });
 
     if (isLive) {

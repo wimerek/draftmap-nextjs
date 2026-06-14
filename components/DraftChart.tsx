@@ -21,7 +21,7 @@ import {
 } from "@/lib/chartMath";
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import { selectClassState } from "@/lib/classMaturity";
-import { usageTierLabel } from "@/lib/act3Constants";
+import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
 import PlayerCard from "@/components/PlayerCard";
@@ -58,6 +58,15 @@ interface DraftChartProps {
    * Feeds the SAME currentStepId state ?step= does. Ignored if ?step= is present.
    */
   initialStepId?: string;
+}
+
+/** Shape of the /api/draft JSON payload (rider 2 adds `unmatched`). */
+interface DraftApiResponse {
+  year: number;
+  count: number;
+  players: Player[];
+  /** Resolved-class verdict join failures (rider 2). Absent on older cached responses. */
+  unmatched?: string[];
 }
 
 // ── Tooltip (desktop only) ────────────────────────────────────────────────────
@@ -309,8 +318,14 @@ function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMod
   } else {
     // Unqualified / strip — or a floor dot that hasn't snapped yet.
     const hasSeasons = (u?.seasons?.length ?? 0) > 0;
+    // Rider 4: drafted K/P/LS have zero player_seasons rows by design (snap share is
+    // not tracked) → usage null → they fall into the strip. Honest specialist copy,
+    // NOT "too few snaps to rank yet" (which would imply a future rank that won't come).
+    const isSpecialist = ["K", "P", "LS"].includes((player.pos ?? "").toUpperCase());
     if (chartMode === "floor" && !hasSeasons) {
       headline = <span style={{ color: dim }}>Yet to take an NFL snap</span>;
+    } else if (isSpecialist) {
+      headline = <span style={{ color: dim }}>{KP_STRIP_COPY}</span>;
     } else {
       headline = <span style={{ color: dim }}>too few snaps to rank yet</span>;
     }
@@ -496,6 +511,20 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [pickValueCurve, setPickValueCurve] = useState<PickValueEntry[]>([]);
   const [liveMode,  setLiveMode]  = useState(false);
   const [showLines, setShowLines] = useState(false);
+  // Rider 2: resolved-class verdict join failures, forwarded by /api/draft.
+  const [unmatched, setUnmatched] = useState<string[]>([]);
+
+  // ── Transport (brief d) — speed, pause, and the post-skip pulse token ────────
+  const [speed,  setSpeed]  = useState<number>(DEFAULT_SPEED);
+  const [paused, setPaused] = useState(false);
+  const [restartPulseKey, setRestartPulseKey] = useState(0);
+  const speedRef        = useRef(speed);
+  const pausedRef       = useRef(paused);
+  const animTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animEndAtRef    = useRef(0);   // performance.now() timestamp the 1→2 anim ends
+  const animRemainingRef = useRef(0);  // remaining ms captured at pause
+  useEffect(() => { speedRef.current = speed; }, [speed]);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   // ── Beat-3 ('act3') field — DERIVED at render time, not captured at click ──
   // selectClassState on an empty players array returns 'floor'; deriving here
@@ -518,6 +547,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // A "field" mode is any of the three Act-3 beat-3 fields (resolved/pending/floor).
   const isFieldMode = chartMode === 'verdict' || chartMode === 'pending' || chartMode === 'floor';
+
+  // Mirror chartMode into a ref so the window keydown handler (below) can decide
+  // canPlay without re-binding the listener on every mode change.
+  const chartModeRef = useRef(chartMode);
+  useEffect(() => { chartModeRef.current = chartMode; }, [chartMode]);
 
   // Derived viewMode for backward compat with existing chart/sidebar
   const legacyViewMode: ViewMode = chartMode === 'projection' ? 'projected' : 'drafted';
@@ -797,8 +831,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (liveMode) {
       setLoading(true);
       fetch(`/api/draft?year=${selectedYear}&live=1`)
-        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then(d => { if (!cancelled) { setPlayers(d.players ?? []); setLoading(false); } })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<DraftApiResponse>; })
+        .then(d => { if (!cancelled) { setPlayers(d.players ?? []); setUnmatched(d.unmatched ?? []); setLoading(false); } })
         .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
       return () => { cancelled = true; };
     }
@@ -815,20 +849,22 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setScoredReady(false);
     setLoading(true);
     fetch(`/api/draft?year=${selectedYear}&scores=0`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<DraftApiResponse>; })
       .then(d => {
         if (cancelled) return;
         const fast = d.players ?? [];
         yearCache.current.set(cacheKey, fast);
         setPlayers(fast);
+        setUnmatched(d.unmatched ?? []);
         setLoading(false);
 
         // Phase 2: background fetch for full scored data
         fetch(`/api/draft?year=${selectedYear}`)
-          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+          .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<DraftApiResponse>; })
           .then(d2 => {
             if (cancelled) return;
             const full = d2.players ?? [];
+            setUnmatched(d2.unmatched ?? []);
             yearCache.current.set(scoredKey, full);
             setScoredReady(true);
             // Defer setPlayers if an animation is running — apply when it ends
@@ -1081,6 +1117,26 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     router.replace(`/draft/${newYear}`, { scroll: false });
   }, [router]);
 
+  // ── Transport: 1→2 animation scheduler (speed + pause aware) ─────────────────
+  // The per-dot CSS easing (550ms) lives in PlayerDots (DO-NOT-TOUCH); speed scales
+  // the DraftChart-owned STAGGER SCHEDULE — the duration after which the draft step
+  // commits. Pause clears this timer and banks the remaining ms; resume reschedules.
+  // Epsilon 5 applies the SAME speed multiplier to its 2→3 sweep.
+  const oneToTwoDurationMs = useCallback(
+    () => (dotPositions.length * 22 + 550) / speedRef.current,
+    [dotPositions.length],
+  );
+  const scheduleAnimEnd = useCallback((ms: number) => {
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    animEndAtRef.current = performance.now() + ms;
+    animTimerRef.current = setTimeout(() => {
+      animTimerRef.current = null;
+      setIsAnimating(false);
+      setPaused(false);
+      setCurrentStepId('draft');
+    }, ms);
+  }, []);
+
   // Shared step-animation logic — used by both manual clicks and auto-play.
   // Does NOT touch isPlaying so auto-play can call it without killing itself.
   const animateToStep = useCallback((stepId: string) => {
@@ -1097,11 +1153,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
         requestAnimationFrame(() => {
           setIsAnimating(true);
           setViewMode("drafted");
-          const longestDelay = dotPositions.length * 22 + 550;
-          setTimeout(() => {
-            setIsAnimating(false);
-            setCurrentStepId('draft');
-          }, longestDelay);
+          scheduleAnimEnd(oneToTwoDurationMs());
         });
       });
       return;
@@ -1123,13 +1175,92 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     }
 
     setCurrentStepId(stepId);
-  }, [viewMode, dotPositions.length, journeySteps]);
+  }, [viewMode, dotPositions.length, journeySteps, scheduleAnimEnd, oneToTwoDurationMs]);
 
   // Manual step click — stops auto-play then delegates to animateToStep.
   const handleStepChange = useCallback((stepId: string) => {
     setIsPlaying(false);
     animateToStep(stepId);
   }, [animateToStep]);
+
+  // ── Transport handler API (the contract the cluster calls; ruling 1) ─────────
+  // The cluster owns NO animation logic — these live here. Epsilon 5 swaps the 2→3
+  // jump-cut below for its staged pivot+sweep behind the SAME onPlay, untouched cluster.
+  const handleTransportSkip = useCallback(() => {
+    if (!isAnimatingRef.current) return; // skip only finalizes an in-flight animation
+    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
+    setIsAnimating(false);
+    setPaused(false);
+    setViewMode('drafted');
+    setCurrentStepId('draft');
+    setRestartPulseKey(k => k + 1); // Btn3 pulses once (accidental-skip recovery)
+  }, []);
+
+  const handleTransportPlay = useCallback(() => {
+    setPaused(false);
+    // Act 1 → run the EXISTING projected→drafted (1→2) animation.
+    if (currentStep?.mode === 'projection' && currentStepId === 'projection') {
+      animateToStep('draft');
+      return;
+    }
+    // Act 2 → INSTANT JUMP-CUT to Act 3 rest for the selected class (ruling 1; the
+    // locked reduced-motion fallback). NOT an animation — Epsilon 5 builds the sweep.
+    if (chartMode === 'draft-results') {
+      setCurrentStepId('act3');
+    }
+  }, [animateToStep, chartMode, currentStep, currentStepId]);
+
+  const handleTransportPause = useCallback(() => {
+    if (!isAnimatingRef.current) return;
+    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
+    animRemainingRef.current = Math.max(0, animEndAtRef.current - performance.now());
+    setPaused(true);
+  }, []);
+
+  const handleTransportResume = useCallback(() => {
+    if (!isAnimatingRef.current) return;
+    setPaused(false);
+    scheduleAnimEnd(animRemainingRef.current > 0 ? animRemainingRef.current : oneToTwoDurationMs());
+  }, [scheduleAnimEnd, oneToTwoDurationMs]);
+
+  const handleTransportRestart = useCallback(() => {
+    // Re-run / Replay the 1→2 chapter from the projected board.
+    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
+    setPaused(false);
+    setIsAnimating(false);
+    setViewMode('projected');
+    setCurrentStepId('projection');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setIsAnimating(true);
+      setViewMode('drafted');
+      scheduleAnimEnd(oneToTwoDurationMs());
+    }));
+  }, [scheduleAnimEnd, oneToTwoDurationMs]);
+
+  const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
+
+  // ── Keyboard map (Part 3): Space = play/pause toggle (NEVER skip) · Esc = skip ─
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      if (e.code === 'Space' || e.key === ' ') {
+        if (isAnimatingRef.current) {
+          e.preventDefault();
+          if (pausedRef.current) handleTransportResume(); else handleTransportPause();
+        } else if (chartModeRef.current === 'projection' || chartModeRef.current === 'draft-results') {
+          e.preventDefault();
+          handleTransportPlay();
+        }
+      } else if (e.key === 'Escape' && isAnimatingRef.current) {
+        e.preventDefault();
+        handleTransportSkip();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleTransportPlay, handleTransportPause, handleTransportResume, handleTransportSkip]);
 
   // ── Journey Bar v3: three beats → step ids ────────────────────────────────
   // Beat 1 THE BOARD → projection · Beat 2 DRAFT DAY → draft ·
@@ -1141,6 +1272,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   const handleSelectBeat = useCallback((beat: 1 | 2 | 3) => {
     setIsPlaying(false);
+    // Click beat = start; click again while animating = skip (Part 3 skip path).
+    if (isAnimatingRef.current) {
+      handleTransportSkip();
+      if (beat === 2) return; // second click on the destination beat = skip only
+    }
     if (beat === 1) { animateToStep('projection'); return; }
     if (beat === 2) { animateToStep('draft'); return; }
     // Beat 3 — ONE synthetic id. The field is derived at render time from the
@@ -1148,7 +1284,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // year's fetch is still in flight self-corrects once the data lands (all
     // instant; the 2→3 pivot animation is Epsilon 5 and does not exist yet).
     setCurrentStepId('act3');
-  }, [animateToStep]);
+  }, [animateToStep, handleTransportSkip]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -1241,6 +1377,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return isNaN(x) ? (mobileZoomedX ?? 0) : x;
   }, [mobileVB, mobileZoomedX]);
 
+  // Effective 1→2 duration (speed-adjusted) — paces the scoreboard per-pick ticker.
+  const animDurationMs = useMemo(
+    () => (dotPositions.length * 22 + 550) / speed,
+    [dotPositions.length, speed],
+  );
+
   const tierAxisVisible = yAxisPhase === 'results';
   const tierBandsHiding = yAxisPhase === 'results';
   const showTierArrows  = chartMode === 'projection' || chartMode === 'draft-results';
@@ -1269,13 +1411,31 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       {/* ── Main chart area ── */}
       <main className="dm-main" onClick={dismissTooltip}>
 
-        {/* ── HeaderZone: year scrubber + journey bar ── */}
+        {/* ── HeaderZone: journey bar + persistent scoreboard slot ── */}
         <HeaderZone
-          selectedYear={selectedYear}
-          onYearChange={handleYearChange}
-          availableYears={[...VALID_DRAFT_YEARS]}
           activeBeat={activeBeat}
           onSelectBeat={handleSelectBeat}
+          scoreboard={{
+            players,
+            selectedYear,
+            onYearChange: handleYearChange,
+            availableYears: [...VALID_DRAFT_YEARS],
+            chartMode,
+            isAnimating,
+            paused,
+            animDurationMs,
+            unmatched,
+            transport: {
+              speed,
+              restartPulseKey,
+              onPlay: handleTransportPlay,
+              onPause: handleTransportPause,
+              onResume: handleTransportResume,
+              onSkip: handleTransportSkip,
+              onRestart: handleTransportRestart,
+              onSpeedChange: handleTransportSpeed,
+            },
+          }}
         />
 
         {loading && null}
@@ -1292,6 +1452,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
             onClick={isMobile && mobileView === "overview" ? handleMobileChartTap : undefined}
+            onDoubleClick={handleTransportSkip}
           >
             {isFieldMode && jellyfishLayout ? (
               <JellyfishField

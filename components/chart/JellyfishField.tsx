@@ -27,6 +27,7 @@ import {
   ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
+  PENDING_REACH_THREAD_OPACITY,
 } from "@/lib/act3Constants";
 
 const PARCHMENT = "#F5F0E8";
@@ -79,6 +80,14 @@ export default function JellyfishField(props: JellyfishFieldProps) {
 
       {/* Background — parchment (navy is chrome only). */}
       <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
+
+      {/* Rider 1 — left-edge Y-label tabs (LABELS ONLY; behind threads/dots so no
+          existing position moves). Tab grammar = c.2 verbatim, no boundary line. */}
+      <g>
+        {(layout.resolvedYTabs ?? []).map((z) => (
+          <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
+        ))}
+      </g>
 
       {/* Floor-strip baselines + labels. */}
       <g aria-hidden="true">
@@ -257,9 +266,11 @@ function ZoneTab({
       <rect x={x0} y={tabTop} width={ZONE_TAB_BAR_W} height={ZONE_TAB_H} fill={ZONE_TAB_BAR} />
       <text x={x0 + 10} y={zone.tabY + 4} fontSize={12} fontWeight={600} fill={ZONE_LABEL_COLOR} letterSpacing={2}>
         {zone.label}
-        <tspan fontSize={9.5} fontWeight={400} fill={ZONE_COUNT_COLOR} letterSpacing={0.48}>
-          {`  · ${zone.count}`}
-        </tspan>
+        {zone.showCount !== false && (
+          <tspan fontSize={9.5} fontWeight={400} fill={ZONE_COUNT_COLOR} letterSpacing={0.48}>
+            {`  · ${zone.count}`}
+          </tspan>
+        )}
       </text>
     </g>
   );
@@ -300,7 +311,7 @@ function FieldDot({
 function PendingJellyfishField({
   layout, isMobile, onDotClick, onDotHover, onDotLeave,
 }: JellyfishFieldProps) {
-  const { svgW, svgH, margin, wallX, dots, bandTop, bandH, zones, stripTopY } = layout;
+  const { svgW, svgH, margin, wallX, wallNodeW, dots, bandTop, bandH, zones, stripTopY, reachNodes } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
 
   return (
@@ -328,6 +339,37 @@ function PendingJellyfishField({
       <g>
         {(zones ?? []).map(z => (
           <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
+        ))}
+      </g>
+
+      {/* Rider 3 — reaching threads (faint, behind dots) for already-signed players.
+          The dot stays at its usage-Y; the thread reaches UP to the tier node. */}
+      <g fill="none">
+        {dots.map(d =>
+          d.threadPath ? (
+            <path
+              key={`reach-${d.player.player_id}`}
+              d={d.threadPath}
+              stroke={d.threadColor || NAVY}
+              strokeWidth={THREAD_W}
+              opacity={PENDING_REACH_THREAD_OPACITY}
+            />
+          ) : null,
+        )}
+      </g>
+
+      {/* Rider 3 — pending tier nodes (subset of tiers present among signed dots). */}
+      <g>
+        {(reachNodes ?? []).map(n => (
+          <g key={`reach-node-${n.tier}`}>
+            <rect x={n.x} y={n.y} width={wallNodeW} height={n.h} fill={n.color} rx={2} opacity={0.85} />
+            <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy - 2} fontSize={10} fontWeight={700} fill={NAVY}>
+              {n.label}
+            </text>
+            <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy + 10} fontSize={9} fill="#6B7280">
+              {n.count}
+            </text>
+          </g>
         ))}
       </g>
 

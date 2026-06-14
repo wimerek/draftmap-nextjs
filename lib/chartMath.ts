@@ -26,6 +26,7 @@ import {
   PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC,
   ZONE_TAB_INSET_PX, ZONE_TAB_H, LANE_TAB_PAD,
   USAGE_TIER_THRESHOLDS, STRIP_LABEL_VERDICT_AFTER_SEASONS,
+  RESOLVED_Y_TOP_LABEL, RESOLVED_Y_PROVE_IT_LABEL, RESOLVED_Y_NONE_LABEL,
 } from './act3Constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -766,6 +767,9 @@ export interface PendingZone {
   hasLine: boolean;         // FRINGE is a tab-only label (no horizontal divider)
   dashed: boolean;          // the COULDN'T STICK strip top edge
   tint: boolean;            // navy-tint tab rect; false for the strip tab (text+bar only, Part 3)
+  /** Render the `· {count}` suffix (default true). Rider 1 resolved Y-tabs set false —
+   *  they are LABELS ONLY (no count, no boundary line). */
+  showCount?: boolean;
 }
 
 export interface JellyfishLayout {
@@ -806,6 +810,16 @@ export interface JellyfishLayout {
   floorY?: number;
   /** Static scoreboard label, e.g. 'FIRST SNAPS — SEPTEMBER 2026' (floor mode). */
   scoreboardText?: string;
+
+  // ── Brief d riders ────────────────────────────────────────────────────────
+  /** Rider 1 — resolved-field left-edge Y-label tabs (resolved mode only). LABELS
+   *  ONLY: no boundary lines, no no-fire lanes; rendered BEHIND threads/dots so no
+   *  existing position moves. */
+  resolvedYTabs?: PendingZone[];
+  /** Rider 3 — pending tier nodes for already-signed players (pending mode only).
+   *  The subset of the 5 tiers present among signed pending players; signed dots get
+   *  a reaching thread (dot.threadPath) from their UNMOVED usage-Y up to these nodes. */
+  reachNodes?: JellyfishWallNode[];
 }
 
 const JELLYFISH_SVG_W = 1600;
@@ -983,6 +997,19 @@ export function computeJellyfishLayout(
 
   const dots: JellyfishDot[] = building;
 
+  // ── Rider 1: resolved-field left-edge Y-label tabs (LABELS ONLY) ────────────
+  // Names the verdict-Y meaning using c.2's tab grammar (ZONE_TAB_INSET_PX = tab sits
+  // just inside the top of the region it names). Resolved is NOT the pending zone
+  // system: NO boundary lines, NO no-fire lanes, NO counts. Rendered behind threads/
+  // dots so NOT a single existing dot/thread/wall node moves (deploy-coherence).
+  const proveItStripY = bandTop + PROVE_IT_STRIP_Y * bandH;
+  const noneStripY    = bandTop + NONE_STRIP_Y * bandH;
+  const resolvedYTabs: PendingZone[] = [
+    { label: RESOLVED_Y_TOP_LABEL,      y: bandTop,       tabY: bandTop + ZONE_TAB_INSET_PX,       count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
+    { label: RESOLVED_Y_PROVE_IT_LABEL, y: proveItStripY, tabY: proveItStripY + ZONE_TAB_INSET_PX, count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
+    { label: RESOLVED_Y_NONE_LABEL,     y: noneStripY,    tabY: noneStripY + ZONE_TAB_INSET_PX,    count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
+  ];
+
   return {
     svgW, svgH, margin, bandTop, bandH, maxPick,
     wallX, wallNodeW: WALL_NODE_W,
@@ -990,10 +1017,11 @@ export function computeJellyfishLayout(
     fieldCount,
     noneCount: tierCounts.get('NONE') ?? 0,
     dataGapCount: building.filter(d => d.isDataGap).length,
-    proveItStripY: bandTop + PROVE_IT_STRIP_Y * bandH,
-    noneStripY: bandTop + NONE_STRIP_Y * bandH,
+    proveItStripY,
+    noneStripY,
     mode: 'resolved',
     roundAnchors,
+    resolvedYTabs,
   };
 }
 
@@ -1204,8 +1232,14 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
 
   let nStarter = 0, nRole = 0, nFringe = 0, nStrip = 0;
   for (const d of building) {
-    if (d.y < starterLineY)      nStarter++;
-    else if (d.y < roleLineY)    nRole++;
+    // Membership convention is pct >= threshold → the UPPER zone (USAGE_TIER_THRESHOLDS
+    // Starter min:65 / Role min:25; matches usageTierLabel and the no-fire-lane tie
+    // rule "tie → up"). The boundaries are therefore INCLUSIVE on the upper side, so a
+    // dot exactly on the P65 line is a STARTER. This makes the STARTER edge-tab equal
+    // the scoreboard's becameStartersCount (careerUsagePercentile >= 65) — brief d
+    // ruling 4 coherence. (No dot moves; only the zone COUNT boundary is inclusive.)
+    if (d.y <= starterLineY)     nStarter++;
+    else if (d.y <= roleLineY)   nRole++;
     else if (d.y <= stripTopY)   nFringe++; // a dot EXACTLY on the strip top is Fringe, not strip
     else                         nStrip++;
   }
@@ -1231,6 +1265,54 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
     { y: stripTopY,    oneSidedUp: true },                      // strip top (interior unchanged)
   ]);
 
+  // ── Rider 3: reaching-threads + tier nodes for already-signed pending players ─
+  // A pending player who has ALREADY signed a second contract (carries a verdict —
+  // e.g. an early extension) gets a thread reaching from his usage-Y dot UP to his
+  // tier node. HARD: the dot STAYS at its usage-Y (read d.y, never write) — only the
+  // thread reaches. The tier-node set is the subset of the 5 tiers present among
+  // signed pending players, sized like the resolved wall but over signed dots only.
+  const signed = building.filter(d => d.player.verdict != null);
+  const reachNodes: JellyfishWallNode[] = [];
+  if (signed.length > 0) {
+    const signedTierCounts = new Map<ContractTier, number>();
+    for (const d of signed) {
+      const t = d.player.verdict!.tier;
+      signedTierCounts.set(t, (signedTierCounts.get(t) ?? 0) + 1);
+    }
+    const presentTiers = WALL_TIER_ORDER.filter(t => (signedTierCounts.get(t) ?? 0) > 0);
+    const usableH = bandH - Math.max(0, presentTiers.length - 1) * WALL_GAP;
+    let cursorY = bandTop;
+    for (const tier of presentTiers) {
+      const count = signedTierCounts.get(tier) ?? 0;
+      const h = Math.max(WALL_MIN_NODE_H, (count / signed.length) * usableH);
+      reachNodes.push({
+        tier, x: wallX, y: cursorY, h, cy: cursorY + h / 2,
+        count, pct: Math.round((count / signed.length) * 100),
+        color: TIER_THREAD_COLOR[tier], label: tier.replace('_', ' '),
+      });
+      cursorY += h + WALL_GAP;
+    }
+    const nodeByTier = new Map(reachNodes.map(n => [n.tier, n]));
+    const byTier = new Map<ContractTier, JellyfishDot[]>();
+    for (const d of signed) {
+      const t = d.player.verdict!.tier;
+      const list = byTier.get(t) ?? [];
+      list.push(d);
+      byTier.set(t, list);
+    }
+    byTier.forEach((list, tier) => {
+      const node = nodeByTier.get(tier);
+      if (!node) return;
+      const sorted = [...list].sort((a, b) => a.y - b.y);
+      sorted.forEach((d, i) => {
+        const targetY = node.y + ((i + 0.5) / sorted.length) * node.h;
+        d.tier = tier;
+        d.threadColor = TIER_THREAD_COLOR[tier];
+        d.threadPath = jellyfishThreadPath(d.x, d.y, node.x, targetY); // d.y UNMOVED
+      });
+    });
+  }
+
   return {
     svgW, svgH, margin, bandTop, bandH, maxPick,
     wallX, wallNodeW: WALL_NODE_W,
@@ -1245,6 +1327,7 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
     zones,
     stripTopY,
     warnCount,
+    reachNodes,
   };
 }
 

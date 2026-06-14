@@ -1499,6 +1499,252 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
 }
 
+/* ── Brief d: single-band header — [ Journey Bar … Scoreboard ] ─────────────── */
+
+.hz-root--single {
+  padding: 8px 16px;
+}
+
+.hz-band {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.hz-band .jbv3-root {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Mobile keeps the Row-1 year scrubber; desktop uses the scoreboard switcher and
+   removes the scrubber entirely (display:none → no reserved gap). */
+.hz-root--single .hz-scrubber-row--mobile { margin-bottom: 8px; }
+@media (min-width: 768px) {
+  .hz-root--single .hz-scrubber-row--mobile { display: none; }
+}
+
+/* ── Scoreboard slot (persistent; identical geometry every state) ───────────── */
+
+.sb-root {
+  flex: 0 0 auto;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sb-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sb-caption {
+  min-height: 52px; /* holds geometry so animating counts cause no jitter */
+}
+
+.sb-hero {
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #F5F0E8;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.sb-hero--pick { gap: 10px; }
+
+.sb-def {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: rgba(245, 240, 232, 0.72);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-util {
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: rgba(245, 240, 232, 0.4);
+  margin-top: 2px;
+}
+
+.sb-util--warn { color: rgba(212, 160, 23, 0.85); }
+
+.sb-num {
+  color: #D4A017;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-pick-slot {
+  font-variant-numeric: tabular-nums;
+  min-width: 150px; /* fixed-width slot so the per-pick caption never reflows */
+}
+
+.sb-team-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Denominator hover explainer */
+.sb-denom { position: relative; cursor: help; outline: none; }
+.sb-denom:focus-visible { outline: 1px solid rgba(212, 160, 23, 0.6); border-radius: 2px; }
+.sb-denom-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 230px;
+  padding: 7px 9px;
+  background: #0B2239;
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: normal;
+  color: rgba(245, 240, 232, 0.85);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Class-year switcher (the scope label = the one home for class switching) ── */
+
+.sb-scope { position: relative; display: flex; align-items: center; gap: 2px; }
+
+.sb-scope-step,
+.sb-scope-year {
+  background: none;
+  border: none;
+  color: #F5F0E8;
+  font-family: 'Oswald', 'Inter', sans-serif;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.sb-scope-step { font-size: 10px; color: rgba(245, 240, 232, 0.55); }
+.sb-scope-step:hover:not(:disabled) { color: #D4A017; }
+.sb-scope-year { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+.sb-scope-year:hover:not(:disabled) { color: #D4A017; }
+.sb-scope-caret { font-size: 8px; opacity: 0.6; }
+.sb-scope-step:disabled,
+.sb-scope-year:disabled { opacity: 0.35; cursor: default; }
+
+.sb-scope-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 45;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: 4px;
+  background: #0B2239;
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.sb-scope-item {
+  background: none;
+  border: none;
+  color: rgba(245, 240, 232, 0.75);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sb-scope-item:hover { background: rgba(245, 240, 232, 0.08); color: #F5F0E8; }
+.sb-scope-item--active { color: #D4A017; font-weight: 700; }
+
+/* ── Transport cluster (4 fixed slots, identical geometry every state) ───────── */
+
+.sb-tc-root { display: flex; align-items: center; gap: 4px; }
+
+.sb-tc-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  background: rgba(245, 240, 232, 0.06);
+  border: 1px solid rgba(245, 240, 232, 0.12);
+  border-radius: 4px;
+  color: #F5F0E8;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sb-tc-btn:hover:not(:disabled) { background: rgba(212, 160, 23, 0.18); border-color: rgba(212, 160, 23, 0.4); }
+.sb-tc-btn:disabled { opacity: 0.3; cursor: default; }
+.sb-tc-btn--play .sb-tc-word { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.sb-tc-icon { font-size: 9px; line-height: 1; }
+.sb-tc-caret { font-size: 7px; opacity: 0.6; }
+
+.sb-tc-speed { position: relative; }
+.sb-tc-btn--speed { min-width: 44px; justify-content: center; }
+
+.sb-tc-speed-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: #0B2239;
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.sb-tc-speed-item {
+  background: none;
+  border: none;
+  color: rgba(245, 240, 232, 0.75);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  padding: 4px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+}
+.sb-tc-speed-item:hover { background: rgba(245, 240, 232, 0.08); color: #F5F0E8; }
+.sb-tc-speed-item--active { color: #D4A017; font-weight: 700; }
+
+@keyframes sb-tc-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.55); }
+  100% { box-shadow: 0 0 0 7px rgba(212, 160, 23, 0); }
+}
+.sb-tc-btn--pulse { animation: sb-tc-pulse 0.9s ease-out 1; border-color: rgba(212, 160, 23, 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-tc-btn--pulse { animation: none; }
+}
+
 /* ── Row 1: Year Scrubber ───────────────────────────────────────────────── */
 
 .hz-scrubber-row {
@@ -1784,6 +2030,13 @@ a { color: inherit; text-decoration: none; }
   .jbv3-beat-teach { display: none; }
   .jbv3-beat-title { font-size: 10px; }
   .jbv3-spine { top: 23px; }
+}
+
+/* Brief d: the scoreboard slot is desktop chrome — hide on mobile (Beta mobile
+   redesign owns the small-screen header). The bar reclaims the full band. */
+@media (max-width: 767px) {
+  .sb-root { display: none; }
+  .hz-band { gap: 0; }
 }
 
 /* ── Mobile adjustments (< 640px) ─────────────────────────────────────── */
