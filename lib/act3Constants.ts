@@ -237,75 +237,22 @@ export const RD_AXIS_RULE_COLOR = 'rgba(11,34,57,0.25)'; // knob, tune on real r
  */
 export const STRIP_LABEL_VERDICT_AFTER_SEASONS = 3;
 
-// ════════════════════════════════════════════════════════════════════════════
-//  BRIEF D — SCOREBOARD + TRANSPORT CLUSTER + BACKLOG RIDERS (append only)
-//  Brief b/c own everything above; brief d appends here, one place. Each value is
-//  a locked working default — tune on the real render.
-// ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+//  BRIEF E — AWARD GLYPH LADDER (append only)
+//  One ivory mark per Act 3 dot = the highest rung earned in the rookie window
+//  (draft_year..+3): crown > sparkle > chevron > "S". Marks computed in
+//  lib/awardGlyph.ts; rendered in JellyfishField (resolved dot group + FieldDot).
+// ════════════════════════════════════════════════════════════════
 
-// ── Scoreboard stat thresholds (Part 1) ───────────────────────────────────────
-
-/**
- * GOT PAID = PREMIUM + SOLID + BRIDGE (ruling 3). BRIDGE is a guaranteed deal, so
- * it counts; PROVE_IT (signed, no guarantees) and NONE do NOT. The scoreboard
- * computes the count LIVE from post-a4 tiers — never a hardcoded "108 of 337".
- */
-export const GOT_PAID_TIERS: ContractTier[] = ['PREMIUM', 'SOLID', 'BRIDGE'];
+/** Glyph ink: ivory fill + navy keyline. Gold stays reserved for the verdict. */
+export const GLYPH_FILL    = '#FBF8F2'; // ivory
+export const GLYPH_KEYLINE = '#0B2239'; // navy keyline (painted under the fill, paint-order)
+export const GLYPH_KEYLINE_W = 0.6;     // keyline stroke width — tune on real render
 
 /**
- * "Became a starter" = cumulative career-usage percentile ≥ this (ruling 4).
- * References the Starter min from USAGE_TIER_THRESHOLDS so there is exactly ONE
- * magic 65 in the codebase.
- *
- * COHERENCE (ruling 4): scoreboard `becameStartersCount` MUST equal the pending
- * STARTER edge-tab count, because both are `careerUsagePercentile >= 65` over the
- * same qualified pool. (The pending field counts the tab via `d.y < starterLineY`,
- * which is this same threshold mapped through bodyPercentileToYFraction.)
+ * Glyph half-extent as a multiple of DOT_R (decoupled from the dot radius — the
+ * locked "glyph-on-top over a DOT_R bump" lever). <1 leaves a team-color rim (mark
+ * inside the dot); =1 mark ≈ dot; >1 the mark sits on/over the dot. Tune on the
+ * Brave render; also the lever for ST-cluster legibility in the 0–45 band.
  */
-export const STARTER_PERCENTILE = USAGE_TIER_THRESHOLDS[0].min; // 65
-
-/**
- * Act-2 reach/steal value-gap brackets (Part 1). A drafted player flags as a REACH
- * (picked EARLIER than ranked) or STEAL (picked LATER) ONLY when the pick-VALUE gap
- * off the smoothed curve clears the bracket keyed to min(rank, pick_drafted). Gap is
- * in pick-VALUE (not raw spots), so a late-round ±5-spot move never flags.
- * QBs systematically flagging as reaches is ACCEPTED (real consensus disagreement).
- */
-export const REACH_BRACKET_TOP10  = 20;   // picks ≤ 10
-export const REACH_BRACKET_THRU64 = 12.5; // picks 11–64
-export const REACH_BRACKET_AFTER64 = 9;   // picks > 64
-
-// ── Transport cluster (Part 3) ────────────────────────────────────────────────
-
-/** Speed presets — NO 4× (Skip serves the impatient). Multiply authored pacing. */
-export const SPEED_PRESETS = [0.5, 0.75, 1, 1.5, 2];
-export const DEFAULT_SPEED = 1;
-
-/** Restart/Replay (Btn3) one-shot pulse after any skip (accidental-skip recovery). */
-export const SKIP_PULSE_MS = 900;
-
-// ── Rider 3 — pending reaching-threads ─────────────────────────────────────────
-
-/** Faint-at-rest opacity for a signed pending player's reaching thread (dot→tier
- *  node). Accepted + flagged: revisit if noisy on real mixed-year data — the
- *  disposition is to tune opacity / defer, NOT to move dots. */
-export const PENDING_REACH_THREAD_OPACITY = 0.18; // locked working value — tune on real render
-
-// ── Rider 4 — K/P/LS strip copy ────────────────────────────────────────────────
-
-/** Drafted pending-class kickers/punters/long-snappers have zero player_seasons
- *  rows by design (snap share is not tracked) → usage null → they fall into the
- *  COULDN'T STICK strip. Honest specialist copy replaces "too few snaps to rank yet"
- *  so we never fabricate a rank for a 4-yr starting punter. */
-export const KP_STRIP_COPY = 'Kicking specialist — not tracked by snap share'; // tune on real render
-
-// ── Rider 1 — resolved-field left-edge Y labels ───────────────────────────────
-//
-// The resolved jellyfish ships with no Y-axis labels; a reader can't tell what "up"
-// means. These name the verdict-Y meaning using c.2's tab grammar (ZONE_TAB_* +
-// ZONE_TAB_INSET_PX). LABELS ONLY — resolved is not the pending zone system, so NO
-// boundary lines, no no-fire lanes; the tabs render BEHIND threads/dots (no position
-// changes). Tune copy + placement on the real render (flag for Derek's eyeball).
-export const RESOLVED_Y_TOP_LABEL      = 'TOP OF MARKET';        // top of the √-share region ↑
-export const RESOLVED_Y_PROVE_IT_LABEL = 'SIGNED · PROMISED NOTHING'; // PROVE IT strip
-export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip
+export const GLYPH_DOT_FRAC = 1.2; // locked working value — tune on real render

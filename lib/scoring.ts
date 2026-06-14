@@ -190,7 +190,10 @@ export interface DisplaySeasonRow {
 
   // Awards (per-season flags for ★ / † display)
   allPro: boolean
+  allPro2nd: boolean         // 2nd-team All-Pro (folds under the crown with allPro)
+  mvp: boolean               // MVP — names the honor in hover/card; never the dot mark
   proBowl: boolean
+  allRookie: boolean         // All-Rookie team (rookie-year honor → chevron glyph)
 
   teamRecord: string | null   // e.g. "14-3"; null if no data
 
@@ -206,6 +209,7 @@ export interface DisplaySeasonRow {
   kickoffReturnYards: number | null // KR yards
   specialTeamsTds: number | null    // all ST TDs
   stProBowl: boolean                // ST Pro Bowl selection this season
+  stAllPro: boolean                 // ST All-Pro selection this season
 }
 
 /** Scored outcome for a player -- output of the scoring engine. */

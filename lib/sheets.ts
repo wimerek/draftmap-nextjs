@@ -562,7 +562,10 @@ function buildSeasonData(
       defInts:          sum('ints_def'),
       passDeflections:  sum('pass_deflections'),
       allPro:           toB('all_pro'),
+      allPro2nd:        toB('all_pro_2nd'),
+      mvp:              toB('mvp'),
       proBowl:          toB('pro_bowl'),
+      allRookie:        toB('all_rookie'),
       teamRecord,
       arcScore:         outcome.scoresByYear[season] ?? null,
       stSnapPct,
@@ -573,6 +576,7 @@ function buildSeasonData(
       kickoffReturnYards: sum('kickoff_return_yards'),
       specialTeamsTds:  sum('special_teams_tds'),
       stProBowl:        toB('st_pro_bowl'),
+      stAllPro:         toB('st_all_pro'),
     })
   }
 
