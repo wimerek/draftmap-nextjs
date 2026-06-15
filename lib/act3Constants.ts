@@ -28,10 +28,10 @@ export const DATA_GAP_STROKE = '#9099A1'; // locked working value — tune on re
  */
 export const UNRANKED_DOT_FILL = '#7A828D'; // brief-e: superseded by team-color strip dots (dead unless re-enabled)
 
-/** Strip (unranked / COULDN'T STICK) dots render team color at this opacity:
- *  recognizable identity, visibly faded so the strip reads as different ground
- *  (brief-e, Derek 2026-06-14 — a still-developing player is not a washout). */
-export const UNRANKED_DOT_OPACITY = 0.55; // locked working value — tune on real render
+/** Strip (unranked / COULDN'T STICK) dots render team color at this opacity. 1.0 = full,
+ *  no mute (Derek 2026-06-14): show the full dot like the NONE / PROVE IT strips; the
+ *  dashed top edge + zone label carry "unranked · too few snaps". Lower it to re-mute. */
+export const UNRANKED_DOT_OPACITY = 1; // locked working value — tune on real render
 
 // ── Threads ───────────────────────────────────────────────────────────────────
 

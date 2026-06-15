@@ -24,7 +24,7 @@ import {
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
   DATA_GAP_FILL, DATA_GAP_STROKE, UNRANKED_DOT_OPACITY, WALL_TIER_ORDER, TIER_THREAD_COLOR,
   WALL_LABEL_DX,
-  COULDNT_STICK_FILL, COULDNT_STICK_STROKE,
+  COULDNT_STICK_STROKE,
   ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
@@ -365,12 +365,8 @@ function PendingJellyfishField({
       {/* Background — parchment. */}
       <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
 
-      {/* COULDN'T STICK strip — the ONE place that keeps a grey fill (trapdoor). */}
-      <rect
-        x={margin.left} y={stripTop}
-        width={wallX - margin.left} height={bandTop + bandH - stripTop}
-        fill={COULDNT_STICK_FILL}
-      />
+      {/* COULDN'T STICK strip — full team-color dots (matches the NONE / PROVE IT strips);
+          the dashed top edge + zone label carry "unranked · too few snaps to rank". */}
       <line
         x1={margin.left} y1={stripTop} x2={wallX} y2={stripTop}
         stroke={COULDNT_STICK_STROKE} strokeWidth={1} strokeDasharray="3 3" opacity={0.5}
