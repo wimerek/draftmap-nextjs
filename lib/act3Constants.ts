@@ -14,7 +14,7 @@ import type { ContractTier } from './verdict';
 // ── Dots ────────────────────────────────────────────────────────────────────
 
 /** Uniform resolved-field dot radius. */
-export const DOT_R = 4.5; // locked working value — tune on real render
+export const DOT_R = 7; // locked working value — tune on real render
 
 /** Muted "data-gap" dot (resolved-class join failure — see lib/sheets.ts). */
 export const DATA_GAP_FILL   = '#C9CDD2'; // locked working value — tune on real render
@@ -26,7 +26,12 @@ export const DATA_GAP_STROKE = '#9099A1'; // locked working value — tune on re
  * NOT a data-gap alarm. Distinct from DATA_GAP_FILL/STROKE, which stay reserved for
  * the resolved-field join-failure dots. Rendered at full opacity over the grey fill.
  */
-export const UNRANKED_DOT_FILL = '#7A828D'; // locked working value — tune on real render
+export const UNRANKED_DOT_FILL = '#7A828D'; // brief-e: superseded by team-color strip dots (dead unless re-enabled)
+
+/** Strip (unranked / COULDN'T STICK) dots render team color at this opacity:
+ *  recognizable identity, visibly faded so the strip reads as different ground
+ *  (brief-e, Derek 2026-06-14 — a still-developing player is not a washout). */
+export const UNRANKED_DOT_OPACITY = 0.55; // locked working value — tune on real render
 
 // ── Threads ───────────────────────────────────────────────────────────────────
 
@@ -312,7 +317,7 @@ export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip
 
 // ── BRIEF E — AWARD GLYPH LADDER (append only) ─────────────────────────────────
 // One ivory mark per Act 3 dot = the highest rung earned in the rookie window
-// (draft_year..+3): crown > sparkle > chevron > "S". Marks computed in
+// (draft_year..+3): crown > star > chevron > "S". Marks computed in
 // lib/awardGlyph.ts; rendered in JellyfishField (resolved dot group + FieldDot).
 
 /** Glyph ink: ivory fill + navy keyline. Gold stays reserved for the verdict. */
@@ -326,4 +331,4 @@ export const GLYPH_KEYLINE_W = 0.6;     // keyline stroke width — tune on real
  * =1 mark ≈ dot; >1 the mark sits on/over the dot. Tune on the Brave render;
  * also the lever for ST-cluster legibility in the 0–45 band.
  */
-export const GLYPH_DOT_FRAC = 1.2; // locked working value — tune on real render
+export const GLYPH_DOT_FRAC = 0.65; // locked working value — tune on real render

@@ -22,7 +22,7 @@ import { rookieAwardGlyph, type AwardGlyph } from "@/lib/awardGlyph";
 import {
   DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
-  DATA_GAP_FILL, DATA_GAP_STROKE, UNRANKED_DOT_FILL, WALL_TIER_ORDER, TIER_THREAD_COLOR,
+  DATA_GAP_FILL, DATA_GAP_STROKE, UNRANKED_DOT_OPACITY, WALL_TIER_ORDER, TIER_THREAD_COLOR,
   WALL_LABEL_DX,
   COULDNT_STICK_FILL, COULDNT_STICK_STROKE,
   ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
@@ -287,24 +287,20 @@ function AwardGlyphMark({
   glyph, cx, cy, r,
 }: { glyph: AwardGlyph; cx: number; cy: number; r: number }) {
   if (!glyph) return null;
-  const s = r * GLYPH_DOT_FRAC; // glyph half-extent (px), decoupled from DOT_R
-  if (glyph === "S") {
-    return (
-      <text
-        x={cx} y={cy} textAnchor="middle" dominantBaseline="central"
-        fontSize={s * 2.2} fontWeight={800} fontFamily="Oswald, sans-serif"
-        fill={GLYPH_FILL} stroke={GLYPH_KEYLINE} strokeWidth={GLYPH_KEYLINE_W}
-        paintOrder="stroke" style={{ pointerEvents: "none" }}
-      >S</text>
-    );
-  }
+  // Size by RANK (salience tracks importance): star biggest → triangle smallest.
+  const RANK: Record<NonNullable<AwardGlyph>, number> = {
+    star: 1.15, sparkle: 1.0, chevron: 1.0, triangle: 0.78,
+  };
+  const s = r * GLYPH_DOT_FRAC * RANK[glyph]; // glyph half-extent (px)
   const pt = (x: number, y: number) => `${(cx + x * s).toFixed(2)},${(cy + y * s).toFixed(2)}`;
   const poly = (pts: Array<[number, number]>) => "M" + pts.map(([x, y]) => pt(x, y)).join("L") + "Z";
   let d = "";
-  if (glyph === "crown") {
-    d = poly([[-1, 0.5], [-0.78, -0.12], [-0.4, 0.22], [0, -0.55], [0.4, 0.22], [0.78, -0.12], [1, 0.5]]);
+  if (glyph === "star") {
+    d = poly([[0, -1], [0.25, -0.34], [0.95, -0.31], [0.4, 0.13], [0.59, 0.81], [0, 0.42], [-0.59, 0.81], [-0.4, 0.13], [-0.95, -0.31], [-0.25, -0.34]]);
   } else if (glyph === "sparkle") {
     d = poly([[0, -1], [0.2, -0.2], [1, 0], [0.2, 0.2], [0, 1], [-0.2, 0.2], [-1, 0], [-0.2, -0.2]]);
+  } else if (glyph === "triangle") {
+    d = poly([[0, -0.82], [0.8, 0.62], [-0.8, 0.62]]);
   } else { // chevron — rising double
     d = poly([[-0.9, -0.12], [0, -0.62], [0.9, -0.12], [0.9, 0.16], [0, -0.34], [-0.9, 0.16]])
       + poly([[-0.9, 0.5], [0, 0.0], [0.9, 0.5], [0.9, 0.78], [0, 0.28], [-0.9, 0.78]]);
@@ -335,10 +331,10 @@ function FieldDot({
     <g>
       <circle
         cx={d.x} cy={d.y} r={DOT_R}
-        fill={muted ? UNRANKED_DOT_FILL : teamColors.fill}
-        stroke={muted ? NAVY : teamColors.stroke}
+        fill={teamColors.fill}
+        stroke={teamColors.stroke}
         strokeWidth={1}
-        opacity={1}
+        opacity={muted ? UNRANKED_DOT_OPACITY : 1}
         style={{ cursor: "pointer" }}
         onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
         onMouseLeave={isMobile ? undefined : onDotLeave}
