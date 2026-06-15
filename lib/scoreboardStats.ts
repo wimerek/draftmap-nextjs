@@ -39,6 +39,34 @@ function smoothPickValue(pick: number): number {
   return SMOOTH_PICK_VALUE.get(256) ?? 0;
 }
 
+export type DraftMove = 'REACH' | 'STEAL' | 'IN_RANGE' | 'UNDRAFTED';
+
+/**
+ * Per-player draft-move classification — THE SINGLE definition, shared by the
+ * scoreboard reach/steal counts (loop below) and the Act 2 hover hero, so a dot's
+ * hero can never disagree with the slot's total.
+ *
+ * Same smoothed pick-value curve + locked brackets keyed to min(rank, pick):
+ *   Δ>20 top-10 · Δ>12.5 through pick 64 · Δ>9 after 64.
+ *
+ * `rank` may be IMPUTED by the caller — a drafted player with no consensus rank is
+ * passed `maxPick + 1` (early unranked pick → REACH; late one falls in the flat tail
+ * → IN_RANGE; never STEAL). Imputation drives the LABEL only; callers display
+ * "Unranked", never the imputed number.
+ */
+export function classifyDraftMove(rank: number | null, pick: number | null): DraftMove {
+  if (pick == null || pick <= 0) return 'UNDRAFTED';
+  if (rank == null) return 'IN_RANGE'; // unreachable for the hover (it imputes); the
+                                       // loop also imputes, so null never lands here.
+  if (pick === rank) return 'IN_RANGE';
+  const gap = Math.abs(smoothPickValue(rank) - smoothPickValue(pick));
+  const key = Math.min(rank, pick);
+  const bracket =
+    key <= 10 ? REACH_BRACKET_TOP10 : key <= 64 ? REACH_BRACKET_THRU64 : REACH_BRACKET_AFTER64;
+  if (gap <= bracket) return 'IN_RANGE';
+  return pick < rank ? 'REACH' : 'STEAL';
+}
+
 // ── Field universe (ONE definition, shared by chart / wall / scoreboard) ───────
 
 /**
@@ -159,20 +187,22 @@ export function computeScoreboardStats(players: Player[], _year: number): Scoreb
   const hasProjection = firstRoundGradeCount > 0 || rankedCount > 0;
 
   // ── Act 2 reaches / steals ─────────────────────────────────────────────────
+  // Via the SHARED classifyDraftMove (also feeds the Act 2 hover). A drafted player
+  // with no consensus rank is imputed to maxPick+1 so the early-unranked pick reads
+  // REACH — this is why the reach total now exceeds the old (real-rank-only) count;
+  // steals are unaffected (an imputed max rank can never be a STEAL).
+  const maxPick = players.reduce(
+    (m, p) => (p.pick_drafted != null && p.pick_drafted > m ? p.pick_drafted : m),
+    0,
+  );
   let reaches = 0;
   let steals = 0;
   for (const p of players) {
-    const rank = p.rank;
     const pick = p.pick_drafted;
-    if (rank == null || pick == null || pick <= 0) continue;
-    if (pick === rank) continue;
-    const gap = Math.abs(smoothPickValue(rank) - smoothPickValue(pick));
-    const key = Math.min(rank, pick);
-    const bracket =
-      key <= 10 ? REACH_BRACKET_TOP10 : key <= 64 ? REACH_BRACKET_THRU64 : REACH_BRACKET_AFTER64;
-    if (gap <= bracket) continue;
-    if (pick < rank) reaches++; // picked EARLIER than the consensus ranked him
-    else steals++;              // picked LATER
+    if (pick == null || pick <= 0) continue; // undrafted — not a reach/steal
+    const move = classifyDraftMove(p.rank ?? maxPick + 1, pick);
+    if (move === 'REACH') reaches++;
+    else if (move === 'STEAL') steals++;
   }
 
   return {

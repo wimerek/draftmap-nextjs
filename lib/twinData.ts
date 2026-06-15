@@ -47,6 +47,33 @@ export interface PreppedClass {
 }
 
 /**
+ * Consensus positional rank for EVERY player in a draft class, keyed by player_id.
+ *
+ * Within each position: players with a consensus rank, sorted by rank ascending,
+ * 1-based. Players without a consensus rank are absent from the map.
+ *
+ * THE SINGLE positional-rank definition in the app — the crawlable-twin position
+ * pages (via prepPositionClass below) and the Act 1 chart hover both consume this,
+ * so the public "QB4" label and the hover's "4TH-RANKED QB" can never drift apart.
+ * Do not re-implement this count anywhere else.
+ */
+export function posRankMap(classPlayers: Player[]): Map<string, number> {
+  const byPos = new Map<string, Player[]>();
+  for (const p of classPlayers) {
+    if (p.rank == null) continue;
+    const list = byPos.get(p.pos);
+    if (list) list.push(p);
+    else byPos.set(p.pos, [p]);
+  }
+  const out = new Map<string, number>();
+  byPos.forEach((list) => {
+    list.sort((a, b) => (a.rank as number) - (b.rank as number));
+    list.forEach((p, i) => out.set(p.player_id, i + 1));
+  });
+  return out;
+}
+
+/**
  * Enrich one position's slice of a draft class.
  *
  * @param classPlayers ALL players in the draft class (every position) — needed for
@@ -67,12 +94,10 @@ export function prepPositionClass(classPlayers: Player[], position: string): Pre
 
   const atPos = classPlayers.filter((p) => p.pos === position);
 
-  // Position rank: rank ascending, 1-based, only players with a consensus rank.
-  const ranked = atPos
-    .filter((p) => p.rank != null)
-    .sort((a, b) => (a.rank as number) - (b.rank as number));
-  const posRankByPid = new Map<string, number>();
-  ranked.forEach((p, i) => posRankByPid.set(p.player_id, i + 1));
+  // Position rank: the single shared definition (posRankMap, above). Computed over
+  // the whole class and looked up per player_id — identical numbers to the inline
+  // per-position count it replaces, now shared with the Act 1 hover.
+  const posRankByPid = posRankMap(classPlayers);
 
   const posPlayers: PosPlayer[] = atPos.map((player) => {
     const pick = player.pick_drafted;

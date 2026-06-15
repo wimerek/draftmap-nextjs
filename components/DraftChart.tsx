@@ -4,8 +4,10 @@ import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, typ
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
-import { TEAM_COLORS, resolveTeamColors } from "@/lib/chartConstants";
+import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
+import { posRankMap } from "@/lib/twinData";
+import { classifyDraftMove } from "@/lib/scoreboardStats";
 import {
   computeChartLayout,
   computeAllDotPositions,
@@ -69,53 +71,16 @@ interface DraftApiResponse {
   unmatched?: string[];
 }
 
-// ── Tooltip (desktop only) ────────────────────────────────────────────────────
+// ── Hover cards (desktop only) ────────────────────────────────────────────────
+// One card system across all three acts: navy #0B2239, parchment text, a color top
+// strip following the journey step (school → drafted team → career team), three
+// blocks with the middle one evolving per act. Legacy ChartTooltip removed —
+// Act 1 = Act1HoverCard, Act 2 + leftover post-draft modes = Act2HoverCard.
 
 interface TooltipState {
   player: Player;
   x: number;
   y: number;
-}
-
-function ChartTooltip({ player, x, y }: TooltipState) {
-  const strengths = [player.s1, player.s2, player.s3].filter(
-    (s): s is string => !!s && s !== "N/A",
-  );
-  const strengthColors  = ["#B8D4C4", "#9ABFAD", "#7EA896"];
-  const strengthWeights = ["700", "600", "500"];
-
-  return (
-    <div className="dm-tooltip" style={{ left: x, top: y }}>
-      <div className="dm-tooltip-line">
-        <strong>{player.name}</strong> — {player.pos}
-      </div>
-      <div className="dm-tooltip-line">
-        <span className="dm-tooltip-label">School:</span> {player.school || "N/A"}
-      </div>
-      <div className="dm-tooltip-line">
-        <span className="dm-tooltip-label">Role:</span> {player.role || "—"}
-      </div>
-      <div className="dm-tooltip-line">
-        <span className="dm-tooltip-label">Proj. Pick</span> #{player.rank}
-      </div>
-      {player.pick_drafted && (
-        <div className="dm-tooltip-line">
-          <span className="dm-tooltip-label">Actual Pick</span> #{player.pick_drafted}
-          {player.team_drafted ? ` — ${player.team_drafted}` : ""}
-        </div>
-      )}
-      {strengths.length > 0 && (
-        <div style={{ marginTop: 6 }}>
-          {strengths.map((s, i) => (
-            <div
-              key={i}
-              style={{ color: strengthColors[i], fontWeight: strengthWeights[i], fontSize: 11 }}
-            >• {s}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── Act 3 resolved hover card (verdict brief b, Part 8) ─────────────────────────
@@ -166,7 +131,9 @@ function verdictBlock2(
 
 function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCount: number }) {
   const v = player.verdict;
-  const strip = resolveTeamColors(player.team_drafted).primary;
+  // Dot-fill treatment (no luminance flip) so the strip matches the chart dot — see
+  // Act2HoverCard. Aligned with the shipped card in this commit for coherence.
+  const strip = teamDotColors(player.team_drafted).fill;
   const ivory = "#F5F0E8";
 
   const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
@@ -268,7 +235,9 @@ function Sparkline({ points }: { points: Array<{ season: number; value: number |
 }
 
 function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMode: ChartMode }) {
-  const strip = resolveTeamColors(player.team_drafted).primary;
+  // Dot-fill treatment (no luminance flip) so the strip matches the chart dot — see
+  // Act2HoverCard. Same shipped-strip alignment as VerdictHoverCard, this commit.
+  const strip = teamDotColors(player.team_drafted).fill;
   const ivory = "#F5F0E8";
   const dim   = "rgba(245,240,232,0.7)";
 
@@ -358,6 +327,161 @@ function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMod
               <div style={{ fontSize: 9, color: "rgba(245,240,232,0.4)", marginTop: 1 }}>{sparkLabel}</div>
             </>
           )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
+          › Click dot for full Player Card
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Act 1 hover card ("THE BOARD") — brief e Item 2 ─────────────────────────────
+// Same one-card / middle-block-evolves system as the Act 3 cards. Two blocks + CTA
+// (no ON-THE-FIELD block — no career exists yet in Act 1). School-color top strip
+// (journey-step color = SCHOOL here). Hero = consensus POSITIONAL RANK, IVORY never
+// gold (gold is Act 3 PREMIUM only). Drops role + the actual draft selection — the
+// selection spoils Act 2 (three-act discipline). posRank comes from the shared
+// posRankMap (lib/twinData) so the hover label can never drift from the hub pages.
+
+function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: number | null }) {
+  const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
+  const ivory = "#F5F0E8";
+  const dim   = "rgba(245,240,232,0.7)";
+
+  const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
+  const identity = [player.pos, (player.school ?? "—").toUpperCase(), hw]
+    .filter(Boolean)
+    .join(" · ");
+
+  // Block 2 — THE BOARD. Hero = positional rank (ivory). Unranked prospect (no
+  // consensus rank → sits in the UDFA zone of the projection board) gets a plain
+  // designation and no "Ranked:" line.
+  const ranked = posRank != null;
+  const hero = ranked
+    ? `${ordinal(posRank).toUpperCase()}-RANKED ${player.pos}`
+    : "UNRANKED PROSPECT";
+
+  // def line: "Ranked: Round 1 · Pick 10" (rd = projected round, rank = consensus
+  // overall projected rank, shown as the projected pick). "Ranked:" sets up Act 2's
+  // "Selected:" reveal. Only rendered for ranked players.
+  const defParts: string[] = [];
+  if (player.rd != null)   defParts.push(`Round ${player.rd}`);
+  if (player.rank != null) defParts.push(`Pick ${player.rank}`);
+  const defLine = ranked && defParts.length > 0 ? `Ranked: ${defParts.join(" · ")}` : null;
+
+  return (
+    <div className="dm-tooltip" style={{ left: x, top: y, width: 250, background: "#0B2239", padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 4, background: sc.fill }} />
+      <div style={{ padding: "10px 12px" }}>
+        {/* Block 1 — identity */}
+        <div style={{ fontWeight: 700, color: "#F5F0E8", fontSize: 13 }}>{player.name}</div>
+        <div style={{ color: "rgba(245,240,232,0.65)", fontSize: 11, marginTop: 2 }}>{identity}</div>
+
+        {/* Block 2 — the board */}
+        <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+          <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>THE BOARD</div>
+          <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: ivory }}>{hero}</div>
+          {defLine && <div style={{ fontSize: 11, color: dim, marginTop: 1 }}>{defLine}</div>}
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
+          › Click dot for full Player Card
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Act 2 hover card ("DRAFT DAY") — brief e Item 2 ─────────────────────────────
+// Same one-card system. Block 2 = the draft-day move: ivory hero (REACH / STEAL /
+// PICKED IN EXPECTED RANGE) + three aligned rows (Ranked · Selected · Gap). Gap
+// value IVORY, never gold. Reach/steal via the SHARED classifyDraftMove so the hero
+// can never disagree with the scoreboard count. A drafted-but-unranked player is
+// imputed to maxPick+1 for the LABEL only — the Ranked row shows "Unranked", never a
+// fabricated pick. UDFA variant = "WENT UNDRAFTED".
+
+/** One aligned label/value row in the Act 2 DRAFT DAY block. Module-scope so it is a
+ *  stable component (avoids react/no-unstable-nested-components). */
+function Act2Row({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <div style={{ display: "flex", fontSize: 11, marginTop: 1 }}>
+      <span style={{ width: 60, flexShrink: 0, color: "rgba(245,240,232,0.45)" }}>{label}</span>
+      <span style={{ color: valueColor ?? "rgba(245,240,232,0.7)" }}>{value}</span>
+    </div>
+  );
+}
+
+function Act2HoverCard({ player, x, y, maxPick }: TooltipState & { maxPick: number }) {
+  // Strip = the DOT-fill treatment (no luminance flip) so it matches the player's
+  // dot on the chart; resolveTeamColors() would demote SEA/PIT/JAX/NO/LV/TEN to a
+  // near-black strip that vanishes on the navy card.
+  const strip = teamDotColors(player.team_drafted).fill;
+  const ivory = "#F5F0E8";
+
+  const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
+  const identity = [player.pos, player.team_drafted ?? "—", hw].filter(Boolean).join(" · ");
+
+  const pick = player.pick_drafted;
+  const isUDFA = !(pick && pick > 0);
+  const rankReal = player.rank;
+  const move = classifyDraftMove(isUDFA ? null : (rankReal ?? maxPick + 1), isUDFA ? null : pick);
+
+  const hero =
+    isUDFA            ? "WENT UNDRAFTED" :
+    move === "REACH"  ? "REACH" :
+    move === "STEAL"  ? "STEAL" :
+                        "PICKED IN EXPECTED RANGE";
+
+  // Row values. "Unranked" is shown literally — the imputed rank only drove the hero.
+  const rankedVal = rankReal != null
+    ? [player.rd != null ? `Round ${player.rd}` : null, `Pick ${rankReal}`].filter(Boolean).join(" · ")
+    : "Unranked";
+
+  const selectedVal = isUDFA
+    ? `Undrafted${player.team_drafted ? ` (signed by ${player.team_drafted})` : ""}`
+    : [player.rd_drafted != null ? `Round ${player.rd_drafted}` : null, `Pick ${pick}`]
+        .filter(Boolean).join(" · ");
+
+  // Gap row — words, never a signed number (dodges reach/steal sign confusion). The
+  // "· sizes the dot" tie is kept ONLY where the dot's size encoding genuinely tracks
+  // the stated quantity (chartMath pickValueDelta):
+  //   - ranked drafted → sizes off the move (tier-adjusted |rank−pick|). Kept.
+  //   - ranked UDFA   → sizes off how far he fell (the projection). Kept.
+  //   - unranked drafted → sizes off a bottom-of-board anchor, NOT "(maxPick+1)−pick";
+  //     that number is also mis-anchored (not measured from the real board bottom), so
+  //     the Gap row is OMITTED — hero + "Unranked" + Selected carry it. (Gate-2 items 3+4.)
+  let gapVal: string | null = null;
+  if (isUDFA) {
+    if (rankReal != null) gapVal = `fell ${maxPick + 1 - rankReal} picks past the board · sizes the dot`;
+  } else if (rankReal != null) {
+    const n = Math.abs(pick! - rankReal);
+    gapVal = n === 0
+      ? "picked right where ranked"
+      : `${n} picks ${pick! < rankReal ? "earlier" : "later"} · sizes the dot`;
+  }
+  // unranked drafted (rankReal == null, not UDFA) → gapVal stays null (row omitted).
+
+  return (
+    <div className="dm-tooltip" style={{ left: x, top: y, width: 250, background: "#0B2239", padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 4, background: strip }} />
+      <div style={{ padding: "10px 12px" }}>
+        {/* Block 1 — identity */}
+        <div style={{ fontWeight: 700, color: "#F5F0E8", fontSize: 13 }}>{player.name}</div>
+        <div style={{ color: "rgba(245,240,232,0.65)", fontSize: 11, marginTop: 2 }}>{identity}</div>
+
+        {/* Block 2 — draft day */}
+        <div style={{ marginTop: 9, paddingTop: 8, borderTop: "1px solid rgba(245,240,232,0.12)" }}>
+          <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>DRAFT DAY</div>
+          <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: ivory }}>{hero}</div>
+          <div style={{ marginTop: 4 }}>
+            <Act2Row label="Ranked" value={rankedVal} />
+            <Act2Row label="Selected" value={selectedVal} />
+            {gapVal && <Act2Row label="Gap" value={gapVal} valueColor={ivory} />}
+          </div>
         </div>
 
         {/* Footer */}
@@ -547,6 +671,25 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // A "field" mode is any of the three Act-3 beat-3 fields (resolved/pending/floor).
   const isFieldMode = chartMode === 'verdict' || chartMode === 'pending' || chartMode === 'floor';
+
+  // Consensus positional rank for the Act 1 ("THE BOARD") hover hero. One shared
+  // definition (lib/twinData posRankMap) feeds both this hover and the hub pages,
+  // so the labels can never drift. Filter to the selected class first (matching the
+  // hub pages' per-class pool + the defensive filter used elsewhere here).
+  const posRankByPid = useMemo(
+    () => posRankMap(players.filter(p => p.draft_year === selectedYear)),
+    [players, selectedYear],
+  );
+
+  // Class max pick — used by the Act 2 hover to impute rank for a drafted-but-unranked
+  // player (maxPick+1) and to size a UDFA's gap. Same selected-class pool as above, so
+  // it matches the scoreboard's own maxPick (one universe).
+  const classMaxPick = useMemo(
+    () => players
+      .filter(p => p.draft_year === selectedYear)
+      .reduce((m, p) => (p.pick_drafted != null && p.pick_drafted > m ? p.pick_drafted : m), 0),
+    [players, selectedYear],
+  );
 
   // Mirror chartMode into a ref so the window keydown handler (below) can decide
   // canPlay without re-binding the listener on every mode change.
@@ -1590,7 +1733,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
           ? <VerdictHoverCard {...tooltip} noneCount={jellyfishLayout?.noneCount ?? 0} />
           : (chartMode === 'pending' || chartMode === 'floor')
             ? <PendingHoverCard {...tooltip} chartMode={chartMode} />
-            : <ChartTooltip {...tooltip} />
+            : chartMode === 'projection'
+              ? <Act1HoverCard {...tooltip} posRank={posRankByPid.get(tooltip.player.player_id) ?? null} />
+              // 'draft-results' + any leftover deep-link modes (player-production /
+              // career) all resolve to the Act 2 "DRAFT DAY" card.
+              : <Act2HoverCard {...tooltip} maxPick={classMaxPick} />
       )}
 
       {/* ── "How to Read" modal ── */}
