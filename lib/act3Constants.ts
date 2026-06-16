@@ -332,3 +332,50 @@ export const GLYPH_KEYLINE_W = 0.6;     // keyline stroke width — tune on real
  * also the lever for ST-cluster legibility in the 0–45 band.
  */
 export const GLYPH_DOT_FRAC = 0.65; // locked working value — tune on real render
+
+// ════════════════════════════════════════════════════════════════════════════
+//  BRIEF F — LENS (ghost + re-light) (append only)
+//  When a scope lens is active, lit dots/threads re-light LOUD and the rest ghost.
+//  These are SEPARATE from the pending UNRANKED_DOT_OPACITY "muted" flag — a strip
+//  dot can be lit OR ghosted by the lens independent of its unranked status (two
+//  orthogonal dimensions). At rest (no lens) NONE of these apply — the resting
+//  field renders byte-identical.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ghost floor for non-lit dots AND non-lit threads under an active lens. The dot
+ * <g> drops to this group opacity (ring + glyph fade with it) and goes
+ * pointer-inert; a non-lit thread strokes at this path opacity. Mirrors the Acts
+ * 1/2 PlayerDots ghost (0.12) so the whole product ghosts at one weight.
+ */
+export const LENS_GHOST_OPACITY = 0.12; // locked working value — tune on real render
+
+/**
+ * Lit-thread re-light gradient (faint at the dot → firm toward the wall), used ONLY
+ * for in-scope threads while a lens is active. The resting gradient maxes at
+ * THREAD_OPACITY_MAX (0.30); a path-opacity multiplier can only pull a lit thread
+ * DOWN from that, so brightening ABOVE the resting weave needs this second, brighter
+ * gradient. "Re-light the weave, ghost the rest" — the lens is a LOUD state (3c 7.0).
+ */
+export const LENS_LIT_THREAD_OPACITY_MIN = 0.35; // dot end — tune on real render
+export const LENS_LIT_THREAD_OPACITY_MAX = 0.80; // wall end — tune on real render
+
+/**
+ * Lit-count text beside each frozen wall node label (wall RE-LIGHTS, height never
+ * recomputes). NO NEW HUE — the lit count is the chart's dark NAVY ink, set apart
+ * by WEIGHT + SIZE, not chroma (Tufte smallest-effective-difference; avoids piling
+ * another saturated color into the already-loud lit state, and can't collide with
+ * gold=PREMIUM by construction). Sits on the PARCHMENT field → navy reads strong.
+ * Fallback ONLY if navy-bold tests too quiet on Brave = the EXISTING brand teal
+ * '#0E7490' (Good token) — never a new hex.
+ */
+export const LENS_WALL_LIT_COLOR = '#0B2239'; // navy ink; size+weight carry it — tune on render
+
+/** When a lens is active, the FROZEN global node count steps one shade muted so the
+ *  navy-bold lit count wins the hierarchy. Reuses the NONE grey (no new hex). At rest
+ *  the count keeps its normal grey — the dim only applies under a lens. */
+export const LENS_WALL_DIM_COLOR = '#99A1AA'; // one step muted from the #6B7280 count grey
+
+/** Lit-count type size (px, bold). Bumped from the node count's 10 → ~12: it's a
+ *  transient attention element meant to grab the eye. Tune on render. */
+export const LENS_WALL_LIT_SIZE = 12;

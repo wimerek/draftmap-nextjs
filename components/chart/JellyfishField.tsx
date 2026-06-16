@@ -30,6 +30,8 @@ import {
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
   PENDING_REACH_THREAD_OPACITY,
   GLYPH_FILL, GLYPH_KEYLINE, GLYPH_KEYLINE_W, GLYPH_DOT_FRAC,
+  LENS_GHOST_OPACITY, LENS_LIT_THREAD_OPACITY_MIN, LENS_LIT_THREAD_OPACITY_MAX,
+  LENS_WALL_LIT_COLOR, LENS_WALL_DIM_COLOR, LENS_WALL_LIT_SIZE,
 } from "@/lib/act3Constants";
 
 const PARCHMENT = "#F5F0E8";
@@ -41,6 +43,13 @@ interface JellyfishFieldProps {
   onDotClick: (player: Player) => void;
   onDotHover: (player: Player, clientX: number, clientY: number) => void;
   onDotLeave: () => void;
+  /**
+   * Lens (brief f): the set of in-scope player_ids. null = NO lens active → render
+   * byte-identical to the resting field (every lens branch below is guarded on this).
+   * When non-null, lit dots/threads re-light LOUD and the rest ghost; geometry (dot
+   * positions, thread paths, wall heights) is UNCHANGED — opacity/stroke only.
+   */
+  litIds?: Set<string> | null;
 }
 
 export default function JellyfishField(props: JellyfishFieldProps) {
@@ -49,8 +58,71 @@ export default function JellyfishField(props: JellyfishFieldProps) {
   if (props.layout.mode === "pending") return <PendingJellyfishField {...props} />;
   if (props.layout.mode === "floor")   return <FloorJellyfishField {...props} />;
 
-  const { layout, isMobile, onDotClick, onDotHover, onDotLeave } = props;
+  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds } = props;
   const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH } = layout;
+
+  // ── Lens (brief f): re-light the in-scope weave, ghost the rest ──────────────
+  // null litIds → no lens → isLit() true for all → every branch collapses to the
+  // resting render (gradients/opacity/sub-counts all skipped). One membership check;
+  // geometry never changes.
+  const lensed = !!litIds;
+  const isLit = (pid: string) => !litIds || litIds.has(pid);
+  // Wall RE-LIGHT: per-node count of LIT dots threading to it. Heights NEVER recompute
+  // — this is an additive sub-count beside the frozen global label (7.0).
+  const litWall = lensed
+    ? dots.reduce((m, d) => {
+        if (d.tier && isLit(d.player.player_id)) m.set(d.tier, (m.get(d.tier) ?? 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    : null;
+
+  // Full-fidelity resolved dot (grab-ring + glyph + hover). ONE definition used for
+  // the resting field (no lens) AND for LIT dots under a lens, so lit == resting.
+  const renderResolvedDot = (d: JellyfishLayout["dots"][number]) => {
+    const p = d.player;
+    if (d.isDataGap) {
+      return (
+        <circle
+          key={`dot-${p.player_id}`}
+          cx={d.x} cy={d.y} r={DOT_R}
+          fill={DATA_GAP_FILL}
+          stroke={DATA_GAP_STROKE}
+          strokeWidth={1}
+          strokeDasharray="1.5 1.5"
+          style={{ cursor: "pointer" }}
+          onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
+          onMouseLeave={isMobile ? undefined : onDotLeave}
+          onClick={() => onDotClick(p)}
+        >
+          <title>{p.name} — data gap (no contract row)</title>
+        </circle>
+      );
+    }
+    const teamColors = teamDotColors(p.team_drafted);
+    const glyph = rookieAwardGlyph(p);
+    return (
+      <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
+        {/* Grab ring — flares toward the thread (wall) side. */}
+        <circle
+          cx={d.x} cy={d.y} r={DOT_R + 2.2}
+          fill="none"
+          stroke="url(#jf-grab-ring)"
+          strokeWidth={GRAB_RING_W}
+          pointerEvents="none"
+        />
+        <circle
+          cx={d.x} cy={d.y} r={DOT_R}
+          fill={teamColors.fill}
+          stroke={teamColors.stroke}
+          strokeWidth={1}
+          onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
+          onMouseLeave={isMobile ? undefined : onDotLeave}
+          onClick={() => onDotClick(p)}
+        />
+        <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={DOT_R} />
+      </g>
+    );
+  };
 
   return (
     <svg
@@ -70,6 +142,19 @@ export default function JellyfishField(props: JellyfishFieldProps) {
           >
             <stop offset="0%"   stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={THREAD_OPACITY_MIN} />
             <stop offset="100%" stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={THREAD_OPACITY_MAX} />
+          </linearGradient>
+        ))}
+        {/* Lens (brief f): brighter per-tier gradient for LIT threads only — exists in
+            defs solely while a lens is active, so the resting field is byte-identical. */}
+        {lensed && WALL_TIER_ORDER.map((tier) => (
+          <linearGradient
+            key={`tgl-${tier}`}
+            id={`jf-thread-lit-${tier}`}
+            gradientUnits="userSpaceOnUse"
+            x1={margin.left} y1={0} x2={wallX} y2={0}
+          >
+            <stop offset="0%"   stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={LENS_LIT_THREAD_OPACITY_MIN} />
+            <stop offset="100%" stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={LENS_LIT_THREAD_OPACITY_MAX} />
           </linearGradient>
         ))}
         {/* Grab ring: object-bbox gradient so it flares toward the wall (right) per-dot. */}
@@ -109,18 +194,23 @@ export default function JellyfishField(props: JellyfishFieldProps) {
         </text>
       </g>
 
-      {/* Threads (behind dots). Every dot threads — grey NONE/PROVE-IT included. */}
+      {/* Threads (behind dots). Every dot threads — grey NONE/PROVE-IT included.
+          Lens: lit threads stroke the brighter gradient (pop above the resting
+          weave); non-lit threads drop to LENS_GHOST_OPACITY. No lens → unchanged. */}
       <g fill="none">
-        {dots.map((d) =>
-          d.threadPath && d.tier ? (
+        {dots.map((d) => {
+          if (!(d.threadPath && d.tier)) return null;
+          const lit = isLit(d.player.player_id);
+          return (
             <path
               key={`th-${d.player.player_id}`}
               d={d.threadPath}
-              stroke={`url(#jf-thread-${d.tier})`}
+              stroke={`url(#jf-thread-${lensed && lit ? `lit-${d.tier}` : d.tier})`}
               strokeWidth={THREAD_W}
+              opacity={lensed && !lit ? LENS_GHOST_OPACITY : undefined}
             />
-          ) : null,
-        )}
+          );
+        })}
       </g>
 
       {/* Tier wall. */}
@@ -141,61 +231,46 @@ export default function JellyfishField(props: JellyfishFieldProps) {
               x={n.x + wallNodeW + WALL_LABEL_DX}
               y={n.cy + 10}
               fontSize={10}
-              fill="#6B7280"
+              fill={lensed ? LENS_WALL_DIM_COLOR : "#6B7280"}
             >
               {n.count} · {n.pct}%
             </text>
+            {/* Lens RE-LIGHT: lit sub-count beside the FROZEN global label (height
+                never recomputes). Navy ink, bold + larger so it wins the hierarchy
+                while the global count above steps muted. Absent at rest. */}
+            {lensed && (
+              <text
+                x={n.x + wallNodeW + WALL_LABEL_DX}
+                y={n.cy + 24}
+                fontSize={LENS_WALL_LIT_SIZE}
+                fontWeight={700}
+                fill={LENS_WALL_LIT_COLOR}
+              >
+                {litWall?.get(n.tier) ?? 0} lit
+              </text>
+            )}
           </g>
         ))}
       </g>
 
-      {/* Dots + grab rings (front). */}
+      {/* Dots + grab rings (front). Lens (brief f): lit dots render full-fidelity;
+          the rest render as ONE flattened ghost layer — a single group-opacity over
+          fill-only circles, so a dense stack stays a clean uniform 12% instead of an
+          alpha-stacked smear, and there are no gold rings / glyphs to haze. No lens →
+          the resting single pass, byte-identical (same renderResolvedDot). */}
       <g>
-        {dots.map((d) => {
-          const p = d.player;
-          if (d.isDataGap) {
-            return (
-              <circle
-                key={`dot-${p.player_id}`}
-                cx={d.x} cy={d.y} r={DOT_R}
-                fill={DATA_GAP_FILL}
-                stroke={DATA_GAP_STROKE}
-                strokeWidth={1}
-                strokeDasharray="1.5 1.5"
-                style={{ cursor: "pointer" }}
-                onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
-                onMouseLeave={isMobile ? undefined : onDotLeave}
-                onClick={() => onDotClick(p)}
-              >
-                <title>{p.name} — data gap (no contract row)</title>
-              </circle>
-            );
-          }
-          const teamColors = teamDotColors(p.team_drafted);
-          const glyph = rookieAwardGlyph(p);
-          return (
-            <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
-              {/* Grab ring — flares toward the thread (wall) side. */}
-              <circle
-                cx={d.x} cy={d.y} r={DOT_R + 2.2}
-                fill="none"
-                stroke="url(#jf-grab-ring)"
-                strokeWidth={GRAB_RING_W}
-                pointerEvents="none"
-              />
-              <circle
-                cx={d.x} cy={d.y} r={DOT_R}
-                fill={teamColors.fill}
-                stroke={teamColors.stroke}
-                strokeWidth={1}
-                onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
-                onMouseLeave={isMobile ? undefined : onDotLeave}
-                onClick={() => onDotClick(p)}
-              />
-              <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={DOT_R} />
+        {lensed ? (
+          <>
+            <g opacity={LENS_GHOST_OPACITY} style={{ pointerEvents: "none" }}>
+              {dots.map((d) =>
+                isLit(d.player.player_id) ? null : <GhostDot key={`gh-${d.player.player_id}`} d={d} />,
+              )}
             </g>
-          );
-        })}
+            {dots.map((d) => (isLit(d.player.player_id) ? renderResolvedDot(d) : null))}
+          </>
+        ) : (
+          dots.map((d) => renderResolvedDot(d))
+        )}
       </g>
 
       {/* Field title (left). */}
@@ -313,7 +388,19 @@ function AwardGlyphMark({
   );
 }
 
-/** Team-colored field dot with hover/click (shared by pending + floor). */
+/** Fill-only dot for the FLATTENED lens-ghost layer (no ring / glyph / stroke / hover).
+ *  Shared by all three fields. The single wrapping <g opacity> (in each field) keeps
+ *  overlaps FLAT — opaque children occlude, the group is dimmed once — so a dense stack
+ *  reads as a clean uniform ghost instead of an alpha-stacked smear. Lens-ghost is its
+ *  OWN dimension (NOT the pending UNRANKED_DOT_OPACITY/`muted` flag). */
+function GhostDot({ d }: { d: JellyfishLayout["dots"][number] }) {
+  const fill = d.isDataGap ? DATA_GAP_FILL : teamDotColors(d.player.team_drafted).fill;
+  return <circle cx={d.x} cy={d.y} r={DOT_R} fill={fill} />;
+}
+
+/** Team-colored field dot with hover/click (shared by pending + floor). `muted` = the
+ *  pending UNRANKED/strip ink flag. Lens-ghosting is handled UPSTREAM by the flattened
+ *  GhostDot layer (not here) — a lit dot always renders full-fidelity. */
 function FieldDot({
   d, isMobile, onDotClick, onDotHover, onDotLeave, muted,
 }: {
@@ -350,10 +437,20 @@ function FieldDot({
 // ════════════════════════════════════════════════════════════════════════════
 
 function PendingJellyfishField({
-  layout, isMobile, onDotClick, onDotHover, onDotLeave,
+  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds,
 }: JellyfishFieldProps) {
   const { svgW, svgH, margin, wallX, wallNodeW, dots, bandTop, bandH, zones, stripTopY, reachNodes } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
+
+  // Lens (brief f) — same membership check as the resolved field; null → no ghosting.
+  const lensed = !!litIds;
+  const isLit = (pid: string) => !litIds || litIds.has(pid);
+  const litReach = lensed
+    ? dots.reduce((m, d) => {
+        if (d.tier && d.threadPath && isLit(d.player.player_id)) m.set(d.tier, (m.get(d.tier) ?? 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    : null;
 
   return (
     <svg
@@ -382,17 +479,23 @@ function PendingJellyfishField({
       {/* Rider 3 — reaching threads (faint, behind dots) for already-signed players.
           The dot stays at its usage-Y; the thread reaches UP to the tier node. */}
       <g fill="none">
-        {dots.map(d =>
-          d.threadPath ? (
+        {dots.map(d => {
+          if (!d.threadPath) return null;
+          const lit = isLit(d.player.player_id);
+          return (
             <path
               key={`reach-${d.player.player_id}`}
               d={d.threadPath}
               stroke={d.threadColor || NAVY}
               strokeWidth={THREAD_W}
-              opacity={PENDING_REACH_THREAD_OPACITY}
+              opacity={
+                !lensed ? PENDING_REACH_THREAD_OPACITY
+                : lit ? LENS_LIT_THREAD_OPACITY_MAX
+                : LENS_GHOST_OPACITY
+              }
             />
-          ) : null,
-        )}
+          );
+        })}
       </g>
 
       {/* Rider 3 — pending tier nodes (subset of tiers present among signed dots). */}
@@ -403,9 +506,14 @@ function PendingJellyfishField({
             <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy - 2} fontSize={10} fontWeight={700} fill={NAVY}>
               {n.label}
             </text>
-            <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy + 10} fontSize={9} fill="#6B7280">
+            <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy + 10} fontSize={9} fill={lensed ? LENS_WALL_DIM_COLOR : "#6B7280"}>
               {n.count}
             </text>
+            {lensed && (
+              <text x={n.x + wallNodeW + WALL_LABEL_DX} y={n.cy + 24} fontSize={LENS_WALL_LIT_SIZE} fontWeight={700} fill={LENS_WALL_LIT_COLOR}>
+                {litReach?.get(n.tier) ?? 0} lit
+              </text>
+            )}
           </g>
         ))}
       </g>
@@ -413,14 +521,34 @@ function PendingJellyfishField({
       {/* Dots — strip dots take the grey/unranked ink (locked register); body dots
           keep team colors. */}
       <g>
-        {dots.map(d => (
-          <FieldDot
-            key={`dot-${d.player.player_id}`}
-            d={d} isMobile={isMobile}
-            muted={d.y >= stripTop}
-            onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
-          />
-        ))}
+        {lensed ? (
+          <>
+            <g opacity={LENS_GHOST_OPACITY} style={{ pointerEvents: "none" }}>
+              {dots.map(d =>
+                isLit(d.player.player_id) ? null : <GhostDot key={`gh-${d.player.player_id}`} d={d} />,
+              )}
+            </g>
+            {dots.map(d =>
+              isLit(d.player.player_id) ? (
+                <FieldDot
+                  key={`dot-${d.player.player_id}`}
+                  d={d} isMobile={isMobile}
+                  muted={d.y >= stripTop}
+                  onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+                />
+              ) : null,
+            )}
+          </>
+        ) : (
+          dots.map(d => (
+            <FieldDot
+              key={`dot-${d.player.player_id}`}
+              d={d} isMobile={isMobile}
+              muted={d.y >= stripTop}
+              onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+            />
+          ))
+        )}
       </g>
 
       {/* Field title (left). */}
@@ -441,11 +569,15 @@ function PendingJellyfishField({
 // ════════════════════════════════════════════════════════════════════════════
 
 function FloorJellyfishField({
-  layout, isMobile, onDotClick, onDotHover, onDotLeave,
+  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds,
 }: JellyfishFieldProps) {
   const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH, zones, stripTopY, floorY, scoreboardText } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
   const floor = floorY ?? bandTop + 0.82 * bandH;
+
+  // Lens (brief f) — floor has no threads/wall counts; only dots ghost.
+  const lensed = !!litIds;
+  const isLit = (pid: string) => !litIds || litIds.has(pid);
 
   return (
     <svg
@@ -486,13 +618,32 @@ function FloorJellyfishField({
         stroke={NAVY} strokeWidth={1} opacity={0.18}
       />
       <g>
-        {dots.map(d => (
-          <FieldDot
-            key={`dot-${d.player.player_id}`}
-            d={d} isMobile={isMobile}
-            onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
-          />
-        ))}
+        {lensed ? (
+          <>
+            <g opacity={LENS_GHOST_OPACITY} style={{ pointerEvents: "none" }}>
+              {dots.map(d =>
+                isLit(d.player.player_id) ? null : <GhostDot key={`gh-${d.player.player_id}`} d={d} />,
+              )}
+            </g>
+            {dots.map(d =>
+              isLit(d.player.player_id) ? (
+                <FieldDot
+                  key={`dot-${d.player.player_id}`}
+                  d={d} isMobile={isMobile}
+                  onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+                />
+              ) : null,
+            )}
+          </>
+        ) : (
+          dots.map(d => (
+            <FieldDot
+              key={`dot-${d.player.player_id}`}
+              d={d} isMobile={isMobile}
+              onDotClick={onDotClick} onDotHover={onDotHover} onDotLeave={onDotLeave}
+            />
+          ))
+        )}
       </g>
 
       {/* Field title (left). */}
