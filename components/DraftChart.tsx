@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, typ
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
-import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors } from "@/lib/chartConstants";
+import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
 import { classifyDraftMove } from "@/lib/scoreboardStats";
@@ -717,6 +717,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [teamFilter,   setTeamFilter]   = useState<string[]>([]);
   const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
 
+  // ── Your team (brief f, item 2) — identity persistence, NOT a parallel filter ──
+  // `pinnedTeam` is the saved IDENTITY (your team); the active lens is still plain
+  // `teamFilter`. "Clicks filter, pins remember": only an explicit pin writes
+  // localStorage; browsing/picking just toggles `teamFilter` (session-only). NO
+  // auto-lens on load — a pin hydrates the chip "off"; one tap lights it. Hydrated
+  // post-mount (SSR starts null → no hydration mismatch, no flash). One state, two
+  // surfaces (chip + sidebar) — both read pinnedTeam + teamFilter so they can't disagree.
+  const [pinnedTeam, setPinnedTeam] = useState<string | null>(null);
+  // One soft pulse on the chip at the first Act-3-rest arrival, once ever, only while
+  // unpinned (it invites the PICKER — declaration stays the fan's move).
+  const [chipPulse, setChipPulse] = useState(false);
+  const pulseFiredRef = useRef(false);
+
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
@@ -731,6 +744,17 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       }
     }
   }, [loading]);
+
+  // Hydrate the pinned team AFTER mount (read in an effect, never during render) so
+  // SSR + first client render both start null → no hydration mismatch and no flash.
+  // This only restores IDENTITY; it never applies the lens (no auto-lens on load).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem('dm_pinned_team');
+      if (saved) setPinnedTeam(saved);
+    } catch { /* private mode / disabled storage — chip just stays unpinned */ }
+  }, []);
 
   // ── Legacy view mode (kept for animation, PlayerDots, UDFAZone, etc.) ───
   const [viewMode,    setViewMode]    = useState<ViewMode>('projected');
@@ -1283,6 +1307,56 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     updateURL({ pos: null, round: null, team: null, school: null });
   }, [updateURL]);
 
+  // ── Your team (brief f, item 2) handlers ───────────────────────────────────
+  // Toggle ONE team's membership in the existing teamFilter (others preserved —
+  // membership toggle, NOT replace; stacking stays free). Routes through the same
+  // handleTeamFilterChange every sidebar checkbox uses → one lens path, no parallel
+  // filter. Alias-agnostic via sameTeam so the chip and the sidebar checkbox agree
+  // even when the pin and the class data use different team-string formats.
+  const handleToggleTeam = useCallback((team: string) => {
+    const exists = teamFilter.some(t => sameTeam(t, team));
+    const next = exists
+      ? teamFilter.filter(t => !sameTeam(t, team))
+      : [...teamFilter, team];
+    handleTeamFilterChange(next);
+  }, [teamFilter, handleTeamFilterChange]);
+
+  // Claim / change / unclaim. The ONLY writer of dm_pinned_team. Pure identity —
+  // never touches teamFilter, so pinning does not apply the lens ("pins remember").
+  const handlePinTeam = useCallback((team: string | null) => {
+    setPinnedTeam(team);
+    if (typeof window === 'undefined') return;
+    try {
+      if (team) localStorage.setItem('dm_pinned_team', team);
+      else localStorage.removeItem('dm_pinned_team');
+    } catch { /* storage disabled — pin holds for the session only */ }
+  }, []);
+
+  // One soft pulse on the chip at the FIRST arrival at Act-3 rest, ONCE EVER
+  // (dm_team_pulse_seen), and ONLY while unpinned. `isFieldMode && !isAnimating` is
+  // the Act-3-rest condition; cold load is Act 1, so this can't fire on first paint.
+  // ⚠ The 2→3 transition is an instant jump-cut today (the animated handoff is
+  // Epsilon 5), so there is no distinct "terminal handoff" event to bind to — this
+  // fires on the first Act-3-rest arrival regardless of which control got the user
+  // there. localStorage is read fresh (not the hydrating `pinnedTeam` state) so a
+  // returning pinned user deep-linking straight to Act 3 never sees a spurious pulse.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (pulseFiredRef.current) return;
+    if (!isFieldMode || isAnimating) return;
+    let seen = false, pinned: string | null = null;
+    try {
+      seen = !!localStorage.getItem('dm_team_pulse_seen');
+      pinned = localStorage.getItem('dm_pinned_team');
+    } catch { return; }
+    if (seen || pinned) return;
+    pulseFiredRef.current = true;
+    try { localStorage.setItem('dm_team_pulse_seen', '1'); } catch { /* non-fatal */ }
+    setChipPulse(true);
+    const t = setTimeout(() => setChipPulse(false), 1000);
+    return () => clearTimeout(t);
+  }, [isFieldMode, isAnimating]);
+
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
     setSelectedYear(newYear);
@@ -1522,6 +1596,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     availableTeams,
     availableSchools,
     hasActiveFilters,
+    // Your team (brief f): the ☆ MY TEAM row + per-row pin icons. Same teamFilter
+    // writer as the checkboxes (no parallel filter); onPinTeam is the only pin writer.
+    pinnedTeam,
+    onToggleTeam: handleToggleTeam,
+    onPinTeam: handlePinTeam,
   };
 
   // ── Default mobile viewBox (EDGE zoomed) before state settles ────────────
@@ -1605,6 +1684,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             // Nameplate dims (fixed order) + × exit (clears scope filters back to class).
             lensScopeLabels,
             onClearLens: handleClearAllFilters,
+            // Your team chip (brief f, item 2) — sits beside the nameplate, present in
+            // all acts. Reads pinnedTeam + teamFilter (one state, two surfaces); tap
+            // toggles the lens, ▾ opens the picker. chipPulse = the one-time invite.
+            teamFilter,
+            availableTeams,
+            pinnedTeam,
+            onToggleTeam: handleToggleTeam,
+            onPinTeam: handlePinTeam,
+            chipPulse,
             transport: {
               speed,
               restartPulseKey,

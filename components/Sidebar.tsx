@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
 import { POSITION_ORDER } from "@/lib/chartConstants";
-import { TEAM_COLORS } from "@/lib/chartConstants";
+import { TEAM_COLORS, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import FilterDropdown from "@/components/sidebar/FilterDropdown";
 
 // ViewMode must remain exported — PlayerDots.tsx imports it
@@ -28,6 +28,11 @@ export interface SidebarProps {
   availableTeams: string[];
   availableSchools: string[];
   hasActiveFilters: boolean;
+  // Your team (brief f, item 2) — the ☆ MY TEAM row + per-row pin icons. The pin is
+  // identity (onPinTeam); selecting a team still flows through onTeamFilterChange.
+  pinnedTeam: string | null;
+  onToggleTeam: (team: string) => void;
+  onPinTeam: (team: string | null) => void;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -110,12 +115,21 @@ export default function Sidebar(props: SidebarProps) {
     chartMode,
     availableTeams, availableSchools,
     hasActiveFilters,
+    pinnedTeam, onToggleTeam, onPinTeam,
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | null>(null);
   const [teamSearch, setTeamSearch] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
+  const teamSearchRef = useRef<HTMLInputElement>(null);
+
+  // The in-class string for the pinned team (so the ☆ row toggles the SAME teamFilter
+  // entry the checkboxes use); falls back to the raw pin if the team isn't in this class.
+  const pinnedInClass = pinnedTeam
+    ? (availableTeams.find(t => sameTeam(t, pinnedTeam)) ?? pinnedTeam)
+    : null;
+  const pinnedLit = pinnedTeam != null && teamFilter.some(t => sameTeam(t, pinnedTeam));
 
   const showTrailsToggle =
     chartMode === undefined ||
@@ -252,6 +266,7 @@ export default function Sidebar(props: SidebarProps) {
               onClear={() => onTeamFilterChange([])}
             >
               <input
+                ref={teamSearchRef}
                 className="sb-fd-search"
                 type="text"
                 placeholder="Search teams..."
@@ -259,27 +274,66 @@ export default function Sidebar(props: SidebarProps) {
                 onChange={e => setTeamSearch(e.target.value)}
               />
               <div className="sb-fd-list">
+                {/* ☆ MY TEAM — shortcut row pinned to the TOP (brief f, item 2).
+                    Unpinned = quiet invite (focuses search — the team list IS the
+                    picker here). Pinned = clicks exactly like a team row (toggles the
+                    lens); the ★ removes the pin. One state, shared with the chip. */}
+                {pinnedTeam ? (
+                  <div className="sb-fd-row sb-fd-row--myteam">
+                    <button
+                      className={`sb-fd-item${pinnedLit ? " sb-fd-item--checked" : ""}`}
+                      onClick={() => pinnedInClass && onToggleTeam(pinnedInClass)}
+                      title={pinnedLit ? "Hide your team" : "Show only your team"}
+                    >
+                      <span className="sb-fd-star" aria-hidden="true">★</span>
+                      {TEAM_COLORS[pinnedInClass ?? ""] && (
+                        <span className="sb-fd-swatch" style={{ background: TEAM_COLORS[pinnedInClass ?? ""].fill }} />
+                      )}
+                      <span className="sb-fd-myteam-label">MY TEAM</span>
+                      <span className="sb-fd-myteam-name">{resolveTeamName(pinnedTeam).split(/\s+/).pop()}</span>
+                    </button>
+                    <button
+                      className="sb-fd-pin sb-fd-pin--active"
+                      onClick={() => onPinTeam(null)}
+                      aria-pressed={true}
+                      title="Remove your team"
+                    >★</button>
+                  </div>
+                ) : (
+                  <button
+                    className="sb-fd-item sb-fd-myteam-empty"
+                    onClick={() => teamSearchRef.current?.focus()}
+                    title="Pin your team — one click, every visit"
+                  >
+                    <span className="sb-fd-star" aria-hidden="true">☆</span>
+                    <span className="sb-fd-myteam-label">MY TEAM</span>
+                    <span className="sb-fd-myteam-hint">pick below ↓</span>
+                  </button>
+                )}
                 {availableTeams
                   .filter(t => t.toLowerCase().includes(teamSearch.toLowerCase()))
                   .map(team => {
                     const tc = TEAM_COLORS[team];
-                    const isSelected = teamFilter.includes(team);
+                    const isSelected = teamFilter.some(t => sameTeam(t, team));
+                    const isPinned = sameTeam(team, pinnedTeam);
                     return (
-                      <button
-                        key={team}
-                        className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
-                        onClick={() => {
-                          const next = isSelected
-                            ? teamFilter.filter(t => t !== team)
-                            : [...teamFilter, team];
-                          onTeamFilterChange(next);
-                        }}
-                      >
-                        {tc && (
-                          <span className="sb-fd-swatch" style={{ background: tc.fill }} />
-                        )}
-                        {team}
-                      </button>
+                      <div key={team} className="sb-fd-row">
+                        <button
+                          className={`sb-fd-item${isSelected ? " sb-fd-item--checked" : ""}`}
+                          onClick={() => onToggleTeam(team)}
+                        >
+                          {tc && (
+                            <span className="sb-fd-swatch" style={{ background: tc.fill }} />
+                          )}
+                          {team}
+                        </button>
+                        <button
+                          className={`sb-fd-pin${isPinned ? " sb-fd-pin--active" : ""}`}
+                          onClick={() => onPinTeam(isPinned ? null : team)}
+                          aria-pressed={isPinned}
+                          title={isPinned ? "Remove your team" : "Make this your team"}
+                        >{isPinned ? "★" : "☆"}</button>
+                      </div>
                     );
                   })
                 }

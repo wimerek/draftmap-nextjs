@@ -572,6 +572,20 @@ export function teamDotColors(rawTeam: string | null | undefined): { fill: strin
   return { fill: entry.fill, stroke: entry.secondary };
 }
 
+/** True when two raw team strings refer to the SAME franchise regardless of alias
+ *  format ("SEA" / "Seattle" / "Seattle Seahawks" all match). Compares by the shared
+ *  TEAM_COLORS entry reference (same mechanic availableTeams dedup + lensFilter use),
+ *  so a pin saved on one class still matches the same team on another class whose data
+ *  uses a different alias. Falls back to exact-string equality for unknown teams.
+ *  (brief f, your-team pin/chip — one definition for every chip/pin/sidebar match.) */
+export function sameTeam(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const ea = TEAM_COLORS[a] ?? TEAM_COLORS[a.toLowerCase()];
+  const eb = TEAM_COLORS[b] ?? TEAM_COLORS[b.toLowerCase()];
+  if (ea && eb) return ea === eb;
+  return a === b;
+}
+
 /** Resolve school colors for pre-draft player card headers. */
 export function resolveSchoolColors(school: string | null | undefined): {
   primary: string;

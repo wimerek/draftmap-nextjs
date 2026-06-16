@@ -26,6 +26,7 @@ import type { ChartMode } from "@/lib/dataAvailability";
 import { resolveTeamColors, resolveTeamName } from "@/lib/chartConstants";
 import { computeScoreboardStats, teamCodeFromFullName } from "@/lib/scoreboardStats";
 import TransportCluster from "@/components/TransportCluster";
+import TeamChip from "@/components/TeamChip";
 
 const DENOM_TOOLTIP =
   "= everyone drafted from this class, plus undrafted players who logged an NFL snap.";
@@ -76,6 +77,17 @@ export interface ScoreboardProps {
   lensScopeLabels: string[];
   /** (brief f) The × exit on the nameplate — clears all scope filters back to class. */
   onClearLens: () => void;
+  /**
+   * (brief f, item 2) Your-team chip — sits beside the nameplate, present in all acts.
+   * NOT a parallel filter: the chip writes the same `teamFilter` the sidebar does.
+   * `pinnedTeam` is the saved identity; `chipPulse` is the one-time invite pulse.
+   */
+  teamFilter: string[];
+  availableTeams: string[];
+  pinnedTeam: string | null;
+  onToggleTeam: (team: string) => void;
+  onPinTeam: (team: string | null) => void;
+  chipPulse: boolean;
 }
 
 function ordinal(n: number): string {
@@ -203,6 +215,12 @@ export default function Scoreboard({
   classMaxPick,
   lensScopeLabels,
   onClearLens,
+  teamFilter,
+  availableTeams,
+  pinnedTeam,
+  onToggleTeam,
+  onPinTeam,
+  chipPulse,
 }: ScoreboardProps) {
   const stats = useMemo(
     () => computeScoreboardStats(players, selectedYear, classMaxPick),
@@ -423,6 +441,18 @@ export default function Scoreboard({
           onClearLens={onClearLens}
         />
         {cluster}
+      </div>
+      {/* Your-team chip (brief f, item 2) — directly beneath the year/nameplate, present
+          in all acts. Own row so it never fights the transport cluster for width. */}
+      <div className="sb-teamrow">
+        <TeamChip
+          pinnedTeam={pinnedTeam}
+          teamFilter={teamFilter}
+          availableTeams={availableTeams}
+          onToggleTeam={onToggleTeam}
+          onPinTeam={onPinTeam}
+          pulse={chipPulse}
+        />
       </div>
       <div className="sb-caption" aria-live={live}>
         {caption}
