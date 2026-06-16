@@ -16,6 +16,10 @@ import type { ContractTier } from './verdict';
 /** Uniform resolved-field dot radius. */
 export const DOT_R = 7; // locked working value — tune on real render
 
+/** Dot stroke width (team `.secondary`). Brief-f rider render contingency: DEFAULT
+ *  UNCHANGED at 1 — thin toward ~0.75 ONLY if the dense funnel shimmers on Brave. */
+export const DOT_STROKE_W = 1; // tune on real render
+
 /** Muted "data-gap" dot (resolved-class join failure — see lib/sheets.ts). */
 export const DATA_GAP_FILL   = '#C9CDD2'; // locked working value — tune on real render
 export const DATA_GAP_STROKE = '#9099A1'; // locked working value — tune on real render
@@ -36,8 +40,8 @@ export const UNRANKED_DOT_OPACITY = 1; // locked working value — tune on real 
 // ── Threads ───────────────────────────────────────────────────────────────────
 
 /** Thread opacity gradient — faint at the dot, firmer toward the wall. */
-export const THREAD_OPACITY_MIN = 0.07; // locked working value — tune on real render
-export const THREAD_OPACITY_MAX = 0.30; // locked working value — tune on real render
+export const THREAD_OPACITY_MIN = 0.07; // locked working value — tune on real render (dot-end stays clean — do NOT raise)
+export const THREAD_OPACITY_MAX = 0.34; // brief-f: 0.30 → 0.34 firms the comb at the wall/nodes (MIN untouched)
 
 /** Thread stroke width. */
 export const THREAD_W = 1.1; // locked working value — tune on real render
@@ -61,8 +65,29 @@ export const TIER_THREAD_COLOR: Record<ContractTier, string> = {
  * Named token; brand gold #D4A017 is unchanged for fills elsewhere.
  */
 export const LINE_GOLD = '#C8920A'; // locked working value — tune on real render
-export const GRAB_RING_OPACITY = 0.6;  // max opacity at the flare side — tune on real render
-export const GRAB_RING_W = 1.4;        // ring stroke width — tune on real render
+
+/**
+ * Grab-ring opacity (max, at the flare side) — PER TIER. ⚠ Brief-f Tufte rider: the
+ * grab ring is now per-tier (strokes `jf-grab-ring-${tier}` keyed on the dot's tier,
+ * parallel to the thread gradients) — gold appears ONLY on PREMIUM (gold scarcity),
+ * navy on SOLID, sky on BRIDGE, grey on PROVE_IT/NONE. SOLID is dialed DOWN (0.55 vs
+ * 0.78) because navy is low-luminance and otherwise reads heavier than the rest — this
+ * evens the visual weight across tiers. Per-tier knob; tune on real render.
+ */
+export const GRAB_RING_OPACITY: Record<ContractTier, number> = {
+  PREMIUM: 0.78,
+  SOLID: 0.55,   // navy is low-luminance → lower opacity to match the others' weight
+  BRIDGE: 0.78,
+  PROVE_IT: 0.78,
+  NONE: 0.78,
+};
+export const GRAB_RING_W = 1.4;        // ring stroke width (rest) — tune on real render
+export const GRAB_RING_DR = 2.2;       // ring radius beyond DOT_R (rest) — tune on real render
+
+/** Hover-amplified grab (brief-f rider): the hovered dot's ring goes bolder + larger
+ *  so it reads as "active" (pairs with the lit-thread brighten). Tune on real render. */
+export const GRAB_RING_HOVER_W = 2.6;  // ring stroke width on hover
+export const GRAB_RING_HOVER_DR = 3.6; // ring radius beyond DOT_R on hover
 
 // ── Tier wall ─────────────────────────────────────────────────────────────────
 
@@ -224,12 +249,19 @@ export const ZONE_COUNT_COLOR     = 'rgba(11,34,57,0.55)';
 
 // ── X-axis furniture (Gate-2 Fix 3 — all three field modes) ───────────────────
 
-/** RD round-anchor label ink. Darkened from 0.40 → 0.55 for legibility. */
-export const RD_LABEL_COLOR = 'rgba(11,34,57,0.55)'; // knob, tune on real render
+/** RD round-anchor label ink. Brief-f Tufte rider: 0.55 → 0.72 — Derek's render read
+ *  it near-invisible; bring up to quiet-but-readable (smallest effective difference). */
+export const RD_LABEL_COLOR = 'rgba(11,34,57,0.72)'; // knob, tune on real render
 
 /** Full-width hairline rule just above the RD label row (axis furniture, outside
  *  the field). NOT a round gridline — that vertical-gridline lock stands. */
 export const RD_AXIS_RULE_COLOR = 'rgba(11,34,57,0.25)'; // knob, tune on real render
+
+/** Brief-f rider: a short tick at each round anchor (drops from the hairline toward
+ *  the label) — anchors each RD label to the axis. A TICK, not a gridline (height is
+ *  tiny, never spans the field). Quiet furniture layer. */
+export const RD_TICK_COLOR = 'rgba(11,34,57,0.45)'; // knob, tune on real render
+export const RD_TICK_H = 5;                         // tick length (px) — tune on real render
 
 // ── Pending strip label maturity gate (Gate-2 Fix 4 — Derek-locked) ───────────
 
@@ -311,9 +343,27 @@ export const KP_STRIP_COPY = 'Kicking specialist — not tracked by snap share';
 // ZONE_TAB_INSET_PX). LABELS ONLY — resolved is not the pending zone system, so NO
 // boundary lines, no no-fire lanes; the tabs render BEHIND threads/dots (no position
 // changes). Tune copy + placement on the real render (flag for Derek's eyeball).
-export const RESOLVED_Y_TOP_LABEL      = 'TOP OF MARKET';        // top of the √-share region ↑
-export const RESOLVED_Y_PROVE_IT_LABEL = 'SIGNED · PROMISED NOTHING'; // PROVE IT strip
-export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip
+export const RESOLVED_Y_TOP_LABEL      = 'TOP OF MARKET';        // ⚠ brief-f: now FILTERED OUT at render (the left-edge axis title replaces it); chartMath still emits the tab — render drops it. Removable in a later chartMath cleanup.
+export const RESOLVED_Y_PROVE_IT_LABEL = 'SIGNED · PROMISED NOTHING'; // PROVE IT strip — KEPT
+export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip — KEPT
+
+/**
+ * Brief-f Y-AXIS LABEL (locked): a single two-line left-edge axis title NAMES the Y
+ * dimension (mirrors the chart's own title/subtitle typography). Replaces the removed
+ * "TOP OF MARKET" tab. NO top/bottom benchmark labels or lines — the wall's PREMIUM
+ * node + the floor strips already anchor the extremes (smallest-effective-difference).
+ */
+export const RESOLVED_Y_AXIS_TITLE     = 'GUARANTEED MONEY';
+export const RESOLVED_Y_AXIS_QUALIFIER = "share of position's top market";
+
+/** Inset (px, ≈ one dot width) pushing the Y-axis spine + title LEFT off the leftmost
+ *  dots, so the spine reads as axis furniture and not as connected to the data. The
+ *  X round-axis hairline extends to this same x to keep the bottom-left corner closed. */
+export const Y_AXIS_SPINE_INSET = 12; // tune on real render
+
+/** Gap (px) between the left axis spine and the rotated Y-axis title — ≈ the label's
+ *  cap-height so text + spine read as paired-but-distinct layers (Tufte separation). */
+export const Y_AXIS_TITLE_GAP = 12; // tune on real render
 
 // ── BRIEF E — AWARD GLYPH LADDER (append only) ─────────────────────────────────
 // One ivory mark per Act 3 dot = the highest rung earned in the rookie window

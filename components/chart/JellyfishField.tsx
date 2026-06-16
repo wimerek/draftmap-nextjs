@@ -15,19 +15,23 @@
  * plugs in a usage-percentile strategy without touching this component.
  */
 
+import { useState } from "react";
 import type { Player } from "@/lib/sheets";
 import type { JellyfishLayout, PendingZone } from "@/lib/chartMath";
 import { teamDotColors } from "@/lib/chartConstants";
 import { rookieAwardGlyph, type AwardGlyph } from "@/lib/awardGlyph";
 import {
-  DOT_R, LINE_GOLD, GRAB_RING_OPACITY, GRAB_RING_W,
+  DOT_R, DOT_STROKE_W, GRAB_RING_OPACITY, GRAB_RING_W, GRAB_RING_DR,
+  GRAB_RING_HOVER_W, GRAB_RING_HOVER_DR,
   THREAD_OPACITY_MIN, THREAD_OPACITY_MAX, THREAD_W,
   DATA_GAP_FILL, DATA_GAP_STROKE, UNRANKED_DOT_OPACITY, WALL_TIER_ORDER, TIER_THREAD_COLOR,
   WALL_LABEL_DX,
   COULDNT_STICK_STROKE,
   ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
-  RD_LABEL_COLOR, RD_AXIS_RULE_COLOR,
+  RD_LABEL_COLOR, RD_AXIS_RULE_COLOR, RD_TICK_COLOR, RD_TICK_H,
+  RESOLVED_Y_TOP_LABEL, RESOLVED_Y_AXIS_TITLE, RESOLVED_Y_AXIS_QUALIFIER,
+  Y_AXIS_TITLE_GAP, Y_AXIS_SPINE_INSET,
   PENDING_REACH_THREAD_OPACITY,
   GLYPH_FILL, GLYPH_KEYLINE, GLYPH_KEYLINE_W, GLYPH_DOT_FRAC,
   LENS_GHOST_OPACITY, LENS_LIT_THREAD_OPACITY_MIN, LENS_LIT_THREAD_OPACITY_MAX,
@@ -53,8 +57,12 @@ interface JellyfishFieldProps {
 }
 
 export default function JellyfishField(props: JellyfishFieldProps) {
+  // Hover state for the resolved grab-ring amplification (brief-f rider). Declared
+  // BEFORE the mode early-returns so the hook order is stable across class switches
+  // (pending/floor ignore it; the resolved branch below consumes it).
+  const [hoverId, setHoverId] = useState<string | null>(null);
+
   // Pending / floor fields are net-new render layers, keyed off layout.mode.
-  // The resolved branch below is left untouched (DO-NOT-TOUCH).
   if (props.layout.mode === "pending") return <PendingJellyfishField {...props} />;
   if (props.layout.mode === "floor")   return <FloorJellyfishField {...props} />;
 
@@ -100,29 +108,39 @@ export default function JellyfishField(props: JellyfishFieldProps) {
     }
     const teamColors = teamDotColors(p.team_drafted);
     const glyph = rookieAwardGlyph(p);
+    const tier = d.tier ?? "NONE";
+    const hovered = hoverId === p.player_id;
     return (
       <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
-        {/* Grab ring — flares toward the thread (wall) side. */}
+        {/* Grab ring — PER-TIER hue, flares toward the thread (wall) side; amplifies
+            (bolder + larger) on hover. */}
         <circle
-          cx={d.x} cy={d.y} r={DOT_R + 2.2}
+          cx={d.x} cy={d.y} r={DOT_R + (hovered ? GRAB_RING_HOVER_DR : GRAB_RING_DR)}
           fill="none"
-          stroke="url(#jf-grab-ring)"
-          strokeWidth={GRAB_RING_W}
+          stroke={`url(#jf-grab-ring-${tier})`}
+          strokeWidth={hovered ? GRAB_RING_HOVER_W : GRAB_RING_W}
           pointerEvents="none"
         />
         <circle
           cx={d.x} cy={d.y} r={DOT_R}
           fill={teamColors.fill}
           stroke={teamColors.stroke}
-          strokeWidth={1}
-          onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
-          onMouseLeave={isMobile ? undefined : onDotLeave}
+          strokeWidth={DOT_STROKE_W}
+          onMouseEnter={isMobile ? undefined : (e) => { setHoverId(p.player_id); onDotHover(p, e.clientX, e.clientY); }}
+          onMouseLeave={isMobile ? undefined : () => { setHoverId(null); onDotLeave(); }}
           onClick={() => onDotClick(p)}
         />
         <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={DOT_R} />
       </g>
     );
   };
+
+  // Y-axis furniture geometry (brief-f): faint left spine + rotated title in the margin,
+  // inset LEFT off the leftmost dots (Y_AXIS_SPINE_INSET) so the spine reads as furniture.
+  const yAxisSpineX = margin.left - Y_AXIS_SPINE_INSET; // spine clears the dots (x ≥ margin.left)
+  const yAxisBottom = bandTop + bandH + 20;             // meets the X hairline at the corner
+  const yAxisCy     = bandTop + bandH / 2;              // title centered on the field height
+  const yTitleX     = yAxisSpineX - Y_AXIS_TITLE_GAP;   // title sits further out, off the spine
 
   return (
     <svg
@@ -157,24 +175,58 @@ export default function JellyfishField(props: JellyfishFieldProps) {
             <stop offset="100%" stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={LENS_LIT_THREAD_OPACITY_MAX} />
           </linearGradient>
         ))}
-        {/* Grab ring: object-bbox gradient so it flares toward the wall (right) per-dot. */}
-        <linearGradient id="jf-grab-ring" gradientUnits="objectBoundingBox" x1="0" y1="0.5" x2="1" y2="0.5">
-          <stop offset="0%"   stopColor={LINE_GOLD} stopOpacity={0} />
-          <stop offset="70%"  stopColor={LINE_GOLD} stopOpacity={GRAB_RING_OPACITY * 0.4} />
-          <stop offset="100%" stopColor={LINE_GOLD} stopOpacity={GRAB_RING_OPACITY} />
-        </linearGradient>
+        {/* Grab ring: PER-TIER object-bbox gradients (brief-f rider) — flares toward the
+            wall (right) per-dot, in the dot's TIER hue (parallels the thread gradients).
+            Gold now appears ONLY on PREMIUM dots = gold scarcity restored. */}
+        {WALL_TIER_ORDER.map((tier) => (
+          <linearGradient
+            key={`gr-${tier}`}
+            id={`jf-grab-ring-${tier}`}
+            gradientUnits="objectBoundingBox"
+            x1="0" y1="0.5" x2="1" y2="0.5"
+          >
+            <stop offset="0%"   stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={0} />
+            <stop offset="70%"  stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={GRAB_RING_OPACITY[tier] * 0.4} />
+            <stop offset="100%" stopColor={TIER_THREAD_COLOR[tier]} stopOpacity={GRAB_RING_OPACITY[tier]} />
+          </linearGradient>
+        ))}
       </defs>
 
       {/* Background — parchment (navy is chrome only). */}
       <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
 
       {/* Rider 1 — left-edge Y-label tabs (LABELS ONLY; behind threads/dots so no
-          existing position moves). Tab grammar = c.2 verbatim, no boundary line. */}
+          existing position moves). Tab grammar = c.2 verbatim, no boundary line.
+          ⚠ Brief-f: the TOP OF MARKET tab is dropped here (filtered) — the left-edge
+          axis title below replaces it; the strip floor tabs are KEPT. */}
       <g>
-        {(layout.resolvedYTabs ?? []).map((z) => (
-          <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
-        ))}
+        {(layout.resolvedYTabs ?? [])
+          .filter((z) => z.label !== RESOLVED_Y_TOP_LABEL)
+          .map((z) => (
+            <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
+          ))}
       </g>
+
+      {/* Y-AXIS FURNITURE (brief-f) — moved OUT of the data field (it was occluded by
+          the early-pick PREMIUM dots). A faint left SPINE (same ink/weight as the X
+          round-axis hairline) + the dimension title rotated bottom-to-top in the left
+          MARGIN, outside the spine. NO top line — left spine + bottom hairline + right
+          wall = three quiet edges, never a closed box. */}
+      <line
+        x1={yAxisSpineX} y1={bandTop} x2={yAxisSpineX} y2={yAxisBottom}
+        stroke={RD_AXIS_RULE_COLOR} strokeWidth={1}
+        aria-hidden="true"
+      />
+      <text
+        transform={`rotate(-90 ${yTitleX} ${yAxisCy})`}
+        x={yTitleX} y={yAxisCy}
+        textAnchor="middle" dominantBaseline="middle"
+        fontSize={11} letterSpacing={1}
+        aria-hidden="true"
+      >
+        <tspan fontWeight={700} fill={NAVY}>{RESOLVED_Y_AXIS_TITLE}</tspan>
+        <tspan fontWeight={400} fill="#6B7280"> · {RESOLVED_Y_AXIS_QUALIFIER}</tspan>
+      </text>
 
       {/* Floor-strip baselines + labels. */}
       <g aria-hidden="true">
@@ -291,29 +343,36 @@ export default function JellyfishField(props: JellyfishFieldProps) {
 //  Shared sub-components (round-start X axis + zone edge-tabs)
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Round-start anchor labels on the X axis (Part 6b). No tick gridlines; low-
- *  contrast text. Round boundaries come from the class's own pick→round data. */
+/** Round-start anchor furniture on the X axis (Part 6b + brief-f rider). A single
+ *  full-width hairline + a short tick at each round boundary + the RD label. Brought
+ *  up from near-invisible to quiet-but-readable (RD_LABEL_COLOR 0.72, ticks). NOT
+ *  gridlines — ticks are tiny and never span the field. Boundaries come from the
+ *  class's own pick→round data. */
 function RoundAnchorAxis({ layout }: { layout: JellyfishLayout }) {
   const { roundAnchors, bandTop, bandH, margin, wallX } = layout;
   const y = bandTop + bandH + 34;
   const ruleY = bandTop + bandH + 20; // full-width hairline just above the RD label row
   return (
     <g aria-hidden="true">
-      {/* Axis furniture: a single full-width hairline (NOT a round gridline). */}
-      <line x1={margin.left} y1={ruleY} x2={wallX} y2={ruleY} stroke={RD_AXIS_RULE_COLOR} strokeWidth={1} />
+      {/* Axis furniture: a single full-width hairline (NOT a round gridline). Its LEFT
+          end extends to the inset Y-spine x so the bottom-left corner stays closed. */}
+      <line x1={margin.left - Y_AXIS_SPINE_INSET} y1={ruleY} x2={wallX} y2={ruleY} stroke={RD_AXIS_RULE_COLOR} strokeWidth={1} />
       {roundAnchors.map(a => (
-        <text
-          key={`rd-${a.rd}`}
-          x={a.x}
-          y={y}
-          fontSize={9.5}
-          fill={RD_LABEL_COLOR}
-          textAnchor="middle"
-          fontWeight={600}
-          letterSpacing={0.6}
-        >
-          {a.label}
-        </text>
+        <g key={`rd-${a.rd}`}>
+          {/* Short tick anchoring each label to the axis — a TICK, not a gridline. */}
+          <line x1={a.x} y1={ruleY} x2={a.x} y2={ruleY + RD_TICK_H} stroke={RD_TICK_COLOR} strokeWidth={1} />
+          <text
+            x={a.x}
+            y={y}
+            fontSize={10}
+            fill={RD_LABEL_COLOR}
+            textAnchor="middle"
+            fontWeight={600}
+            letterSpacing={0.6}
+          >
+            {a.label}
+          </text>
+        </g>
       ))}
     </g>
   );
@@ -420,7 +479,7 @@ function FieldDot({
         cx={d.x} cy={d.y} r={DOT_R}
         fill={teamColors.fill}
         stroke={teamColors.stroke}
-        strokeWidth={1}
+        strokeWidth={DOT_STROKE_W}
         opacity={muted ? UNRANKED_DOT_OPACITY : 1}
         style={{ cursor: "pointer" }}
         onMouseEnter={isMobile ? undefined : (e) => onDotHover(p, e.clientX, e.clientY)}
