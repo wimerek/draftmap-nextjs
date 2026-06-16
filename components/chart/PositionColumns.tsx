@@ -32,19 +32,15 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
 
   return (
     <g>
-      {visiblePositions.map((pos, posIdx) => {
+      {visiblePositions.map((pos) => {
         const colX = colXMap[pos];
         const cW   = colWidths[pos];
-        const colBg = posIdx % 2 === 0 ? "#F3F6F9" : "#E9EEF3";
 
         return (
           <g key={pos}>
-            {/* Column body background */}
-            <rect
-              x={colX} y={margin.top}
-              width={cW} height={totalChartH}
-              fill={colBg} opacity={0.55}
-            />
+            {/* Column body fill REMOVED (brief-f parchment unification) — the page
+                parchment shows through; the dividers + navy headers (below) separate
+                the columns Tufte-cleanly, matching Act 3 (no column fills). */}
 
             {/* Header and separator elements — hidden in zoomed mobile */}
             {!isZoomedMobile && (

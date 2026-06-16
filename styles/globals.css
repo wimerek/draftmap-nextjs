@@ -15,7 +15,7 @@
  */
 :root {
   /* Page */
-  --dm-bg:            #F7F9FA;   /* near-white — chart area */
+  --dm-bg:            #F5F0E8;   /* parchment — brand field, unified across all 3 acts (brief-f) */
   --dm-panel:         #EDE8DF;
   --dm-accent:        #D4A017;   /* gold — buttons and interactive elements only */
   --dm-text:          #0B2239;   /* dark navy — primary text */
@@ -619,7 +619,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   min-height: 100vh;
   align-items: flex-start;
-  background: #F7F9FA;
+  background: var(--dm-bg);
 }
 
 .dm-main {
@@ -1163,7 +1163,7 @@ a { color: inherit; text-decoration: none; }
     position: fixed;
     inset: 0;
     overflow: hidden;
-    background: #F7F9FA;
+    background: var(--dm-bg);
     align-items: stretch;
     padding-bottom: calc(65px + env(safe-area-inset-bottom));
   }

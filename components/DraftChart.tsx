@@ -8,6 +8,7 @@ import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors } from "@/lib/chartConstants"
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
 import { classifyDraftMove } from "@/lib/scoreboardStats";
+import { isPlayerFiltered } from "@/lib/lensFilter";
 import {
   computeChartLayout,
   computeAllDotPositions,
@@ -27,8 +28,6 @@ import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constant
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
 import PlayerCard from "@/components/PlayerCard";
-import TierBands from "@/components/chart/TierBands";
-import TierArrows from "@/components/chart/TierArrows";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
 import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
@@ -800,6 +799,38 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     teamFilter.length > 0 ||
     schoolFilter.length > 0;
 
+  // ── Lens (brief f) — ONE membership pass, three reads ──────────────────────
+  // The shared scope predicate (lib/lensFilter) decides "who's in scope" ONCE here;
+  // the lit set then fans out to (1) the Act 3 chart (JellyfishField ghosts the rest,
+  // re-lights the lit weave), (2) the wall lit sub-counts, and (3) the scoreboard
+  // recompute — so the slot can never contradict the chart. Geometry never changes;
+  // this is opacity/stroke + a scoped count only. Pure SCOPE (pos/round/team/school) —
+  // display toggles (Hide Drafted / movement lines / dot size) never enter here.
+  const litPlayers = useMemo(
+    () => players.filter(p => !isPlayerFiltered(
+      p, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
+    )),
+    [players, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode],
+  );
+  // null when no lens is active → JellyfishField renders the resting field byte-identical.
+  const litIds = useMemo(
+    () => (hasActiveFilters ? new Set(litPlayers.map(p => p.player_id)) : null),
+    [hasActiveFilters, litPlayers],
+  );
+  // Nameplate dims in FIXED order (team · pos · round · school); the switcher shows the
+  // year, so the full caption reads `2018 · SEA · WR`. Deterministic, NOT click order.
+  const lensScopeLabels = useMemo(() => {
+    const out: string[] = [];
+    if (teamFilter.length === 1) out.push(teamFilter[0]);
+    else if (teamFilter.length > 1) out.push(`${teamFilter.length} teams`);
+    if (positionFilter.length > 0) out.push(positionFilter.length <= 2 ? positionFilter.join(" · ") : `${positionFilter.length} pos`);
+    if (roundFilter.length === 1) out.push(roundFilter[0] === "UDFA" ? "UDFA" : `R${roundFilter[0]}`);
+    else if (roundFilter.length > 1) out.push(`${roundFilter.length} rds`);
+    if (schoolFilter.length === 1) out.push(schoolFilter[0]);
+    else if (schoolFilter.length > 1) out.push(`${schoolFilter.length} schools`);
+    return out;
+  }, [teamFilter, positionFilter, roundFilter, schoolFilter]);
+
   const availableTeams = useMemo(() => {
     // Deduplicate by TEAM_COLORS entry reference so "Pittsburgh Steelers" and "PIT"
     // don't appear as two separate entries for the same team.
@@ -1527,8 +1558,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   );
 
   const tierAxisVisible = yAxisPhase === 'results';
-  const tierBandsHiding = yAxisPhase === 'results';
-  const showTierArrows  = chartMode === 'projection' || chartMode === 'draft-results';
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -1559,7 +1588,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
           activeBeat={activeBeat}
           onSelectBeat={handleSelectBeat}
           scoreboard={{
-            players,
+            // Lens (brief f): under an active lens the slot counts the SCOPE-FILTERED
+            // (lit) subset — the SAME set the chart re-lights — so the slot can't
+            // contradict the chart. No lens → the full class set (byte-identical to d).
+            players: hasActiveFilters ? litPlayers : players,
             selectedYear,
             onYearChange: handleYearChange,
             availableYears: [...VALID_DRAFT_YEARS],
@@ -1568,6 +1600,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             paused,
             animDurationMs,
             unmatched,
+            // Class-pinned imputation anchor (one value, also fed to the Act 2 hover).
+            classMaxPick,
+            // Nameplate dims (fixed order) + × exit (clears scope filters back to class).
+            lensScopeLabels,
+            onClearLens: handleClearAllFilters,
             transport: {
               speed,
               restartPulseKey,
@@ -1604,6 +1641,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 onDotClick={handleDotClick}
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
+                litIds={litIds}
               />
             ) : (
             <svg
@@ -1613,27 +1651,17 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
             >
               <defs>
-                <linearGradient
-                  id="tierPillGradient"
-                  x1="0" y1={layout.tierBandDefs[0].y1}
-                  x2="0" y2={layout.margin.top + layout.totalChartH}
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%"   stopColor="#D4A017" stopOpacity={0.88} />
-                  <stop offset="100%" stopColor="#D4A017" stopOpacity={0.08} />
-                </linearGradient>
+                {/* tierPillGradient REMOVED with <TierArrows> (brief-f parchment unification). */}
                 <filter id="wavy-outline" x="-20%" y="-20%" width="140%" height="140%">
                   <feTurbulence type="turbulence" baseFrequency="0.08" numOctaves="2" seed="2" result="noise"/>
                   <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G"/>
                 </filter>
               </defs>
-              <TierBands
-                key={`bands-${selectedYear}`}
-                layout={layout}
-                labelsHiding={tierBandsHiding}
-                prefersReducedMotion={prefersReduced.current}
-              />
-              {showTierArrows && <TierArrows layout={layout} />}
+              {/* Brief-f parchment unification: BOTH the subtle tier-tint <TierBands> AND
+                  the legacy gold <TierArrows> quality-arrow (tierPillGradient) are REMOVED —
+                  orphaned in Acts 1/2 (Y = rounds, not tiers). Rounds come from RoundZones,
+                  tier labels from TierAxisLabels; nothing load-bearing lost. No replacement
+                  spine this pass (separate decision). */}
               <TierAxisLabels
                 key={`tier-labels-${selectedYear}`}
                 layout={layout}
