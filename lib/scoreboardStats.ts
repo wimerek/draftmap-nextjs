@@ -144,8 +144,19 @@ export interface ScoreboardStats {
  *                 in brief f — NEVER the display-filtered set; see the scope boundary
  *                 in the module header).
  * @param year     the class year (used only for vintage/utility copy in the component).
+ * @param classMaxPick  (brief f) the CLASS max pick, pinned by the caller. Used as the
+ *                 imputation anchor for drafted-but-unranked players (rank → maxPick+1)
+ *                 so a player's REACH/STEAL designation is identical whether or not a
+ *                 lens has narrowed `players` — it must match the Act 2 hover, which
+ *                 imputes against the SAME class anchor (one value, two consumers).
+ *                 Omitted → falls back to the passed set's max (class-scope brief-d
+ *                 behavior, where the passed set IS the whole class — unchanged).
  */
-export function computeScoreboardStats(players: Player[], _year: number): ScoreboardStats {
+export function computeScoreboardStats(
+  players: Player[],
+  _year: number,
+  classMaxPick?: number,
+): ScoreboardStats {
   const universe = players.filter(inUniverse);
   const N = universe.length;
 
@@ -191,7 +202,11 @@ export function computeScoreboardStats(players: Player[], _year: number): Scoreb
   // with no consensus rank is imputed to maxPick+1 so the early-unranked pick reads
   // REACH — this is why the reach total now exceeds the old (real-rank-only) count;
   // steals are unaffected (an imputed max rank can never be a STEAL).
-  const maxPick = players.reduce(
+  // Imputation anchor = the CLASS max pick when the caller pins it (brief f), so a
+  // lens narrowing `players` can never shift a drafted-but-unranked player's imputed
+  // rank and flip his REACH/STEAL vs his own hover. Fallback = the passed set's max
+  // (class-scope brief-d callers pass the whole class, so identical).
+  const maxPick = classMaxPick ?? players.reduce(
     (m, p) => (p.pick_drafted != null && p.pick_drafted > m ? p.pick_drafted : m),
     0,
   );

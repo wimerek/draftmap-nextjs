@@ -43,7 +43,12 @@ export interface ScoreboardTransport {
 }
 
 export interface ScoreboardProps {
-  /** FULL class player set (class-scope — ruling 2). */
+  /**
+   * The player set the slot counts. CLASS-SCOPE at rest (ruling 2); under an active
+   * lens (brief f) DraftChart passes the SCOPE-FILTERED (lit) subset — the SAME set
+   * the chart re-lights — so the slot can never contradict the chart. Display toggles
+   * never reach here (scope boundary in scoreboardStats.ts).
+   */
   players: Player[];
   selectedYear: number;
   onYearChange: (year: number) => void;
@@ -56,6 +61,21 @@ export interface ScoreboardProps {
   /** Resolved-class join failures (rider 2) — drives the ⚠ utility line when > 0. */
   unmatched: string[];
   transport: ScoreboardTransport;
+  /**
+   * (brief f) Class-pinned imputation anchor for reach/steal — forwarded to
+   * computeScoreboardStats so a lens narrowing `players` can't flip a designation
+   * vs the hover. One value, two consumers (hover + slot).
+   */
+  classMaxPick: number;
+  /**
+   * (brief f) Active lens scope dims in FIXED order (team · pos · round · school) — the
+   * year is shown by the switcher, these append to make the nameplate `2018 · SEA · WR`.
+   * Empty = no lens, no nameplate. Order is deterministic (NOT click order) so SEA→WR
+   * and WR→SEA produce the identical caption.
+   */
+  lensScopeLabels: string[];
+  /** (brief f) The × exit on the nameplate — clears all scope filters back to class. */
+  onClearLens: () => void;
 }
 
 function ordinal(n: number): string {
@@ -93,12 +113,14 @@ function DenomFigure({ n }: { n: number }) {
 // dropdown. The HeaderZone Row 1 scrubber is SUPERSEDED and retired. brief f APPENDS
 // the lens dims (`· SEA · WR`) + the × exit to THIS same label — leave room.
 function ClassSwitcher({
-  selectedYear, availableYears, onYearChange, disabled,
+  selectedYear, availableYears, onYearChange, disabled, lensScopeLabels, onClearLens,
 }: {
   selectedYear: number;
   availableYears: number[];
   onYearChange: (y: number) => void;
   disabled: boolean;
+  lensScopeLabels: string[];
+  onClearLens: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const sorted = useMemo(() => [...availableYears].sort((a, b) => a - b), [availableYears]);
@@ -132,6 +154,23 @@ function ClassSwitcher({
         disabled={disabled || nextYear == null}
         aria-label="Next draft class"
       >▶</button>
+      {/* Lens nameplate (brief f): `· SEA · WR` + × exit. Fixed dim order; the × clears
+          all scope filters back to class. Absent when no lens is active. */}
+      {lensScopeLabels.length > 0 && (
+        <span className="sb-scope-lens" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 6 }}>
+          {lensScopeLabels.map((s) => (
+            <span key={s} className="sb-scope-lens-dim" style={{ opacity: 0.85 }}>· {s}</span>
+          ))}
+          <button
+            type="button"
+            className="sb-scope-x"
+            onClick={onClearLens}
+            aria-label="Clear lens — back to the full class"
+            title="Clear lens"
+            style={{ marginLeft: 2, lineHeight: 1, cursor: "pointer", background: "none", border: "none", color: "inherit", fontSize: "1.05em", padding: "0 2px" }}
+          >×</button>
+        </span>
+      )}
       {open && !disabled && (
         <div className="sb-scope-menu" role="listbox">
           {sorted.map((y) => (
@@ -161,8 +200,14 @@ export default function Scoreboard({
   animDurationMs,
   unmatched,
   transport,
+  classMaxPick,
+  lensScopeLabels,
+  onClearLens,
 }: ScoreboardProps) {
-  const stats = useMemo(() => computeScoreboardStats(players, selectedYear), [players, selectedYear]);
+  const stats = useMemo(
+    () => computeScoreboardStats(players, selectedYear, classMaxPick),
+    [players, selectedYear, classMaxPick],
+  );
 
   // Drafted players in pick order — drives the 1→2 per-pick ticker (state 2).
   const draftedSorted = useMemo(
@@ -374,6 +419,8 @@ export default function Scoreboard({
           availableYears={availableYears}
           onYearChange={onYearChange}
           disabled={animating1to2}
+          lensScopeLabels={lensScopeLabels}
+          onClearLens={onClearLens}
         />
         {cluster}
       </div>
