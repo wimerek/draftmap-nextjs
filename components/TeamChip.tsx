@@ -131,12 +131,16 @@ export default function TeamChip({
             className={`dm-tc-star${isClaimed ? " dm-tc-star--claimed" : ""}`}
             aria-hidden="true"
           >{isClaimed ? "★" : "☆"}</span>
+          {/* fix-pass-4 §2: ONLY the 3-letter code (team-color badge) when a team is
+              active — the full nickname ("SEA Seahawks") blew up the controls row. The
+              ★/☆ ownership glyph stays (it's the claim signal, not width); the title
+              still carries the full name for hover/SR. Unpinned chip below keeps
+              "☆ MY TEAM ▾". */}
           <span
             className="dm-tc-code"
             style={{ background: colors.primary, color: colors.onPrimary }}
             aria-hidden="true"
           >{code}</span>
-          <span className="dm-tc-label">{nickname(shownTeam)}</span>
         </button>
         {/* Caret = the picker (distinct click zone). */}
         <button

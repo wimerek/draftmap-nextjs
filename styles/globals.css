@@ -1525,26 +1525,91 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Scoreboard slot (persistent; identical geometry every state) ───────────── */
 
+/* Frame (fix-pass §G): a defining edge so the panel reads as a distinct INSTRUMENT, not
+   header filler — a slightly lifted background vs the #0B2239 header + a hairline border.
+   Quiet, not loud. The panel is a THREE-COLUMN layout (fix-pass-2 §2): IDENTITY | STORY |
+   CONTROLS, left→right. align-items:stretch makes every column the height of the tallest
+   — the CONTROLS column, which is CONSTANT height — so the header never resizes when the
+   strip appears in Act 2/3 (it grows the STORY column only within the controls height). */
 .sb-root {
   flex: 0 0 auto;
-  width: 360px;
+  width: 600px; /* fix-pass-4 §1: grew (552→600) so the STORY column fits the WIDEST act
+                   (Act 2/3 hero + strip + sublabel) on one line without overflowing the
+                   controls. CONSTANT across acts (the panel never resizes per-act); the
+                   journey bar (flex:1) cedes this sliver permanently — tune on real render. */
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: 24px;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  flex-direction: row;
+  align-items: stretch;
+  padding: 8px 12px;
+  background: #0F2A47;
+  border: 1px solid rgba(245, 240, 232, 0.17);
+  border-radius: 8px;
 }
 
-.sb-topline {
+/* Regions stay INVISIBLE (structure, not chrome) — felt via spacing + single hairlines
+   (smallest effective difference). The "instrument" read comes from the frame + hierarchy. */
+.sb-region {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* IDENTITY (left) — a TOP-aligned "navigate" stack (fix-pass-3 §1/§2): DRAFT CLASS
+   eyebrow → big year (chevrons balanced around it) → search field. WIDENED so DRAFT
+   CLASS fits one line, the chevrons read as steppers, and the search registers as a
+   field. Contents stay horizontally CENTERED as a unit; top-aligned to share the top
+   line with the story + controls columns. Hairline divider on its right edge. */
+.sb-region--id {
+  flex: 0 0 auto;
+  width: 150px;
+  gap: 4px;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  text-align: center;
+  padding-right: 12px;
+  border-right: 1px solid rgba(245, 240, 232, 0.12);
+}
+/* Search field beneath the year — full column width, small gap so it doesn't crowd the
+   year/chevrons (fix-pass-3 §2). */
+.sb-search-slot { width: 100%; margin-top: 8px; }
+/* STORY (middle) — takes the remaining width; the only speaking slot at rest. Keeps its
+   width so the strip never squeezes. TOP-aligned (not centered) so the hero figure holds
+   a FIXED vertical position across acts — the strip appears BELOW it instead of re-
+   centering the block (the "slot never moves" doctrine). Hairline divider on its right. */
+.sb-region--story {
+  flex: 1 1 auto;
+  /* fix-pass-4 §1: an explicit floor so the widest act (the Act-2 20px hero
+     "{steals} steals · {reaches} reaches") fits on one line and never overflows the
+     controls. The remainder (root − id − controls) lands above this anyway, so the
+     story width stays the SAME across all three acts — tune on real render. */
+  min-width: 240px;
+  justify-content: flex-start;
+  padding: 0 14px;
+  border-right: 1px solid rgba(245, 240, 232, 0.12);
+}
+/* CONTROLS (right) — the constant-height ANCHOR. Vertical stack: PLAY (top) · Skip/Restart
+   pair · speed · MY TEAM (bottom, pushed down via margin-top:auto on .sb-myteam). Fixed
+   width so it never reflows; it's the tallest column, so it sets the header height. */
+.sb-region--action {
+  flex: 0 0 auto;
+  width: 156px; /* fix-pass-3: a touch wider for the speed|MY-TEAM bottom-row pair */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding-left: 14px;
 }
 
 .sb-caption {
-  min-height: 52px; /* holds geometry so animating counts cause no jitter */
+  min-height: 58px; /* holds geometry so animating counts + strip cause no jitter */
 }
+
+/* MY TEAM (fix-pass-3 §3) — now seated to the RIGHT of the speed dropdown in the controls
+   bottom row (was its own bottom row). Reduced size; flexes to fill the room beside speed. */
+.sb-myteam { flex: 1 1 auto; min-width: 0; }
+.sb-myteam .dm-team-chip { height: 20px; font-size: 10px; }
+.sb-myteam .dm-tc-body,
+.sb-myteam .dm-tc-caret-btn { height: 20px; }
+.sb-myteam .dm-tc-code { height: 14px; min-width: 22px; font-size: 9px; }
+.sb-myteam .dm-tc-star { font-size: 11px; }
 
 .sb-hero {
   font-family: 'Oswald', 'Inter', sans-serif;
@@ -1583,6 +1648,46 @@ a { color: inherit; text-decoration: none; }
 .sb-num {
   color: #D4A017;
   font-variant-numeric: tabular-nums;
+}
+
+/* Region A eyebrow — fixes the "year has no title" gap (brief §2A). Small caps, gold-
+   muted, letterspaced; sits directly above the year. tune type scale on real render. */
+.sb-eyebrow {
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(212, 160, 23, 0.72);
+  line-height: 1;
+}
+
+/* Region B small state label — the broadcast "FINAL" (brief §2B). The hero NUMBER
+   below it is the figure; this names the beat in a quiet caps line. */
+.sb-statelabel {
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(245, 240, 232, 0.55);
+  line-height: 1;
+}
+
+/* Region B hero figure — biggest thing IN THIS region (the year is biggest overall;
+   eye reads year-then-hero). tune the scale vs the year on real render. */
+.sb-herofig {
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #F5F0E8;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .sb-pick-slot {
@@ -1625,6 +1730,92 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+/* ── Proportion strip (the word-sized part-to-whole strip family, brief §4) ─────
+   ONE shape repeated across acts. Segment COLORS + geometry are knobs in
+   lib/scoreboardStrip.ts (applied inline); this handles layout + the hover tip.
+   Resting = gestalt (no %); hover a segment = count + % (progressive disclosure). */
+.sb-strip {
+  position: relative;
+  margin-top: 6px;
+}
+.sb-strip-track {
+  position: relative;
+  display: flex;
+  width: 100%;
+  overflow: hidden; /* clips segments to the rounded track; tip lives OUTSIDE this */
+}
+.sb-strip-seg {
+  height: 100%;
+  cursor: default;
+  /* width tweens on an act change / lens recompute (fix-pass §G motion-on-change). */
+  transition: filter 0.12s ease-out, width 0.45s ease-out;
+}
+.sb-strip-seg:hover { filter: brightness(1.18); }
+/* Act-2 internal boundary ticks (fix-pass §F) — light-grey, full strip height, kept a
+   notch below the paid-line's brightness. Width + color are knobs (scoreboardStrip.ts). */
+.sb-strip-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* The bright paid-vs-not boundary — the DOMINANT mark (brief §4). Width + color are
+   knobs (applied inline from scoreboardStrip.ts). Its left position tweens on change. */
+.sb-strip-paidline {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  transform: translateX(-50%);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  transition: left 0.45s ease-out;
+}
+.sb-strip-sublabel {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: rgba(245, 240, 232, 0.45);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+/* Hover tip — centered over the hovered segment, floats above the track. */
+.sb-strip-tip {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  transform: translateX(-50%);
+  z-index: 40;
+  white-space: nowrap;
+  padding: 3px 7px;
+  background: #0B2239;
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 3px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(245, 240, 232, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.sb-strip-tip strong { color: #F5F0E8; }
+
+/* ── Motion-on-change (fix-pass §G) ────────────────────────────────────────────
+   The "it's alive / it's interactive" signal. Hero numbers count up in JS (CountUp);
+   the label/sub lines crossfade here (the element remounts on an act change → the
+   animation replays); strip widths + paid-line tween via the transitions above. All of
+   it goes instant under prefers-reduced-motion. */
+@keyframes sb-x-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sb-x-fade { animation: sb-x-fade-in 0.42s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-x-fade { animation: none; }
+  .sb-strip-seg { transition: filter 0.12s ease-out; }
+  .sb-strip-paidline { transition: none; }
+}
+
 /* ── Class-year switcher (the scope label = the one home for class switching) ── */
 
 .sb-scope { position: relative; display: flex; align-items: center; gap: 2px; }
@@ -1640,11 +1831,15 @@ a { color: inherit; text-decoration: none; }
   border-radius: 3px;
 }
 
-.sb-scope-step { font-size: 10px; color: rgba(245, 240, 232, 0.55); }
+/* Chevrons scaled up a touch so the year-nav reads as a clear pair flanking the big
+   year (glyphs are ‹ › — never the play triangle). */
+.sb-scope-step { font-size: 16px; color: rgba(245, 240, 232, 0.5); padding: 0 4px; line-height: 1; }
 .sb-scope-step:hover:not(:disabled) { color: #D4A017; }
-.sb-scope-year { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+/* The YEAR is the LARGEST single element in the panel (brief §2A, concern 2) — it
+   doubles as the class dropdown trigger. tune the scale (vs the hero) on real render. */
+.sb-scope-year { font-size: 26px; font-weight: 700; line-height: 1; display: flex; align-items: center; gap: 3px; font-family: 'Oswald', 'Inter', sans-serif; }
 .sb-scope-year:hover:not(:disabled) { color: #D4A017; }
-.sb-scope-caret { font-size: 8px; opacity: 0.6; }
+.sb-scope-caret { font-size: 10px; opacity: 0.55; }
 .sb-scope-step:disabled,
 .sb-scope-year:disabled { opacity: 0.35; cursor: default; }
 
@@ -1821,39 +2016,50 @@ a { color: inherit; text-decoration: none; }
 .sb-fd-pin:hover { color: #D4A017; background: rgba(255, 255, 255, 0.08); }
 .sb-fd-pin--active { opacity: 1; color: #D4A017; }
 
-/* ── Player search (brief f, item 3) — top-right of the navy header band ──────── */
-.hz-search-slot { display: flex; align-items: center; margin-left: 18px; }
-@media (max-width: 767px) { .hz-search-slot { display: none; } } /* desktop-first */
+/* ── Player search (brief f item 3 · re-homed fix-pass-3 §2) — identity column ──────
+   Now lives in the scoreboard identity column beneath the year. REST state is a compact
+   FIELD (icon + faint placeholder) the width of the column; clicking it EXPANDS to a full
+   input + dropdown that OVERLAYS (absolute) so the narrow column never reflows. The root
+   reserves the field's height so collapsing back doesn't jump the column. */
+.dm-search { position: relative; width: 100%; height: 28px; }
 
-.dm-search { position: relative; }
-
-.dm-search-toggle {
-  width: 30px; height: 30px;
-  display: flex; align-items: center; justify-content: center;
+/* Rest field — reads as a FIELD, not an icon: magnifier + faint placeholder, subtle
+   border + faint fill on the navy instrument. */
+.dm-search-rest {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; height: 28px; padding: 0 9px;
   background: rgba(245, 240, 232, 0.06);
   border: 1px solid rgba(245, 240, 232, 0.18);
-  border-radius: 8px;
-  color: #F5F0E8; font-size: 14px; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  border-radius: 6px;
+  color: rgba(245, 240, 232, 0.5);
+  font-family: 'Inter', sans-serif; font-size: 11px;
+  cursor: text; text-align: left;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.dm-search-toggle:hover { background: rgba(245, 240, 232, 0.12); border-color: rgba(212, 160, 23, 0.5); color: #D4A017; }
+.dm-search-rest:hover { background: rgba(245, 240, 232, 0.1); border-color: rgba(212, 160, 23, 0.45); color: rgba(245, 240, 232, 0.7); }
+.dm-search-rest-icon { display: flex; align-items: center; flex: 0 0 auto; }
+.dm-search-rest-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Expanded — absolute overlay anchored at the field's spot; widens past the column over
+   the band (transient; collapses on blur/ESC/clear) so the column geometry never shifts. */
 .dm-search-open {
+  position: absolute; top: 0; left: 0; z-index: 60;
   display: flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 8px;
-  background: rgba(245, 240, 232, 0.08);
-  border: 1px solid rgba(212, 160, 23, 0.5);
-  border-radius: 8px;
+  width: 230px; height: 28px; padding: 0 8px;
+  background: #103154;
+  border: 1px solid rgba(212, 160, 23, 0.55);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 .dm-search-icon { display: flex; align-items: center; color: rgba(245, 240, 232, 0.6); }
 .dm-search-input {
-  width: 200px; background: none; border: none; outline: none;
+  flex: 1 1 auto; min-width: 0; background: none; border: none; outline: none;
   color: #F5F0E8; font-family: 'Inter', sans-serif; font-size: 13px;
 }
 .dm-search-input::placeholder { color: rgba(245, 240, 232, 0.4); }
 
 .dm-search-menu {
-  position: absolute; top: calc(100% + 6px); right: 0;
+  position: absolute; top: calc(100% + 6px); left: 0;
   z-index: 60; width: 280px;
   background: #0B2239;
   border: 1px solid rgba(245, 240, 232, 0.18);
@@ -1889,11 +2095,17 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Transport cluster (4 fixed slots, identical geometry every state) ───────── */
 
-.sb-tc-root { display: flex; align-items: center; gap: 4px; }
+/* Vertical stack (fix-pass-2 §2): PLAY (full-width, top) · Skip/Restart pair · speed. */
+.sb-tc-root { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+
+/* Skip + Restart — a horizontal pair under the full-width PLAY (each takes half). */
+.sb-tc-pair { display: flex; gap: 4px; }
+.sb-tc-pair .sb-tc-btn { flex: 1 1 0; min-width: 0; }
 
 .sb-tc-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   height: 24px;
   padding: 0 8px;
@@ -1910,40 +2122,87 @@ a { color: inherit; text-decoration: none; }
 }
 .sb-tc-btn:hover:not(:disabled) { background: rgba(212, 160, 23, 0.18); border-color: rgba(212, 160, 23, 0.4); }
 .sb-tc-btn:disabled { opacity: 0.3; cursor: default; }
-.sb-tc-btn--play .sb-tc-word { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.sb-tc-btn--play .sb-tc-word { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
 .sb-tc-icon { font-size: 9px; line-height: 1; }
 .sb-tc-caret { font-size: 7px; opacity: 0.6; }
 
-.sb-tc-speed { position: relative; }
-.sb-tc-btn--speed { min-width: 44px; justify-content: center; }
+/* PLAY = the gold-OUTLINE CTA (fix-pass §C). Brand gold #D4A017 is a deep ochre, so a
+   SOLID fill at button size on navy muddies to brown; an outline reads as a crisp gold
+   CTA (the discoverability affordance) without the brown-block. Subtle gold-tint fill on
+   HOVER only. These rules sit AFTER the generic .sb-tc-btn ones so they win (equal
+   specificity → source order). */
+.sb-tc-btn--play {
+  background: transparent;
+  border-color: #D4A017;
+  color: #D4A017;
+}
+.sb-tc-btn--play:hover:not(:disabled) {
+  background: rgba(212, 160, 23, 0.12);
+  border-color: #D4A017;
+}
 
+/* Speed dropdown (fix-pass §D) — compact trigger + DOWNWARD menu (the original bug was
+   an upward menu clipped off the top edge). Settable at rest. Sits stacked below the
+   Skip/Restart pair in the controls column (fix-pass-2 §2 — no longer an inline row, so
+   the former left divider is dropped). */
+/* Bottom row (fix-pass-3 §3) — `1× ▾` | `☆ MY TEAM` side by side. Speed holds its
+   intrinsic width; MY TEAM flexes to fill the rest of the row. */
+.sb-tc-bottom { display: flex; align-items: center; gap: 8px; }
+
+.sb-tc-speed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.sb-tc-speed-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 7px;
+  background: rgba(245, 240, 232, 0.06);
+  border: 1px solid rgba(245, 240, 232, 0.12);
+  border-radius: 4px;
+  color: rgba(245, 240, 232, 0.8);
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.sb-tc-speed-trigger:hover:not(:disabled) { color: #F5F0E8; background: rgba(245, 240, 232, 0.10); border-color: rgba(212, 160, 23, 0.4); }
+.sb-tc-speed-trigger:disabled { opacity: 0.3; cursor: default; }
 .sb-tc-speed-menu {
   position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
+  top: calc(100% + 4px); /* DOWNWARD (fix-pass §D) — never upward */
+  left: 0;
   z-index: 45;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 4px;
+  gap: 1px;
+  padding: 3px;
   background: #0B2239;
   border: 1px solid rgba(245, 240, 232, 0.18);
   border-radius: 4px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
-
 .sb-tc-speed-item {
   background: none;
   border: none;
   color: rgba(245, 240, 232, 0.75);
   font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  padding: 4px 14px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 3px 12px 3px 8px;
   border-radius: 3px;
   cursor: pointer;
-  text-align: center;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
 }
-.sb-tc-speed-item:hover { background: rgba(245, 240, 232, 0.08); color: #F5F0E8; }
+.sb-tc-speed-item:hover { color: #F5F0E8; background: rgba(245, 240, 232, 0.08); }
 .sb-tc-speed-item--active { color: #D4A017; font-weight: 700; }
 
 @keyframes sb-tc-pulse {

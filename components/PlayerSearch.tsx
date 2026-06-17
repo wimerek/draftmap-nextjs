@@ -2,10 +2,11 @@
 /**
  * components/PlayerSearch.tsx
  *
- * Year-agnostic player search (Epsilon 4 brief f, item 3). Collapsed 🔍 in the header
- * band; expands to an input with a disambiguation dropdown. Picking a result teleports
- * (the parent owns selectedYear/step/card + the glow-ring) — this component is just the
- * matcher UI.
+ * Year-agnostic player search (Epsilon 4 brief f, item 3). REST STATE is a compact SEARCH
+ * FIELD (magnifier + faint placeholder) seated in the scoreboard identity column beneath
+ * the year (fix-pass-3 §2); clicking it expands to a full input with a disambiguation
+ * dropdown. Picking a result teleports (the parent owns selectedYear/step/card + the
+ * glow-ring) — this component is just the matcher UI.
  *
  * Index is lazy: the all-classes list loads on FIRST focus/expand (never on page load),
  * cached for the session. Matching is NAME-ONLY, lean-forgiving (see lib/playerSearch).
@@ -86,10 +87,13 @@ export default function PlayerSearch({ onSelect }: { onSelect: (entry: SearchInd
       {!expanded ? (
         <button
           type="button"
-          className="dm-search-toggle"
+          className="dm-search-rest"
           aria-label="Search players"
           onClick={() => { setExpanded(true); loadIndex(); }}
-        ><SearchIcon /></button>
+        >
+          <span className="dm-search-rest-icon" aria-hidden="true"><SearchIcon /></span>
+          <span className="dm-search-rest-label">Search players</span>
+        </button>
       ) : (
         <div className="dm-search-open">
           <span className="dm-search-icon" aria-hidden="true"><SearchIcon /></span>

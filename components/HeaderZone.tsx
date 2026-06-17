@@ -13,6 +13,9 @@
  *     brief d mobile fallback, Derek-approved 2026-06-13). The Beta mobile-header
  *     redesign owns any further mobile changes.
  *
+ * Player search (fix-pass-3 §2) lives INSIDE the scoreboard identity column now (passed
+ * via scoreboard.searchSlot), not the header top-right corner — that corner is now free.
+ *
  * The bar navigates; the chart + scoreboard speak.
  */
 
@@ -21,7 +24,6 @@ import {
   TICK_HEIGHT,
   TICK_COLOR,
 } from "@/lib/dataAvailability";
-import type { ReactNode } from "react";
 import JourneyBarV3 from "@/components/JourneyBarV3";
 import Scoreboard, { type ScoreboardProps } from "@/components/Scoreboard";
 
@@ -29,13 +31,11 @@ interface HeaderZoneProps {
   /** Active journey beat: 1 THE BOARD · 2 DRAFT DAY · 3 4 YEARS LATER. */
   activeBeat: 1 | 2 | 3;
   onSelectBeat: (beat: 1 | 2 | 3) => void;
-  /** Everything the persistent scoreboard slot needs (includes the desktop class switcher). */
+  /** Everything the persistent scoreboard slot needs (class switcher + re-homed search). */
   scoreboard: ScoreboardProps;
-  /** Top-right of the band, OUTSIDE the scoreboard (brief f, item 3 — player search). */
-  headerRight?: ReactNode;
 }
 
-export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard, headerRight }: HeaderZoneProps) {
+export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard }: HeaderZoneProps) {
   // The scrubber drives the SAME year state the scoreboard switcher does (mobile fallback).
   const { selectedYear, onYearChange, availableYears } = scoreboard;
   const scrubberYears = [...availableYears].sort((a, b) => a - b);
@@ -99,11 +99,12 @@ export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard, heade
         </div>
       </div>
 
-      {/* Single band: journey bar + persistent scoreboard slot (scoreboard hides <768px). */}
+      {/* Single band: scoreboard slot then journey bar (scoreboard moved LEFT, brief §1 —
+          its border flips left→right so the divider sits between it and the bar). The
+          scoreboard hides <768px; the bar takes the full width on mobile. */}
       <div className="hz-band">
-        <JourneyBarV3 activeBeat={activeBeat} onSelectBeat={onSelectBeat} />
         <Scoreboard {...scoreboard} />
-        {headerRight && <div className="hz-search-slot">{headerRight}</div>}
+        <JourneyBarV3 activeBeat={activeBeat} onSelectBeat={onSelectBeat} />
       </div>
     </div>
   );

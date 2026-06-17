@@ -15,6 +15,7 @@
  */
 
 import type { Player } from './sheets';
+import type { ContractTier } from './verdict';
 import {
   GOT_PAID_TIERS,
   STARTER_PERCENTILE,
@@ -109,6 +110,15 @@ export interface ScoreboardStats {
   gotPaidCount: number;
   /** PREMIUM only (supporting / export caption material). */
   topOfMarketCount: number;
+  /**
+   * Per-tier verdict counts (PREMIUM / SOLID / BRIDGE / PROVE_IT / NONE). Feeds the
+   * Act-3 resolved tier strip (scoreboard-redesign brief §4). For a RESOLVED class
+   * these sum to N (every universe member carries a verdict row), so the strip fills
+   * the whole track and the bright paid-line lands exactly at gotPaidCount/N — the
+   * cumulative PREMIUM+SOLID+BRIDGE edge. gotPaidCount/topOfMarketCount are derived
+   * from these (one tally, one source of truth).
+   */
+  tierCounts: Record<ContractTier, number>;
 
   // Act 3 — both resolved + pending
   /** careerUsagePercentile >= STARTER_PERCENTILE (ruling 4). Coheres with STARTER tab. */
@@ -135,6 +145,16 @@ export interface ScoreboardStats {
   reaches: number;
   /** Picked LATER than consensus, value-gap clears the bracket. */
   steals: number;
+  /** Every player with a real pick (the Act-2 strip total + hover denominator). */
+  draftedCount: number;
+  /**
+   * draftedCount − reaches − steals. Every drafted player is a reach, a steal, or the
+   * neutral remainder (reaches already fold in the imputed drafted-but-unranked), so
+   * on-target is the clean middle beat of the Act-2 diverging strip (brief §4). Floored
+   * at 0 defensively — the three always partition the drafted set, so it can't go
+   * negative, but a future classify change shouldn't be able to make it ugly.
+   */
+  onTargetCount: number;
 }
 
 /**
@@ -160,15 +180,17 @@ export function computeScoreboardStats(
   const universe = players.filter(inUniverse);
   const N = universe.length;
 
-  // ── Act 3 resolved ───────────────────────────────────────────────────────
-  let gotPaidCount = 0;
-  let topOfMarketCount = 0;
+  // ── Act 3 resolved (tally all five tiers; got-paid + top-of-market derive) ──
+  const tierCounts: Record<ContractTier, number> = {
+    PREMIUM: 0, SOLID: 0, BRIDGE: 0, PROVE_IT: 0, NONE: 0,
+  };
   for (const p of players) {
     const t = p.verdict?.tier;
     if (!t) continue;
-    if (GOT_PAID_TIERS.includes(t)) gotPaidCount++;
-    if (t === 'PREMIUM') topOfMarketCount++;
+    tierCounts[t]++;
   }
+  const gotPaidCount = GOT_PAID_TIERS.reduce((s, t) => s + tierCounts[t], 0);
+  const topOfMarketCount = tierCounts.PREMIUM;
 
   // ── Became starters (resolved + pending; coheres with the STARTER edge-tab) ─
   const becameStartersCount = players.filter(
@@ -212,18 +234,25 @@ export function computeScoreboardStats(
   );
   let reaches = 0;
   let steals = 0;
+  let draftedCount = 0;
   for (const p of players) {
     const pick = p.pick_drafted;
     if (pick == null || pick <= 0) continue; // undrafted — not a reach/steal
+    draftedCount++;
     const move = classifyDraftMove(p.rank ?? maxPick + 1, pick);
     if (move === 'REACH') reaches++;
     else if (move === 'STEAL') steals++;
   }
+  // The honest middle beat: everyone drafted who wasn't a reach or a steal. The three
+  // partition the drafted set, so this is the clean remainder (Math.max guards against
+  // a future classify change, never reached today).
+  const onTargetCount = Math.max(0, draftedCount - reaches - steals);
 
   return {
     N,
     gotPaidCount,
     topOfMarketCount,
+    tierCounts,
     becameStartersCount,
     couldntStickCount,
     stillInLeagueCount,
@@ -233,6 +262,8 @@ export function computeScoreboardStats(
     hasProjection,
     reaches,
     steals,
+    draftedCount,
+    onTargetCount,
   };
 }
 

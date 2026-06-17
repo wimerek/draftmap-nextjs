@@ -850,20 +850,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     () => (hasActiveFilters ? new Set(litPlayers.map(p => p.player_id)) : null),
     [hasActiveFilters, litPlayers],
   );
-  // Nameplate dims in FIXED order (team · pos · round · school); the switcher shows the
-  // year, so the full caption reads `2018 · SEA · WR`. Deterministic, NOT click order.
-  const lensScopeLabels = useMemo(() => {
-    const out: string[] = [];
-    if (teamFilter.length === 1) out.push(teamFilter[0]);
-    else if (teamFilter.length > 1) out.push(`${teamFilter.length} teams`);
-    if (positionFilter.length > 0) out.push(positionFilter.length <= 2 ? positionFilter.join(" · ") : `${positionFilter.length} pos`);
-    if (roundFilter.length === 1) out.push(roundFilter[0] === "UDFA" ? "UDFA" : `R${roundFilter[0]}`);
-    else if (roundFilter.length > 1) out.push(`${roundFilter.length} rds`);
-    if (schoolFilter.length === 1) out.push(schoolFilter[0]);
-    else if (schoolFilter.length > 1) out.push(`${schoolFilter.length} schools`);
-    return out;
-  }, [teamFilter, positionFilter, roundFilter, schoolFilter]);
-
   const availableTeams = useMemo(() => {
     // Deduplicate by TEAM_COLORS entry reference so "Pittsburgh Steelers" and "PIT"
     // don't appear as two separate entries for the same team.
@@ -1725,8 +1711,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
         <HeaderZone
           activeBeat={activeBeat}
           onSelectBeat={handleSelectBeat}
-          headerRight={<PlayerSearch onSelect={handleSearchSelect} />}
           scoreboard={{
+            // Player search re-homed into the identity column (fix-pass-3 §2) — was the
+            // header top-right slot. Same matcher/teleport/glow-ring; only its home moved.
+            searchSlot: <PlayerSearch onSelect={handleSearchSelect} />,
             // Lens (brief f): under an active lens the slot counts the SCOPE-FILTERED
             // (lit) subset — the SAME set the chart re-lights — so the slot can't
             // contradict the chart. No lens → the full class set (byte-identical to d).
@@ -1741,12 +1729,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             unmatched,
             // Class-pinned imputation anchor (one value, also fed to the Act 2 hover).
             classMaxPick,
-            // Nameplate dims (fixed order) + × exit (clears scope filters back to class).
-            lensScopeLabels,
-            onClearLens: handleClearAllFilters,
-            // Your team chip (brief f, item 2) — sits beside the nameplate, present in
-            // all acts. Reads pinnedTeam + teamFilter (one state, two surfaces); tap
-            // toggles the lens, ▾ opens the picker. chipPulse = the one-time invite.
+            // Your team chip (brief f, item 2) — present in all acts. Reads pinnedTeam +
+            // teamFilter (one state, two surfaces); tap toggles the lens, ▾ opens the
+            // picker. chipPulse = the one-time invite. (The lens nameplate that used to
+            // sit by the year was removed in fix-pass 5 — it bumped the year sideways.)
             teamFilter,
             availableTeams,
             pinnedTeam,
