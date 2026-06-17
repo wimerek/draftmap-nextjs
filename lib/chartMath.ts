@@ -301,7 +301,12 @@ export function computeChartLayout(
   const hasDefense = visiblePositions.some(p => (POSITIONS.defense as readonly string[]).includes(p));
   const hasOffense = visiblePositions.some(p => (POSITIONS.offense as readonly string[]).includes(p));
 
-  const sepW = hasDefense && hasOffense ? 48 : 0;
+  // Off/def boundary gap CLOSED (post-E4 leaderlines-boundary brief, Item B): S and RB
+  // now butt together. The old 48px empty parchment band read louder than any line and
+  // re-fragmented the parchment-unified field. The gate is kept (single-side views were
+  // already 0); the brand seam now lives in a header-only gold tick (PositionColumns).
+  const SEP_GAP_W = 0; // was 48 — tune on real render (0 = columns butt)
+  const sepW = hasDefense && hasOffense ? SEP_GAP_W : 0;
   // margin.left: 80px — accommodates round labels + the left-side quality arrow.
   // margin.right: 160px — accommodates tier pills on the right.
   const margin = { top: 72, right: 160, bottom: 48, left: 100 };

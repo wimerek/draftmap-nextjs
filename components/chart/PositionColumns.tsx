@@ -27,7 +27,7 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
   const linksEnabled = linkYear != null && isSupportedTwinYear(linkYear) && !isZoomedMobile;
   const {
     visiblePositions, colXMap, colWidths,
-    margin, totalChartH, hasDefense, hasOffense, sepW, pillX,
+    margin, totalChartH, hasDefense, hasOffense, pillX,
   } = layout;
 
   return (
@@ -123,21 +123,25 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
         ) : null;
       })()}
 
-      {/* D/O separator — hidden in zoomed mobile view (single-position, divider is irrelevant) */}
+      {/* Off/def brand seam (post-E4 fix-pass §I): a short DARK-NAVY vertical tick at the
+          S|RB seam, spanning the HEADER ONLY (y 0 → margin.top). The normal column
+          dividers are faint WHITE (rgba(255,255,255,0.10)); a DARKER navy than the
+          #0B2239 header reads as "a more substantial seam" by WEIGHT, not brightness —
+          distinct from a regular column break, but never the first thing the eye catches.
+          (Was a too-bright gold tick.) Gated on hasDefense && hasOffense and positioned
+          at colXMap[firstOffPos] DYNAMICALLY (never hardcoded) — so an all-defense /
+          all-offense filter (which collapses the view) drops it automatically; partial
+          filters keep all columns and the tick stays. */}
       {!isZoomedMobile && hasDefense && hasOffense && (() => {
         const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
         if (!firstOffPos) return null;
-        const gapCenterX = colXMap[firstOffPos] - sepW / 2;
+        const seamX = colXMap[firstOffPos];
         return (
-          <>
-<line
-              x1={gapCenterX} y1={margin.top}
-              x2={gapCenterX} y2={margin.top + totalChartH}
-              stroke="#94a3b8"
-              strokeWidth={0.8}
-              opacity={0.18}
-            />
-          </>
+          <line
+            x1={seamX} y1={0}
+            x2={seamX} y2={margin.top}
+            stroke="#061626" strokeWidth={2}
+          />
         );
       })()}
 

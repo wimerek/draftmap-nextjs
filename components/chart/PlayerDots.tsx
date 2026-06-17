@@ -55,6 +55,22 @@ interface Props {
 const BASE_R = 6;
 const TOUCH_TARGET = 22;
 
+// ── Act-2 leader-line tints (post-E4 leaderlines-boundary brief, Item A) ────────
+// The projection→actual connectors are DIRECTIONAL: steal = warm-grey, reach =
+// cool-grey. These are the DESATURATED cousins of the Act-2 strip's gold
+// (STRIP_STEAL_COLOR) / indigo (STRIP_REACH_COLOR) in lib/scoreboardStrip.ts — pulled
+// nearly to grey so the lines stay subordinate to the team-colored dots (one family,
+// strip↔chart). One channel = direction (tint); magnitude rides opacity; the dashed
+// ring stays reserved for "projected" (never reused for direction).
+// Direction from geometry: actualY > projectedY = drafted LATER than ranked = STEAL;
+// actualY < projectedY = drafted EARLIER than ranked = REACH (pickToY grows downward).
+// tune on real render — CLOSE the warm↔cool gap if it reads too distinct (the two
+// directions should be barely different, not obviously two colors).
+const LEADER_STEAL_TINT = "#9C8E73"; // warm-grey (steal)
+const LEADER_REACH_TINT = "#8791A3"; // cool-grey (reach)
+const LEADER_OPACITY_FLOOR = 0.10;   // tune on real render (floor unchanged from gold)
+const LEADER_OPACITY_CEIL = 0.30;    // grey reads heavier than gold → ceiling 0.38 → 0.30
+
 function starPath(cx: number, cy: number, outerR: number, innerR: number): string {
   const pts: string[] = [];
   for (let k = 0; k < 10; k++) {
@@ -103,13 +119,16 @@ export default function PlayerDots({
       {!isMobile && showTrailingLines && !isAnimating && showLines && dotPositions.map(
         ({ player, x, actualY, projectedY, pickValueDelta }, i) => {
           if (actualY === projectedY) return null;
-          const opacity = Math.min(0.10 + pickValueDelta / 200, 0.38);
+          // Direction = tint; magnitude = opacity (data-ink). See LEADER_* above.
+          const isSteal = actualY > projectedY;
+          const stroke = isSteal ? LEADER_STEAL_TINT : LEADER_REACH_TINT;
+          const opacity = Math.min(LEADER_OPACITY_FLOOR + pickValueDelta / 200, LEADER_OPACITY_CEIL);
           return (
             <line
               key={`all-conn-${player.player_id}-${i}`}
               x1={x} y1={Math.min(actualY, projectedY)}
               x2={x} y2={Math.max(actualY, projectedY)}
-              stroke="#D4A017" strokeWidth={1.2} opacity={opacity}
+              stroke={stroke} strokeWidth={1.2} opacity={opacity}
               style={{ pointerEvents: "none" }}
             />
           );
@@ -119,11 +138,15 @@ export default function PlayerDots({
       {/* ── Hover connector (desktop, drafted view only) ──────────────── */}
       {hoveredDot && hoveredDot.actualY !== hoveredDot.projectedY && (
         <g style={{ pointerEvents: "none" }}>
+          {/* Hover connector: same directional tint, slightly stronger as a single line. */}
           <line
             x1={hoveredDot.x} y1={Math.min(hoveredDot.actualY, hoveredDot.projectedY)}
             x2={hoveredDot.x} y2={Math.max(hoveredDot.actualY, hoveredDot.projectedY)}
-            stroke="#D4A017" strokeWidth={1.8} opacity={0.85}
+            stroke={hoveredDot.actualY > hoveredDot.projectedY ? LEADER_STEAL_TINT : LEADER_REACH_TINT}
+            strokeWidth={1.8} opacity={0.85}
           />
+          {/* Dashed projected ring STAYS gold — texture channel = "expected", never
+              reused for direction (one channel, one meaning). */}
           <circle
             cx={hoveredDot.x} cy={hoveredDot.projectedY} r={BASE_R}
             fill="none" stroke="#D4A017" strokeWidth={1.5}
