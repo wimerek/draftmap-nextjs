@@ -403,7 +403,7 @@ export const LENS_GHOST_OPACITY = 0.12; // locked working value — tune on real
 /**
  * Lit-thread re-light gradient (faint at the dot → firm toward the wall), used ONLY
  * for in-scope threads while a lens is active. The resting gradient maxes at
- * THREAD_OPACITY_MAX (0.30); a path-opacity multiplier can only pull a lit thread
+ * THREAD_OPACITY_MAX (0.34); a path-opacity multiplier can only pull a lit thread
  * DOWN from that, so brightening ABOVE the resting weave needs this second, brighter
  * gradient. "Re-light the weave, ghost the rest" — the lens is a LOUD state (3c 7.0).
  */
