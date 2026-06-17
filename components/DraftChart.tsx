@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Player } from "@/lib/sheets";
+import type { Player, SearchIndexEntry } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
 import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
@@ -28,6 +28,7 @@ import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constant
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
 import PlayerCard from "@/components/PlayerCard";
+import PlayerSearch from "@/components/PlayerSearch";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
 import PositionColumns from "@/components/chart/PositionColumns";
 import RoundZones from "@/components/chart/RoundZones";
@@ -733,6 +734,14 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
 
+  // ── Player search (brief f, item 3) ─────────────────────────────────────────
+  // The glow-ring highlight is a SEPARATE state — SEARCH HIGHLIGHTS, NEVER SCOPES:
+  // it never touches teamFilter/litIds/computeScoreboardStats (dims nothing, recomputes
+  // nothing). `pendingTeleportRef` holds the picked player_id until the destination
+  // class finishes loading (scoredReady), then the resolver lands the act + opens the card.
+  const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
+  const pendingTeleportRef = useRef<{ playerId: string; year: number } | null>(null);
+
   // ── "How to Read" modal ───────────────────────────────────────────────────
   const [htrOpen, setHtrOpen] = useState(false);
 
@@ -1365,6 +1374,53 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     router.replace(`/draft/${newYear}`, { scroll: false });
   }, [router]);
 
+  // ── Player search teleport (brief f, item 3) ────────────────────────────────
+  // Resolve a pending teleport once the destination class's SCORED data is in (landing
+  // act is data-driven via selectClassState, which needs usage). Lands the act, opens the
+  // card, arms the glow-ring. The ring is the search highlight — it scopes NOTHING.
+  const resolveTeleport = useCallback(() => {
+    const pending = pendingTeleportRef.current;
+    if (!pending || selectedYear !== pending.year || !scoredReady) return;
+    const player = players.find(p => p.player_id === pending.playerId);
+    if (!player) return;
+    // no completed season → floor → drafted? Act 2 : Act 1 · any completed season → Act 3.
+    const state = selectClassState(players, selectedYear);
+    const classHasPicks = players.some(p => p.drafted);
+    const landingStep = state === 'floor' ? (classHasPicks ? 'draft' : 'projection') : 'act3';
+    setCurrentStepId(landingStep);
+    setOpenPlayer(player);
+    setHighlightedPlayerId(player.player_id);
+    pendingTeleportRef.current = null;
+  }, [players, selectedYear, scoredReady]);
+
+  const handleSearchSelect = useCallback((entry: SearchIndexEntry) => {
+    pendingTeleportRef.current = { playerId: entry.player_id, year: entry.draft_year };
+    setHighlightedPlayerId(null); // clear any prior ring until this teleport resolves
+    if (entry.draft_year !== selectedYear) {
+      setIsPlaying(false);
+      setSelectedYear(entry.draft_year);
+      router.replace(`/draft/${entry.draft_year}`, { scroll: false });
+      // The resolver effect lands it once the class's scored data arrives.
+    } else {
+      resolveTeleport(); // same class — resolve now if ready (else the effect catches it)
+    }
+  }, [selectedYear, router, resolveTeleport]);
+
+  // Fires resolveTeleport whenever players / selectedYear / scoredReady change — i.e.,
+  // the moment the teleported-to class finishes loading.
+  useEffect(() => { resolveTeleport(); }, [resolveTeleport]);
+
+  // ESC clears the glow-ring — but only once no card is open (the first ESC closes the
+  // card; the ring shows; the next ESC clears it). Click-away clears it via dm-main.
+  useEffect(() => {
+    if (!highlightedPlayerId) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !openPlayer) setHighlightedPlayerId(null);
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [highlightedPlayerId, openPlayer]);
+
   // ── Transport: 1→2 animation scheduler (speed + pause aware) ─────────────────
   // The per-dot CSS easing (550ms) lives in PlayerDots (DO-NOT-TOUCH); speed scales
   // the DraftChart-owned STAGGER SCHEDULE — the duration after which the draft step
@@ -1551,6 +1607,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   const handleDotLeave   = useCallback(() => setTooltip(null), []);
   const dismissTooltip   = useCallback(() => setTooltip(null), []);
+  // Click-away on the chart area clears the tooltip AND the search glow-ring (highlight
+  // never scopes, so clearing it touches no filter/scoreboard state).
+  const handleChartAreaClick = useCallback(() => { dismissTooltip(); setHighlightedPlayerId(null); }, [dismissTooltip]);
   const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
   const handleShowLinesToggle = useCallback(() => setShowLines(l => !l), []);
 
@@ -1660,12 +1719,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       )}
 
       {/* ── Main chart area ── */}
-      <main className="dm-main" onClick={dismissTooltip}>
+      <main className="dm-main" onClick={handleChartAreaClick}>
 
         {/* ── HeaderZone: journey bar + persistent scoreboard slot ── */}
         <HeaderZone
           activeBeat={activeBeat}
           onSelectBeat={handleSelectBeat}
+          headerRight={<PlayerSearch onSelect={handleSearchSelect} />}
           scoreboard={{
             // Lens (brief f): under an active lens the slot counts the SCOPE-FILTERED
             // (lit) subset — the SAME set the chart re-lights — so the slot can't
@@ -1730,6 +1790,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 onDotHover={handleDotHover}
                 onDotLeave={handleDotLeave}
                 litIds={litIds}
+                highlightedId={highlightedPlayerId}
               />
             ) : (
             <svg
@@ -1794,6 +1855,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 roundFilter={roundFilter}
                 teamFilter={teamFilter}
                 schoolFilter={schoolFilter}
+                highlightedId={highlightedPlayerId}
               />
               {isZoomedMobile && currentMobilePos && (
                 <MobilePlayerLabels

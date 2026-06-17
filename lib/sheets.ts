@@ -355,6 +355,82 @@ export async function fetchPlayers(year: number = CURRENT_DRAFT_YEAR): Promise<P
     .filter((p) => p.name !== "(Unknown)" && p.name.length > 0);
 }
 
+// ── Year-agnostic search index (brief f, item 3) ────────────────────────────────
+
+/**
+ * Lean, year-agnostic player record for the global search index. NAME-only matching;
+ * pos/class/team are dropdown disambiguation; pick/rank drive the ranking tie-break;
+ * draft_year + player_id drive the teleport. NO scoring/usage — the landing act is
+ * computed on arrival from the freshly-loaded class (selectClassState), so none of it
+ * is needed here.
+ */
+export interface SearchIndexEntry {
+  player_id: string;
+  name: string;
+  pos: string;
+  draft_year: number;
+  school: string | null;
+  pick_drafted: number | null;
+  rank: number | null;
+  team_drafted: string | null;
+  drafted: boolean;
+}
+
+/**
+ * Fetch the ENTIRE `players` tab ONCE (all 11 classes live in that single CSV — the
+ * same source fetchPlayers() reads, just unfiltered) and project to lean entries. No
+ * 11× fetchPlayers(year) loop; the CSV is downloaded a single time and mapped.
+ */
+async function computeSearchIndex(): Promise<SearchIndexEntry[]> {
+  const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    throw new Error("SHEETS_SPREADSHEET_ID is not set (search index).");
+  }
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=players`;
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) {
+    throw new Error(`Google Sheets fetch failed (search index): ${res.status} ${res.statusText}`);
+  }
+  const rows = parseCSV(await res.text());
+
+  return rows
+    .map((row): SearchIndexEntry | null => {
+      const player_id  = toStr(row.player_id);
+      const name       = toStr(row.name);
+      const draft_year = toInt(row.draft_year);
+      if (!player_id || !name || name === "(Unknown)" || draft_year === null) return null;
+
+      const pos          = (row.pos ?? "").trim().toUpperCase();
+      const rd_drafted   = toInt(row.rd_drafted);
+      const pick_drafted = toInt(row.pick_drafted);
+      const team_drafted = toStr(row.team_drafted);
+
+      return {
+        player_id,
+        name,
+        pos: pos === "DL" ? "DT" : pos,
+        draft_year,
+        school: toStr(row.school),
+        pick_drafted,
+        rank: toInt(row.rank),
+        team_drafted,
+        drafted: !!(rd_drafted !== null || pick_drafted !== null || (team_drafted && team_drafted.length > 0)),
+      };
+    })
+    .filter((e): e is SearchIndexEntry => e !== null);
+}
+
+/**
+ * Cached entrypoint — runs computeSearchIndex at most once per revalidation window per
+ * server instance (the same unstable_cache boundary the outcome-scores index uses),
+ * not on every request. The route handler adds the HTTP ISR layer on top.
+ */
+export const fetchSearchIndex = unstable_cache(
+  computeSearchIndex,
+  ['search-index-v1'],
+  { revalidate: 300 },
+);
+
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
 /**

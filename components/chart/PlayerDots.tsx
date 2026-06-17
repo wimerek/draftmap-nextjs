@@ -42,6 +42,9 @@ interface Props {
   roundFilter: (number | "UDFA")[];
   teamFilter: string[];
   schoolFilter: string[];
+  /** Player search (brief f, item 3): dot to spotlight with a glow-ring. Highlights,
+   *  never scopes — independent of the filters; rings the located dot only. */
+  highlightedId?: string | null;
 }
 
 // ── Filter function ────────────────────────────────────────────────────────────
@@ -75,6 +78,7 @@ export default function PlayerDots({
   productionPositions,
   onDotClick, onDotHover, onDotLeave,
   positionFilter, roundFilter, teamFilter, schoolFilter,
+  highlightedId,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
@@ -285,6 +289,7 @@ export default function PlayerDots({
         const filteredOut = isPlayerFiltered(
           player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode
         );
+        const isHighlighted = highlightedId === player.player_id;
 
         return (
           <g
@@ -293,6 +298,10 @@ export default function PlayerDots({
           >
             {/* Inner group translates to (x, cy) — all children ride the same animation */}
             <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
+              {/* Search spotlight (brief f, item 3) — rings the located dot; never scopes. */}
+              {isHighlighted && (
+                <circle className="dm-glow-ring" cx={0} cy={0} r={r + 4} fill="none" pointerEvents="none" />
+              )}
               {showTwoTone ? (
                 <>
                   <circle

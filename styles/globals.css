@@ -1821,6 +1821,72 @@ a { color: inherit; text-decoration: none; }
 .sb-fd-pin:hover { color: #D4A017; background: rgba(255, 255, 255, 0.08); }
 .sb-fd-pin--active { opacity: 1; color: #D4A017; }
 
+/* ── Player search (brief f, item 3) — top-right of the navy header band ──────── */
+.hz-search-slot { display: flex; align-items: center; margin-left: 18px; }
+@media (max-width: 767px) { .hz-search-slot { display: none; } } /* desktop-first */
+
+.dm-search { position: relative; }
+
+.dm-search-toggle {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(245, 240, 232, 0.06);
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 8px;
+  color: #F5F0E8; font-size: 14px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.dm-search-toggle:hover { background: rgba(245, 240, 232, 0.12); border-color: rgba(212, 160, 23, 0.5); color: #D4A017; }
+
+.dm-search-open {
+  display: flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 8px;
+  background: rgba(245, 240, 232, 0.08);
+  border: 1px solid rgba(212, 160, 23, 0.5);
+  border-radius: 8px;
+}
+.dm-search-icon { display: flex; align-items: center; color: rgba(245, 240, 232, 0.6); }
+.dm-search-input {
+  width: 200px; background: none; border: none; outline: none;
+  color: #F5F0E8; font-family: 'Inter', sans-serif; font-size: 13px;
+}
+.dm-search-input::placeholder { color: rgba(245, 240, 232, 0.4); }
+
+.dm-search-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  z-index: 60; width: 280px;
+  background: #0B2239;
+  border: 1px solid rgba(245, 240, 232, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.dm-search-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 7px 11px;
+  background: none; border: none; cursor: pointer; text-align: left;
+}
+.dm-search-row--active, .dm-search-row:hover { background: rgba(245, 240, 232, 0.08); }
+.dm-search-name { color: #F5F0E8; font-family: 'Inter', sans-serif; font-size: 13px; }
+.dm-search-name strong { color: #D4A017; font-weight: 700; }
+.dm-search-meta { color: rgba(245, 240, 232, 0.5); font-size: 11px; white-space: nowrap; }
+.dm-search-empty { padding: 10px 11px; color: rgba(245, 240, 232, 0.5); font-size: 12px; font-style: italic; }
+
+/* Glow-ring spotlight — shared by Acts 1/2 (PlayerDots) and Act 3 (JellyfishField).
+   Animated so it reads as a TRANSIENT spotlight, not a static tier signal. */
+.dm-glow-ring {
+  stroke: #D4A017;
+  stroke-width: 2.5;
+  animation: dm-glow-pulse 1.5s ease-in-out infinite;
+}
+@keyframes dm-glow-pulse {
+  0%, 100% { opacity: 0.35; stroke-width: 2; }
+  50%      { opacity: 1;    stroke-width: 3.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-glow-ring { animation: none; opacity: 0.9; }
+}
+
 /* ── Transport cluster (4 fixed slots, identical geometry every state) ───────── */
 
 .sb-tc-root { display: flex; align-items: center; gap: 4px; }

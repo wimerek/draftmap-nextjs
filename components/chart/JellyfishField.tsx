@@ -54,6 +54,12 @@ interface JellyfishFieldProps {
    * positions, thread paths, wall heights) is UNCHANGED — opacity/stroke only.
    */
   litIds?: Set<string> | null;
+  /**
+   * Player search (brief f, item 3): the dot to spotlight with a temporary glow-ring.
+   * SEARCH HIGHLIGHTS, NEVER SCOPES — this is independent of litIds; it dims/recomputes
+   * nothing, just rings the located dot. Cleared by ESC / click-away upstream.
+   */
+  highlightedId?: string | null;
 }
 
 export default function JellyfishField(props: JellyfishFieldProps) {
@@ -66,7 +72,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
   if (props.layout.mode === "pending") return <PendingJellyfishField {...props} />;
   if (props.layout.mode === "floor")   return <FloorJellyfishField {...props} />;
 
-  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds } = props;
+  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId } = props;
   const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH } = layout;
 
   // ── Lens (brief f): re-light the in-scope weave, ghost the rest ──────────────
@@ -325,6 +331,12 @@ export default function JellyfishField(props: JellyfishFieldProps) {
         )}
       </g>
 
+      {/* Search spotlight (brief f, item 3) — independent of the lens; rings the located dot. */}
+      {highlightedId && (() => {
+        const hd = dots.find((d) => d.player.player_id === highlightedId);
+        return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
+      })()}
+
       {/* Field title (left). */}
       <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
         THE SECOND CONTRACT
@@ -457,6 +469,20 @@ function GhostDot({ d }: { d: JellyfishLayout["dots"][number] }) {
   return <circle cx={d.x} cy={d.y} r={DOT_R} fill={fill} />;
 }
 
+/** Temporary search spotlight (brief f, item 3): a pulsing ring around the located dot.
+ *  Animated so it reads as a transient spotlight, NOT a tier signal. Highlights, never
+ *  scopes. Rendered as a single overlay per field, on top (ring outline only). */
+function GlowRing({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <circle
+      className="dm-glow-ring"
+      cx={cx} cy={cy} r={DOT_R + 5}
+      fill="none"
+      pointerEvents="none"
+    />
+  );
+}
+
 /** Team-colored field dot with hover/click (shared by pending + floor). `muted` = the
  *  pending UNRANKED/strip ink flag. Lens-ghosting is handled UPSTREAM by the flattened
  *  GhostDot layer (not here) — a lit dot always renders full-fidelity. */
@@ -496,7 +522,7 @@ function FieldDot({
 // ════════════════════════════════════════════════════════════════════════════
 
 function PendingJellyfishField({
-  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds,
+  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId,
 }: JellyfishFieldProps) {
   const { svgW, svgH, margin, wallX, wallNodeW, dots, bandTop, bandH, zones, stripTopY, reachNodes } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
@@ -610,6 +636,12 @@ function PendingJellyfishField({
         )}
       </g>
 
+      {/* Search spotlight (brief f, item 3) — independent of the lens; rings the located dot. */}
+      {highlightedId && (() => {
+        const hd = dots.find(d => d.player.player_id === highlightedId);
+        return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
+      })()}
+
       {/* Field title (left). */}
       <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
         ON THE FIELD
@@ -628,7 +660,7 @@ function PendingJellyfishField({
 // ════════════════════════════════════════════════════════════════════════════
 
 function FloorJellyfishField({
-  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds,
+  layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId,
 }: JellyfishFieldProps) {
   const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH, zones, stripTopY, floorY, scoreboardText } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
@@ -704,6 +736,12 @@ function FloorJellyfishField({
           ))
         )}
       </g>
+
+      {/* Search spotlight (brief f, item 3) — independent of the lens; rings the located dot. */}
+      {highlightedId && (() => {
+        const hd = dots.find(d => d.player.player_id === highlightedId);
+        return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
+      })()}
 
       {/* Field title (left). */}
       <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>

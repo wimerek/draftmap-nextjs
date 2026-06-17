@@ -21,6 +21,7 @@ import {
   TICK_HEIGHT,
   TICK_COLOR,
 } from "@/lib/dataAvailability";
+import type { ReactNode } from "react";
 import JourneyBarV3 from "@/components/JourneyBarV3";
 import Scoreboard, { type ScoreboardProps } from "@/components/Scoreboard";
 
@@ -30,9 +31,11 @@ interface HeaderZoneProps {
   onSelectBeat: (beat: 1 | 2 | 3) => void;
   /** Everything the persistent scoreboard slot needs (includes the desktop class switcher). */
   scoreboard: ScoreboardProps;
+  /** Top-right of the band, OUTSIDE the scoreboard (brief f, item 3 — player search). */
+  headerRight?: ReactNode;
 }
 
-export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard }: HeaderZoneProps) {
+export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard, headerRight }: HeaderZoneProps) {
   // The scrubber drives the SAME year state the scoreboard switcher does (mobile fallback).
   const { selectedYear, onYearChange, availableYears } = scoreboard;
   const scrubberYears = [...availableYears].sort((a, b) => a - b);
@@ -100,6 +103,7 @@ export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard }: Hea
       <div className="hz-band">
         <JourneyBarV3 activeBeat={activeBeat} onSelectBeat={onSelectBeat} />
         <Scoreboard {...scoreboard} />
+        {headerRight && <div className="hz-search-slot">{headerRight}</div>}
       </div>
     </div>
   );
