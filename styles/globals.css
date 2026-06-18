@@ -2399,96 +2399,133 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ── Journey Bar v3 (three beats — replaces Row 2) ────────────────────── */
+/* Spine-anchored absolute model. The root just vertically centers a fixed-height
+   .jbv3-track in the band; everything inside the track is positioned in the
+   track's own coordinate space, so layout is deterministic and drift-free.
+   Knobs (disc sizes, inset, spine opacities, ease durations) arrive as CSS
+   custom properties set inline by JourneyBarV3.tsx — single source of truth. */
 .jbv3-root {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  padding: 6px 8px 2px 8px;
+  align-items: center;      /* vertically center the track in the band */
+  width: 100%;
+  padding: 0 8px;
 }
 
-/* Spine — parchment→gold, runs between the first and last disc centers,
-   behind the (opaque) discs so it never appears to pass through one. */
-.jbv3-spine {
+/* Fixed-height stage. SPINE_Y = 20px (disc center line); labels hang at 40px. */
+.jbv3-track {
+  position: relative;
+  width: 100%;
+  height: 68px;
+}
+
+/* Two layered spine lines, both inset by the same knob. The track is the faint
+   full-width rail; the lit segment is gold from the first disc to the active one. */
+.jbv3-spine-track,
+.jbv3-spine-lit {
   position: absolute;
-  top: 25px;            /* root pad-top (6) + beat pad-top (4) + disc radius (15) */
-  left: 16.667%;
-  right: 16.667%;
+  top: 20px;
+  transform: translateY(-50%);
   height: 2.5px;
   border-radius: 2px;
-  background: linear-gradient(to right, #F5F0E8, #D4A017);
   z-index: 0;
 }
 
+.jbv3-spine-track {
+  left: var(--jbv3-inset);
+  right: var(--jbv3-inset);
+  background: #F5F0E8;
+  opacity: var(--jbv3-track-opacity);
+}
+
+.jbv3-spine-lit {
+  left: var(--jbv3-inset);
+  width: var(--jbv3-lit-width);
+  background: #D4A017;
+  opacity: var(--jbv3-lit-opacity);
+  transition: width var(--jbv3-spine-ease) cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Each beat is a zero-width anchor pinned to its center %. Its disc + label are
+   absolutely positioned so neither moves when the disc resizes. */
 .jbv3-beat {
-  flex: 1 1 0%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 4px 4px 2px 4px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  transform: translateX(-50%);   /* left set inline per beat */
   background: none;
   border: none;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .jbv3-disc {
-  position: relative;
+  position: absolute;
+  top: 20px;
+  left: 0;
+  transform: translate(-50%, -50%);   /* centered on (beat-left%, spine-Y) */
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: var(--jbv3-disc-inactive);
+  height: var(--jbv3-disc-inactive);
   border-radius: 50%;
   font-family: var(--font-oswald, "Oswald"), sans-serif;
   font-weight: 600;
   font-size: 13px;
   background: #0B2239;
-  border: 2px solid rgba(245, 240, 232, 0.55);
-  color: rgba(245, 240, 232, 0.7);
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  border: 2px solid rgba(245, 240, 232, 0.5);
+  color: rgba(245, 240, 232, 0.55);
+  transition:
+    width var(--jbv3-disc-ease) cubic-bezier(0.2, 0, 0, 1),
+    height var(--jbv3-disc-ease) cubic-bezier(0.2, 0, 0, 1),
+    background var(--jbv3-disc-ease) ease-out,
+    border-color var(--jbv3-disc-ease) ease-out,
+    color var(--jbv3-disc-ease) ease-out;
 }
 
 .jbv3-disc--active {
+  width: var(--jbv3-disc-active);
+  height: var(--jbv3-disc-active);
   background: #F5F0E8;
-  border-color: #D4A017;
+  border: 3px solid #D4A017;
   color: #0B2239;
 }
 
-.jbv3-disc--pulse {
-  animation: jbv3-pulse 0.9s ease-out 1;
-}
-
-@keyframes jbv3-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.5); }
-  100% { box-shadow: 0 0 0 8px rgba(212, 160, 23, 0); }
-}
-
 .jbv3-beat-text {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   text-align: center;
 }
 
 .jbv3-beat-title {
   font-family: var(--font-oswald, "Oswald"), sans-serif;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.08em;
-  color: rgba(245, 240, 232, 0.6);
-  transition: color 0.18s ease;
+  color: rgba(245, 240, 232, 0.48);
+  transition: color var(--jbv3-disc-ease) ease-out;
 }
 
 .jbv3-beat-teach {
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(245, 240, 232, 0.35);
-  transition: color 0.18s ease;
+  transition: color var(--jbv3-disc-ease) ease-out;
 }
 
-.jbv3-beat--active .jbv3-beat-title { color: #F5F0E8; }
+.jbv3-beat--active .jbv3-beat-title { color: #F5F0E8; font-weight: 500; }
 .jbv3-beat--active .jbv3-beat-teach { color: rgba(245, 240, 232, 0.6); }
-.jbv3-beat:hover .jbv3-beat-title  { color: #F5F0E8; }
+.jbv3-beat:hover .jbv3-beat-title   { color: #F5F0E8; }
 
 .jbv3-beat:focus-visible {
   outline: 2px solid rgba(212, 160, 23, 0.6);
@@ -2496,10 +2533,20 @@ a { color: inherit; text-decoration: none; }
   border-radius: 6px;
 }
 
+/* prefers-reduced-motion: no size/width animation — fill + lit-spine snap/cross-fade. */
+@media (prefers-reduced-motion: reduce) {
+  .jbv3-spine-lit { transition: none; }
+  .jbv3-disc {
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+}
+
 @media (max-width: 639px) {
   .jbv3-beat-teach { display: none; }
-  .jbv3-beat-title { font-size: 10px; }
-  .jbv3-spine { top: 23px; }
+  .jbv3-beat-title { font-size: 11px; }
 }
 
 /* Brief d: the scoreboard slot is desktop chrome — hide on mobile (Beta mobile
