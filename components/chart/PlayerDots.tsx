@@ -81,8 +81,15 @@ function starPath(cx: number, cy: number, outerR: number, innerR: number): strin
   return `M${pts[0]} ` + pts.slice(1).map(p => `L${p}`).join(' ') + ' Z';
 }
 
+// Act-2 surprise sizing: a dot grows with its projection→actual delta, asymptoting
+// toward BASE_R + DOT_SURPRISE_GROWTH. Growth dropped 10→4 (ceiling 16px→10px) so big
+// surprises read as emphasis, not as overpowering blobs. SATURATION sets how fast the
+// curve approaches that ceiling.
+const DOT_SURPRISE_GROWTH = 4;
+const DOT_SURPRISE_SATURATION = 25;
+
 function deltaToRadius(delta: number): number {
-  return BASE_R + 10 * (1 - Math.exp(-delta / 25));
+  return BASE_R + DOT_SURPRISE_GROWTH * (1 - Math.exp(-delta / DOT_SURPRISE_SATURATION));
 }
 
 export default function PlayerDots({
