@@ -6,6 +6,7 @@ import type { ChartMode } from "@/lib/dataAvailability";
 import { POSITION_ORDER } from "@/lib/chartConstants";
 import { TEAM_COLORS, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import FilterDropdown from "@/components/sidebar/FilterDropdown";
+import ActKey from "@/components/sidebar/ActKey";
 
 // ViewMode must remain exported — PlayerDots.tsx imports it
 export type ViewMode = "projected" | "drafted";
@@ -476,6 +477,16 @@ export default function Sidebar(props: SidebarProps) {
 
           </div>
         </div>
+      )}
+
+      {/* ── Zone B: the act-aware Key (Brief 2). Reads the current act off chartMode +
+            the existing showLines flag; presentation only. Desktop, expanded only. ── */}
+      {!collapsed && (
+        <ActKey
+          chartMode={chartMode}
+          showLines={showLines}
+          onShowLinesToggle={onShowLinesToggle}
+        />
       )}
 
       {/* HIDDEN 2026-06-18 — Brief 1 declutter. MAP DISPLAY section (movement-lines

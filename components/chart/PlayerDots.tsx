@@ -55,21 +55,19 @@ interface Props {
 const BASE_R = 6;
 const TOUCH_TARGET = 22;
 
-// ── Act-2 leader-line tints (post-E4 leaderlines-boundary brief, Item A) ────────
-// The projection→actual connectors are DIRECTIONAL: steal = warm-grey, reach =
-// cool-grey. These are the DESATURATED cousins of the Act-2 strip's gold
-// (STRIP_STEAL_COLOR) / indigo (STRIP_REACH_COLOR) in lib/scoreboardStrip.ts — pulled
-// nearly to grey so the lines stay subordinate to the team-colored dots (one family,
-// strip↔chart). One channel = direction (tint); magnitude rides opacity; the dashed
-// ring stays reserved for "projected" (never reused for direction).
+// ── Act-2 leader-line tints (Brief 2b: color-unification with the key) ──────────
+// The projection→actual connectors are DIRECTIONAL: steal = gold, reach = sky —
+// the SAME family the key's "↓ Steals (gold) · ↑ Reaches (sky)" uses, so the chart
+// reads against the legend (one vocabulary, strip↔chart↔key). Kept LIGHT via the
+// opacity curve below so they stay subordinate to the team-colored dots. One channel
+// = direction (tint); magnitude rides opacity; the dashed ring stays reserved for
+// "projected" (never reused for direction).
 // Direction from geometry: actualY > projectedY = drafted LATER than ranked = STEAL;
 // actualY < projectedY = drafted EARLIER than ranked = REACH (pickToY grows downward).
-// tune on real render — CLOSE the warm↔cool gap if it reads too distinct (the two
-// directions should be barely different, not obviously two colors).
-const LEADER_STEAL_TINT = "#9C8E73"; // warm-grey (steal)
-const LEADER_REACH_TINT = "#8791A3"; // cool-grey (reach)
-const LEADER_OPACITY_FLOOR = 0.10;   // tune on real render (floor unchanged from gold)
-const LEADER_OPACITY_CEIL = 0.30;    // grey reads heavier than gold → ceiling 0.38 → 0.30
+const LEADER_STEAL_TINT = "#D4A017"; // gold (steal) — unified with the key's ↓ Steals
+const LEADER_REACH_TINT = "#6FA8D8"; // sky (reach) — unified with the key's ↑ Reaches
+const LEADER_OPACITY_FLOOR = 0.10;   // kept light — lines stay subordinate to team-colored dots
+const LEADER_OPACITY_CEIL = 0.30;    // opacity curve unchanged from the grey pass
 
 function starPath(cx: number, cy: number, outerR: number, innerR: number): string {
   const pts: string[] = [];

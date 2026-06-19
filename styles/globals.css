@@ -1182,6 +1182,231 @@ a { color: inherit; text-decoration: none; }
 }
 .sb-count-n { color: #E8C879; font-weight: 700; }
 
+/* ── Act-aware Key (Filter Pane Redesign, Brief 2) ──────────────────────────────
+   Zone B legend below the filters. Header is act-tied; the body cross-fades
+   (opacity only, NON-translational) when the act changes. Parchment-on-navy
+   grammar, matching the rest of the sidebar. */
+.sb-key {
+  padding: 10px 14px 2px;
+  border-top: 2px solid #D4A017;   /* gold rule opening the Reads & Keys zone */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Stacked header: gold act eyebrow over the title. */
+.sb-key-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sb-key-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #E8C879;
+}
+.sb-key-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #F5F0E8;
+  line-height: 1.2;
+}
+
+/* Body cross-fade: opacity out → (content swap) → in. ~190ms per leg, no slide. */
+.sb-key-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  opacity: 1;
+  transition: opacity 190ms ease;
+}
+.sb-key-body--hidden { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-key-body { transition: none; }
+}
+
+.sb-key-lead {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(245,240,232,0.82);   /* orientation reads brighter — Brief 2b un-mute */
+}
+/* Sub-lead — the Act-3 honors group intro above the individually-listed glyphs. */
+.sb-key-sublead {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #F5F0E8;
+}
+
+/* Encoding row: fixed sample gutter + label. */
+.sb-key-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+}
+.sb-key-sample {
+  flex-shrink: 0;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-key-text {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(245,240,232,0.62);   /* descriptions — Brief 2b */
+}
+.sb-key-term { font-weight: 500; color: #F5F0E8; }   /* terms un-muted to full parchment */
+
+.sb-key-glyph-svg { overflow: visible; display: block; }
+.sb-key-sample-svg { overflow: visible; display: block; }
+.sb-key-honors { display: flex; align-items: center; gap: 3px; }
+
+/* Color swatch — a single solid player dot (green/navy reads clean as "a dot";
+   the tri-color wheel didn't). Text carries which colors per act. */
+.sb-key-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.sb-key-swatch--dot {
+  background: #69BE28;
+  box-shadow: inset 0 0 0 1px rgba(245,240,232,0.25);
+}
+
+/* Lines explainer — colored ↑ Reaches (sky) · ↓ Steals (gold). Matches the chart's
+   recolored leader lines (PlayerDots.tsx). */
+.sb-key-reachsteal {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(245,240,232,0.62);
+}
+.sb-key-reach { color: #9CC4E8; font-weight: 600; }
+.sb-key-steal { color: #E8C879; font-weight: 600; }
+
+/* Movement-lines toggle — a real Off/On switch (gold track when on, knob slides). */
+.sb-key-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 5px;
+  text-align: left;
+  transition: background 160ms ease;
+}
+.sb-key-switch:hover { background: rgba(255,255,255,0.05); }
+.sb-key-switch:focus-visible {
+  outline: 2px solid rgba(212,160,23,0.55);
+  outline-offset: 1px;
+}
+.sb-key-switch-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #F5F0E8;
+}
+.sb-key-switch-track {
+  flex-shrink: 0;
+  margin-left: auto;
+  position: relative;
+  width: 28px;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(245,240,232,0.18);
+  transition: background 160ms ease;
+}
+.sb-key-switch-track.on { background: #D4A017; }
+.sb-key-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #F5F0E8;
+  transition: transform 160ms ease;
+}
+.sb-key-switch-track.on .sb-key-switch-knob { transform: translateX(14px); }
+.sb-key-switch-state {
+  flex-shrink: 0;
+  width: 22px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(245,240,232,0.62);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-key-switch-track, .sb-key-switch-knob { transition: none; }
+}
+
+/* Cliffs hint — observational block, gold left-accent + faint gold wash. */
+.sb-key-hintblock {
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(245,240,232,0.62);
+  border-left: 2px solid #D4A017;
+  background: rgba(212,160,23,0.07);
+  border-radius: 0 4px 4px 0;
+  padding: 6px 9px;
+}
+.sb-key-hintblock .sb-key-term { color: #E8C879; }
+
+/* Persistent click hint — constant in every act. */
+.sb-key-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  font-style: italic;
+  color: rgba(245,240,232,0.40);
+}
+
+/* Threads — hover/focus reveals a progressive-disclosure explainer (panel-only). */
+.sb-key-threads { border-radius: 5px; }
+.sb-key-threads:focus-visible {
+  outline: 2px solid rgba(212,160,23,0.45);
+  outline-offset: 2px;
+}
+.sb-key-explainer {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 220ms ease, opacity 200ms ease, margin-top 220ms ease;
+  margin-top: 0;
+}
+.sb-key-threads:hover .sb-key-explainer,
+.sb-key-threads:focus-within .sb-key-explainer {
+  max-height: 160px;
+  opacity: 1;
+  margin-top: 7px;
+}
+.sb-key-explainer p {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: rgba(245,240,232,0.52);
+}
+.sb-key-explainer-link {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(212,160,23,0.85);
+  text-decoration: none;
+}
+.sb-key-explainer-link:hover { color: #D4A017; text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) {
+  .sb-key-explainer { transition: opacity 200ms ease; }
+}
+
 /* ── Brand logo as a reset affordance (Brief 1, Piece 6) ────────────────────── */
 .sb-brand-logo-btn {
   display: flex;
