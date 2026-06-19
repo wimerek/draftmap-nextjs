@@ -91,12 +91,18 @@ function getSchoolSummary(f: string[]) {
 // Hollow stroked layout box at rest; the `.sb-collapse-fill` body fills on hover
 // (CSS), mirroring the HouseIcon grammar. Collapse = chevron-in (expanded state),
 // Expand = chevron-out (collapsed rail).
+//
+// Stroked in a solid, full-opacity muted-parchment hex (NOT the button's translucent
+// currentColor): with alpha < 1, the divider's round caps overlapped the box edges
+// and two 0.7-alpha strokes composited into dark blobs. A solid color can't compound.
+// The divider is inset (M9 6v12) so its caps land inside the box, never on its edges.
+const SB_ICON_STROKE = "#FBF8F2"; // ivory — matches GLYPH_FILL (lib/act3Constants.ts), full opacity
 function SidebarCollapseIcon() {
   return (
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      stroke={SB_ICON_STROKE} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect className="sb-collapse-fill" x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M9 4v16" />
+      <path d="M9 6v12" />
       <path d="M15 10l-2 2l2 2" />
     </svg>
   );
@@ -104,9 +110,9 @@ function SidebarCollapseIcon() {
 function SidebarExpandIcon() {
   return (
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      stroke={SB_ICON_STROKE} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect className="sb-collapse-fill" x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M9 4v16" />
+      <path d="M9 6v12" />
       <path d="M14 10l2 2l-2 2" />
     </svg>
   );
@@ -117,7 +123,7 @@ function SidebarExpandIcon() {
 function HouseIcon() {
   return (
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+      stroke={SB_ICON_STROKE} strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
       <path className="sb-house-fill" d="M3 9.2 10 3.5l7 5.7V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.2Z" />
     </svg>
   );

@@ -695,11 +695,14 @@ a { color: inherit; text-decoration: none; }
   pointer-events: none;
 }
 
-/* Collapsed-rail toggle housing — centers the button at the top of the 54px rail */
+/* Collapsed-rail toggle housing — centers the expand button horizontally on the rail.
+   The 60px top offset lands the button at the same Y as the collapse button in the
+   expanded FILTERS header (collapsed brand 54px + 12px = 66px vs expanded brand 104px
+   + header pad 10px = 114px → +48px), so the control doesn't jump when you toggle. */
 .sb-rail-toggle {
   display: flex;
   justify-content: center;
-  padding: 12px 0;
+  padding: 60px 0 12px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
