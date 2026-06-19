@@ -7,7 +7,7 @@ import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/draftYears";
 import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
-import { classifyDraftMove } from "@/lib/scoreboardStats";
+import { classifyDraftMove, type DraftMove } from "@/lib/scoreboardStats";
 import { isPlayerFiltered } from "@/lib/lensFilter";
 import {
   computeChartLayout,
@@ -717,6 +717,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [roundFilter,  setRoundFilter]  = useState<(number | 'UDFA')[]>([]);
   const [teamFilter,   setTeamFilter]   = useState<string[]>([]);
   const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
+  // vs-consensus (Brief 3) — a categorical SCOPE filter (STEAL/IN_RANGE/REACH), act-aware:
+  // it scopes only in Act 2+ (the predicate ignores it in 'projection'). The selection is
+  // REMEMBERED across act switches — never wiped on entering Act 1 — so it re-applies on
+  // return. Surfaced in the sidebar only in Act 2 & 3.
+  const [consensusFilter, setConsensusFilter] = useState<DraftMove[]>([]);
 
   // ── Your team (brief f, item 2) — identity persistence, NOT a parallel filter ──
   // `pinnedTeam` is the saved IDENTITY (your team); the active lens is still plain
@@ -829,11 +834,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   }, [positionFilter]);
 
   // ── Filter computed values ────────────────────────────────────────────────
+  // vs-consensus counts as active ONLY in Act 2+ — in Act 1 it's inert (scopes nothing),
+  // so a remembered selection must not light the lens / "Clear all" while on the board.
+  const consensusActive = consensusFilter.length > 0 && chartMode !== 'projection';
   const hasActiveFilters =
     positionFilter.length > 0 ||
     roundFilter.length > 0 ||
     teamFilter.length > 0 ||
-    schoolFilter.length > 0;
+    schoolFilter.length > 0 ||
+    consensusActive;
 
   // ── Lens (brief f) — ONE membership pass, three reads ──────────────────────
   // The shared scope predicate (lib/lensFilter) decides "who's in scope" ONCE here;
@@ -845,8 +854,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const litPlayers = useMemo(
     () => players.filter(p => !isPlayerFiltered(
       p, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
+      consensusFilter, classMaxPick,
     )),
-    [players, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode],
+    [players, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
+     consensusFilter, classMaxPick],
   );
   // null when no lens is active → JellyfishField renders the resting field byte-identical.
   const litIds = useMemo(
@@ -1302,6 +1313,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setRoundFilter([]);
     setTeamFilter([]);
     setSchoolFilter([]);
+    setConsensusFilter([]);
     updateURL({ pos: null, round: null, team: null, school: null });
   }, [updateURL]);
 
@@ -1612,6 +1624,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setRoundFilter([]);
     setTeamFilter([]);
     setSchoolFilter([]);
+    setConsensusFilter([]);
     handlePinTeam(null);
     setHighlightedPlayerId(null);
     setSearchResetKey(k => k + 1);
@@ -1657,6 +1670,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     onTeamFilterChange: handleTeamFilterChange,
     schoolFilter,
     onSchoolFilterChange: handleSchoolFilterChange,
+    // vs-consensus (Brief 3) — remembered in state only (no URL), re-applies on return to
+    // Act 2+. The sidebar renders the control only when chartMode !== 'projection'.
+    consensusFilter,
+    onConsensusFilterChange: setConsensusFilter,
     onClearAllFilters: handleClearAllFilters,
     liveMode,
     onLiveModeToggle: handleLiveToggle,
@@ -1871,6 +1888,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 roundFilter={roundFilter}
                 teamFilter={teamFilter}
                 schoolFilter={schoolFilter}
+                consensusFilter={consensusFilter}
+                classMaxPick={classMaxPick}
                 highlightedId={highlightedPlayerId}
               />
               {isZoomedMobile && currentMobilePos && (

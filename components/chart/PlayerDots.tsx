@@ -22,6 +22,7 @@ import type { ChartMode } from "@/lib/dataAvailability";
 import { SCHOOL_COLORS, TEAM_COLORS } from "@/lib/chartConstants";
 import { getDotColor } from "@/lib/dotColor";
 import { isPlayerFiltered } from "@/lib/lensFilter";
+import type { DraftMove } from "@/lib/scoreboardStats";
 
 interface Props {
   dotPositions: DotPosition[];
@@ -42,6 +43,10 @@ interface Props {
   roundFilter: (number | "UDFA")[];
   teamFilter: string[];
   schoolFilter: string[];
+  /** vs-consensus scope (Brief 3) — STEAL/IN_RANGE/REACH; inert in Act 1. classMaxPick
+   *  anchors the same rank imputation the scoreboard + Act-2 hover use. */
+  consensusFilter?: DraftMove[];
+  classMaxPick?: number;
   /** Player search (brief f, item 3): dot to spotlight with a glow-ring. Highlights,
    *  never scopes — independent of the filters; rings the located dot only. */
   highlightedId?: string | null;
@@ -99,6 +104,7 @@ export default function PlayerDots({
   productionPositions,
   onDotClick, onDotHover, onDotLeave,
   positionFilter, roundFilter, teamFilter, schoolFilter,
+  consensusFilter = [], classMaxPick = 0,
   highlightedId,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
@@ -315,7 +321,8 @@ export default function PlayerDots({
           !!TEAM_COLORS[player.team_drafted];
 
         const filteredOut = isPlayerFiltered(
-          player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode
+          player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
+          consensusFilter, classMaxPick
         );
         const isHighlighted = highlightedId === player.player_id;
 

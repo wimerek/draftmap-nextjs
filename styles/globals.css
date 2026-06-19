@@ -1139,6 +1139,38 @@ a { color: inherit; text-decoration: none; }
 .sb-fd-pos-btn:hover { background: rgba(255,255,255,0.12); color: #F5F0E8; }
 .sb-fd-pos-btn.active { background: #D4A017; color: #0B2239; border-color: #D4A017; }
 
+/* ── Vs. consensus chips (Brief 3) ───────────────────────────────────────────────
+   A 3-way multi-select in scoreboard-STRIP order (steals · on-target · reaches). Each
+   chip carries its STRIP-palette tone (lib/scoreboardStrip.ts: steal gold #D4A017,
+   on-target grey #9AA1AB, reach sky #6FA8D8) so this scope twin rhymes with the strip
+   counts + the Act-2 key lines. Outline at rest (tone-tinted border telegraphs the
+   color); filled/tinted + bright text when selected. */
+.sb-fd-vc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.sb-fd-vc-chip {
+  padding: 4px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(245,240,232,0.58);
+  border: 1.5px solid rgba(245,240,232,0.18);
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.sb-fd-vc-chip:not(.active):hover { background: rgba(255,255,255,0.07); color: #F5F0E8; }
+
+/* Per-tone OUTLINE at rest — subtle border tint so the chip telegraphs its strip color. */
+.sb-fd-vc-chip--steal    { border-color: rgba(212,160,23,0.45); }
+.sb-fd-vc-chip--ontarget { border-color: rgba(154,161,171,0.45); }
+.sb-fd-vc-chip--reach    { border-color: rgba(111,168,216,0.45); }
+
+/* Selected = filled/tinted + bright text + full-strength border (strip palette). */
+.sb-fd-vc-chip--steal.active    { background: rgba(212,160,23,0.18); color: #E8C879; border-color: #D4A017; }
+.sb-fd-vc-chip--ontarget.active { background: rgba(154,161,171,0.18); color: #C8CDD4; border-color: #9AA1AB; }
+.sb-fd-vc-chip--reach.active    { background: rgba(111,168,216,0.18); color: #9CC4E8; border-color: #6FA8D8; }
+
 /* ── Show Movement Lines toggle button ─────────────────────────────────────── */
 .sb-toggle-btn {
   display: flex;

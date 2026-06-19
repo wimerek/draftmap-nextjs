@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
+import type { DraftMove } from "@/lib/scoreboardStats";
 import { POSITION_ORDER } from "@/lib/chartConstants";
 import { TEAM_COLORS, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import FilterDropdown from "@/components/sidebar/FilterDropdown";
@@ -20,6 +21,10 @@ export interface SidebarProps {
   onTeamFilterChange: (teams: string[]) => void;
   schoolFilter: string[];
   onSchoolFilterChange: (schools: string[]) => void;
+  // vs-consensus (Brief 3) — a 5th, act-aware filter. STEAL/IN_RANGE/REACH multi-select;
+  // rendered only in Act 2 & 3 (chartMode !== 'projection'). Selection persists in state.
+  consensusFilter: DraftMove[];
+  onConsensusFilterChange: (moves: DraftMove[]) => void;
   onClearAllFilters: () => void;
   liveMode: boolean;
   onLiveModeToggle: () => void;
@@ -55,6 +60,19 @@ const DEF_POSITIONS = ["EDGE", "DT", "LB", "CB", "S"];
 const OFF_POSITIONS = ["RB", "WR", "TE", "OT", "IOL", "QB"];
 const ROUND_OPTIONS: (number | "UDFA")[] = [1, 2, 3, 4, 5, 6, 7, "UDFA"];
 
+// vs-consensus (Brief 3) — the 3-way chip set, in SCOREBOARD-STRIP order
+// (steals · on-target · reaches). `tone` keys the strip-palette chip color (CSS):
+// steal = gold, ontarget = grey, reach = sky. One concept, three touchpoints
+// (this scope twin + the Act-2 key lines row + the scoreboard strip counts).
+const CONSENSUS_OPTIONS: { move: DraftMove; label: string; tone: "steal" | "ontarget" | "reach" }[] = [
+  { move: "STEAL",    label: "↓ Steals",  tone: "steal" },
+  { move: "IN_RANGE", label: "On-target", tone: "ontarget" },
+  { move: "REACH",    label: "↑ Reaches", tone: "reach" },
+];
+const CONSENSUS_SUMMARY_LABEL: Record<string, string> = {
+  STEAL: "Steals", IN_RANGE: "On-target", REACH: "Reaches",
+};
+
 // ── Summary helpers ───────────────────────────────────────────────────────────
 
 function isAllDefense(f: string[]) {
@@ -85,6 +103,11 @@ function getSchoolSummary(f: string[]) {
   if (f.length === 0) return "All Schools";
   if (f.length <= 2) return f.join(", ");
   return `${f.length} schools`;
+}
+function getConsensusSummary(f: DraftMove[]) {
+  if (f.length === 0) return "All Picks";
+  if (f.length === 1) return CONSENSUS_SUMMARY_LABEL[f[0]] ?? "1 selected";
+  return `${f.length} selected`;
 }
 
 // ── Panel-collapse icons (Tabler ti-layout-sidebar-left-*) ───────────────────────
@@ -165,6 +188,7 @@ export default function Sidebar(props: SidebarProps) {
     roundFilter, onRoundFilterChange,
     teamFilter, onTeamFilterChange,
     schoolFilter, onSchoolFilterChange,
+    consensusFilter, onConsensusFilterChange,
     onClearAllFilters,
     liveMode, onLiveModeToggle,
     showLines, onShowLinesToggle,
@@ -177,7 +201,7 @@ export default function Sidebar(props: SidebarProps) {
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | "consensus" | null>(null);
   const [teamSearch, setTeamSearch] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
   const teamSearchRef = useRef<HTMLInputElement>(null);
@@ -194,9 +218,14 @@ export default function Sidebar(props: SidebarProps) {
     chartMode === "draft-results" ||
     chartMode === "player-production";
 
-  const toggleDropdown = (key: "position" | "round" | "team" | "school") => {
+  const toggleDropdown = (key: "position" | "round" | "team" | "school" | "consensus") => {
     setOpenDropdown(prev => (prev === key ? null : key));
   };
+
+  // vs-consensus is rendered only in Act 2 & 3 — the deviation is undefined before the
+  // draft. chartMode === 'projection' is Act 1; everything else (draft-results / field
+  // modes) is Act 2+. `undefined` (no mode yet) stays hidden — Act 1 is the default beat.
+  const showConsensusFilter = chartMode !== undefined && chartMode !== "projection";
 
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
@@ -458,6 +487,39 @@ export default function Sidebar(props: SidebarProps) {
                 }
               </div>
             </FilterDropdown>
+
+            {/* Vs. consensus (Brief 3) — act-aware: Act 2 & 3 only. A categorical SCOPE
+                twin of the Act-2 key's lines row (explains) and the scoreboard strip
+                (counts) — chips carry the STRIP palette so the three touchpoints rhyme. */}
+            {showConsensusFilter && (
+              <FilterDropdown
+                label="Vs. consensus"
+                summary={getConsensusSummary(consensusFilter)}
+                isOpen={openDropdown === "consensus"}
+                onToggle={() => toggleDropdown("consensus")}
+                hasSelection={consensusFilter.length > 0}
+                onClear={() => onConsensusFilterChange([])}
+              >
+                <div className="sb-fd-vc-chips">
+                  {CONSENSUS_OPTIONS.map(({ move, label, tone }) => {
+                    const isSelected = consensusFilter.includes(move);
+                    return (
+                      <button
+                        key={move}
+                        className={`sb-fd-vc-chip sb-fd-vc-chip--${tone}${isSelected ? " active" : ""}`}
+                        onClick={() => {
+                          const next = isSelected
+                            ? consensusFilter.filter(m => m !== move)
+                            : [...consensusFilter, move];
+                          onConsensusFilterChange(next);
+                        }}
+                        aria-pressed={isSelected}
+                      >{label}</button>
+                    );
+                  })}
+                </div>
+              </FilterDropdown>
+            )}
 
             {/* HIDDEN 2026-06-18 — Brief 1 declutter. "Hide Drafted" toggle (handler +
                 component kept intact behind SHOW_LEGACY; resurface later). */}
