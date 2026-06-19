@@ -15,6 +15,7 @@
  *   - showLines only rendered in draft-results and player-production modes.
  */
 import { useState } from "react";
+import type { ReactNode } from "react";
 import type { Player } from "@/lib/sheets";
 import type { DotPosition } from "@/lib/chartMath";
 import type { ViewMode } from "@/components/Sidebar";
@@ -59,6 +60,14 @@ interface Props {
 
 const BASE_R = 6;
 const TOUCH_TARGET = 22;
+
+// ── Filtered-out ghost layer (Brief 4: port Act-3's JellyfishField technique) ───
+// Filtered-out dots render as fill-only circles inside ONE wrapping <g> at this
+// single group opacity — NOT per-dot. Per-dot translucency alpha-stacks where dots
+// overlap (the dense UDFA / baseline row reads as a muddy smear); a single group
+// opacity over opaque children = a uniform faint ghost layer, no compounding. Matches
+// Act 3's GhostDot treatment (~0.12) so the three fields ghost identically.
+const GHOST_LAYER_OPACITY = 0.12;
 
 // ── Act-2 leader-line tints (Brief 2b: color-unification with the key) ──────────
 // The projection→actual connectors are DIRECTIONAL: steal = gold, reach = sky —
@@ -124,6 +133,274 @@ export default function PlayerDots({
     ? dotPositions.find(d => d.player.player_id === hoveredId) ?? null
     : null;
 
+  // ── Two render passes (Brief 4) ───────────────────────────────────────────────
+  // Built here (not inline in JSX) so each dot's fill/position is computed once, then
+  // routed to ONE of two passes: in-scope dots render full-fidelity; filtered-out dots
+  // become simplified fill-only ghosts collected for a single group-opacity layer (see
+  // GHOST_LAYER_OPACITY). Porting Act-3's JellyfishField split avoids the per-dot
+  // alpha-stacking that smeared dense filtered-out clusters.
+  const inScopeDots: ReactNode[] = [];
+  const ghostDots: ReactNode[] = [];
+
+  dotPositions.forEach(({ player, x, projectedY, actualY, pickValueDelta, expectedPickValue }, i) => {
+    const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
+    const isDrafted = liveMode && player.drafted && !inDraftedView;
+
+    let fill: string, stroke: string;
+
+    if (isProductionMode) {
+      // Year 1-N and Career: team colors (team identity story; Y-position tells performance story)
+      let stepTeam: string | null = null;
+      if (chartMode === 'career') {
+        const lastStep = [...(player.stepScores ?? [])].reverse().find(s => s.team)
+        stepTeam = lastStep?.team ?? player.team_drafted ?? null;
+      } else {
+        const stepEntry = (player.stepScores ?? []).find(s => s.stepId === currentStepId);
+        stepTeam = stepEntry?.team ?? player.team_drafted ?? null;
+      }
+      const tc = stepTeam ? TEAM_COLORS[stepTeam] : null;
+      fill   = tc?.fill   ?? '#4e6070';
+      stroke = tc?.secondary ?? 'rgba(255,255,255,0.35)';
+    } else if (isDrafted) {
+      // Live mode: grey out already-drafted players in projected view
+      fill   = "rgba(210,200,185,0.35)";
+      stroke = "rgba(160,150,135,0.45)";
+    } else if (inDraftedView && player.team_drafted) {
+      // Draft Results (and sidebar drafted view): NFL team colors
+      const tc = TEAM_COLORS[player.team_drafted];
+      if (tc) { fill = tc.fill; stroke = tc.secondary; }
+      else    { fill = sc.fill; stroke = "#333333"; }
+    } else {
+      // Projection: school/college colors
+      fill   = sc.fill;
+      stroke = "#333333";
+    }
+
+    // Production mode: use score-derived Y and opacity from productionPositions.
+    // Otherwise: drafted view uses actualY, projected view uses projectedY.
+    const prodPos = isProductionMode ? productionPositions?.get(player.player_id) : undefined;
+    const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
+    const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
+
+    const filteredOut = isPlayerFiltered(
+      player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
+      consensusFilter, classMaxPick
+    );
+
+    // Filtered-out → SIMPLIFIED ghost: base circle only at the dot's position + base
+    // fill. No ring/glyph/star/ST-wash/two-tone/hover — nothing to haze, and the single
+    // group opacity (not per-dot) keeps overlaps flat. Collected, rendered below.
+    if (filteredOut) {
+      ghostDots.push(
+        <circle key={`ghost-${player.player_id}-${i}`} cx={x} cy={cy} r={BASE_R} fill={fill} />
+      );
+      return;
+    }
+
+    // Washed Out: score was null this step → sent to the below-field zone.
+    // Render as a hollow ring (team color as stroke) to read as "out of league".
+    const isWashedOut = isProductionMode && prodPos !== undefined && prodPos.opacity < 1.0;
+
+    // Production mode: directional tier-band delta drives radius.
+    // Overperformers (stepScore > expected) grow above BASE_R; underperformers shrink below.
+    // Expected is the historical median usage percentile for this player's draft round.
+    // Default is BASE_R (was PROD_R_NEUTRAL = 7.5 — intentional change, no-data dots render at base size).
+    const PROD_R_MIN = 4.5;
+    const PROD_R_MAX = 12.0;
+    const NORM_POS   = 55;
+    const NORM_NEG   = 40;
+    let productionR = BASE_R;
+    if (isProductionMode && !isMobile) {
+      const stepScore = chartMode === 'career'
+        ? player.outcomeScore ?? null
+        : (player.stepScores ?? []).find(s => s.stepId === currentStepId)?.score ?? null;
+      if (stepScore !== null) {
+        const delta = stepScore - expectedPickValue; // signed: positive = overperformer
+        if (delta >= 0) {
+          const t = Math.min(delta / NORM_POS, 1.0);
+          productionR = BASE_R + t * (PROD_R_MAX - BASE_R);
+        } else {
+          const t = Math.min(Math.abs(delta) / NORM_NEG, 1.0);
+          productionR = BASE_R - t * (BASE_R - PROD_R_MIN);
+        }
+      }
+    }
+    const r = isMobile ? BASE_R : isProductionMode ? productionR : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
+
+    const skipAnim = isMobile && !isAnimating;
+    const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
+    const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
+    // In production mode, exclude `r` from transition so radius snaps instantly
+    // when entering from Draft Results (variable delta-size → directional tier-band size).
+    // `cy` movement is handled by the group transform so ring/star travel with the dot.
+    const groupTransition = tDuration > 0
+      ? `transform ${tDuration}ms ease-out ${tDelay}ms`
+      : "none";
+    const transition = tDuration > 0
+      ? isProductionMode
+        ? [`fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+        : [`r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
+      : "none";
+
+    // ST-primary: player logged more raw ST snaps than position snaps this step
+    // Uses absolute snap counts (not percentages) so fringe players with tiny position
+    // snap rates don't trigger this. Minimum 50 ST snaps to exclude garbage time.
+    let isSTprimary = false;
+    if (isProductionMode) {
+      const isSTRow = (row: { stSnapCount?: number | null; snapCount?: number | null } | null) =>
+        row != null &&
+        row.stSnapCount != null && row.stSnapCount >= 50 &&
+        row.snapCount    != null && row.stSnapCount > row.snapCount;
+      if (chartMode === 'career') {
+        const lastRow = player.seasonData ? player.seasonData[player.seasonData.length - 1] : null;
+        isSTprimary = isSTRow(lastRow);
+      } else if (currentStepId) {
+        const season = parseInt(currentStepId, 10);
+        if (!isNaN(season)) {
+          const row = player.seasonData?.find(s => s.season === season) ?? null;
+          isSTprimary = isSTRow(row);
+        }
+      }
+    }
+
+    // Pro Bowl ring + All Pro star: production/career steps only
+    let showProBowl = false;
+    let showAllPro  = false;
+    if (isProductionMode) {
+      if (chartMode === 'career') {
+        showProBowl = player.seasonData?.some(sr => sr.proBowl) ?? false;
+        showAllPro  = player.seasonData?.some(sr => sr.allPro)  ?? false;
+      } else if (currentStepId === 'rookie-contract') {
+        // Cumulative: any Pro Bowl or All-Pro in Years 1–4 of rookie window
+        const rcSeasons = player.seasonData?.filter(
+          sr => sr.season >= player.draft_year && sr.season <= player.draft_year + 3
+        ) ?? [];
+        showProBowl = rcSeasons.some(sr => sr.proBowl);
+        showAllPro  = rcSeasons.some(sr => sr.allPro);
+      } else if (currentStepId === 'veteran') {
+        // Cumulative: any Pro Bowl or All-Pro in Years 5+
+        const vetSeasons = player.seasonData?.filter(
+          sr => sr.season >= player.draft_year + 4
+        ) ?? [];
+        showProBowl = vetSeasons.some(sr => sr.proBowl);
+        showAllPro  = vetSeasons.some(sr => sr.allPro);
+      } else if (currentStepId) {
+        const season = parseInt(currentStepId, 10);
+        if (!isNaN(season)) {
+          const sr = player.seasonData?.find(s => s.season === season);
+          showProBowl = sr?.proBowl ?? false;
+          showAllPro  = sr?.allPro  ?? false;
+        }
+      }
+    }
+    // No awards on washed-out (out-of-league) dots.
+    if (isWashedOut) { showProBowl = false; showAllPro = false; }
+
+    const dotStroke      = isMobile ? "#ffffff" : stroke;
+    const dotStrokeWidth = isMobile
+      ? (isZoomedMobile ? 0.8 : 2.5)
+      : (inDraftedView ? 2.5 : 1.5);
+
+    // Two-tone team rings: projection + draft-results modes on mobile (not production/career)
+    const showTwoTone =
+      !isProductionMode &&
+      isMobile &&
+      inDraftedView &&
+      !isDrafted &&
+      !!player.team_drafted &&
+      !!TEAM_COLORS[player.team_drafted];
+
+    const isHighlighted = highlightedId === player.player_id;
+
+    inScopeDots.push(
+      <g key={`${player.player_id}-${i}`}>
+        {/* Inner group translates to (x, cy) — all children ride the same animation */}
+        <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
+          {/* Search spotlight (brief f, item 3) — rings the located dot; never scopes. */}
+          {isHighlighted && (
+            <circle className="dm-glow-ring" cx={0} cy={0} r={r + 4} fill="none" pointerEvents="none" />
+          )}
+          {showTwoTone ? (
+            <>
+              <circle
+                cx={0} cy={0} r={r + 2.5}
+                fill={stroke}
+                stroke="#ffffff"
+                strokeWidth={1}
+                style={{ pointerEvents: "none" }}
+              />
+              <circle
+                cx={0} cy={0} r={r}
+                fill={fill}
+                stroke="none"
+                style={{ pointerEvents: "none" }}
+              />
+            </>
+          ) : (
+            <circle
+              cx={0} cy={0} r={r}
+              stroke={isWashedOut ? fill : dotStroke}
+              strokeWidth={isWashedOut ? 1.5 : dotStrokeWidth}
+              style={{
+                fill: isWashedOut ? "none" : fill,
+                opacity: isWashedOut ? 0.50 : dotOpacity,
+                cursor: "pointer",
+                transition,
+              }}
+              onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
+              onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
+              onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
+            />
+          )}
+          {/* ST-primary wash: white overlay that dilutes the team color for ST specialists */}
+          {isSTprimary && !showTwoTone && (
+            <circle
+              cx={0} cy={0} r={r}
+              fill="rgba(255,255,255,0.42)"
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
+
+          {/* Pro Bowl ring — travels with the dot via the parent group transform */}
+          {showProBowl && !showTwoTone && (
+            <circle
+              cx={0} cy={0}
+              r={r + 3.5}
+              fill="none"
+              stroke="#D4A017"
+              strokeWidth={1.5}
+              opacity={0.85}
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+
+          {/* All Pro star — travels with the dot via the parent group transform */}
+          {showAllPro && !showTwoTone && (
+            <path
+              d={starPath(0, 0, 4.5, 2.0)}
+              fill="white"
+              opacity={0.9}
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+
+          {isMobile && (
+            <rect
+              x={-TOUCH_TARGET}
+              y={-TOUCH_TARGET}
+              width={TOUCH_TARGET * 2}
+              height={TOUCH_TARGET * 2}
+              fill="transparent"
+              stroke="none"
+              style={{ cursor: "pointer" }}
+              onClick={e => { e.stopPropagation(); onDotClick(player); }}
+            />
+          )}
+        </g>
+      </g>
+    );
+  });
+
   return (
     <g>
       {/* ── All-lines mode — only in draft-results / player-production ─── */}
@@ -166,257 +443,17 @@ export default function PlayerDots({
         </g>
       )}
 
-      {/* ── Circles ──────────────────────────────────────────────────── */}
-      {dotPositions.map(({ player, x, projectedY, actualY, pickValueDelta, expectedPickValue }, i) => {
-        const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
-        const isDrafted = liveMode && player.drafted && !inDraftedView;
+      {/* ── Filtered-out ghost layer ─────────────────────────────────────
+          ONE wrapping <g> at a single group opacity (not per-dot) → dense
+          overlaps stay a clean uniform faint layer instead of alpha-stacking
+          into a muddy smear. Rendered BEHIND the in-scope pass so full-fidelity
+          dots stay on top. pointer-events:none → touch/hover only on in-scope. */}
+      <g style={{ opacity: GHOST_LAYER_OPACITY, pointerEvents: "none" }}>
+        {ghostDots}
+      </g>
 
-        let fill: string, stroke: string;
-
-        if (isProductionMode) {
-          // Year 1-N and Career: team colors (team identity story; Y-position tells performance story)
-          let stepTeam: string | null = null;
-          if (chartMode === 'career') {
-            const lastStep = [...(player.stepScores ?? [])].reverse().find(s => s.team)
-            stepTeam = lastStep?.team ?? player.team_drafted ?? null;
-          } else {
-            const stepEntry = (player.stepScores ?? []).find(s => s.stepId === currentStepId);
-            stepTeam = stepEntry?.team ?? player.team_drafted ?? null;
-          }
-          const tc = stepTeam ? TEAM_COLORS[stepTeam] : null;
-          fill   = tc?.fill   ?? '#4e6070';
-          stroke = tc?.secondary ?? 'rgba(255,255,255,0.35)';
-        } else if (isDrafted) {
-          // Live mode: grey out already-drafted players in projected view
-          fill   = "rgba(210,200,185,0.35)";
-          stroke = "rgba(160,150,135,0.45)";
-        } else if (inDraftedView && player.team_drafted) {
-          // Draft Results (and sidebar drafted view): NFL team colors
-          const tc = TEAM_COLORS[player.team_drafted];
-          if (tc) { fill = tc.fill; stroke = tc.secondary; }
-          else    { fill = sc.fill; stroke = "#333333"; }
-        } else {
-          // Projection: school/college colors
-          fill   = sc.fill;
-          stroke = "#333333";
-        }
-
-        // Production mode: use score-derived Y and opacity from productionPositions.
-        // Otherwise: drafted view uses actualY, projected view uses projectedY.
-        const prodPos = isProductionMode ? productionPositions?.get(player.player_id) : undefined;
-        const cy = prodPos !== undefined ? prodPos.y : (inDraftedView ? actualY : projectedY);
-        const dotOpacity = prodPos !== undefined ? prodPos.opacity : 1.0;
-
-        // Washed Out: score was null this step → sent to the below-field zone.
-        // Render as a hollow ring (team color as stroke) to read as "out of league".
-        const isWashedOut = isProductionMode && prodPos !== undefined && prodPos.opacity < 1.0;
-
-        // Production mode: directional tier-band delta drives radius.
-        // Overperformers (stepScore > expected) grow above BASE_R; underperformers shrink below.
-        // Expected is the historical median usage percentile for this player's draft round.
-        // Default is BASE_R (was PROD_R_NEUTRAL = 7.5 — intentional change, no-data dots render at base size).
-        const PROD_R_MIN = 4.5;
-        const PROD_R_MAX = 12.0;
-        const NORM_POS   = 55;
-        const NORM_NEG   = 40;
-        let productionR = BASE_R;
-        if (isProductionMode && !isMobile) {
-          const stepScore = chartMode === 'career'
-            ? player.outcomeScore ?? null
-            : (player.stepScores ?? []).find(s => s.stepId === currentStepId)?.score ?? null;
-          if (stepScore !== null) {
-            const delta = stepScore - expectedPickValue; // signed: positive = overperformer
-            if (delta >= 0) {
-              const t = Math.min(delta / NORM_POS, 1.0);
-              productionR = BASE_R + t * (PROD_R_MAX - BASE_R);
-            } else {
-              const t = Math.min(Math.abs(delta) / NORM_NEG, 1.0);
-              productionR = BASE_R - t * (BASE_R - PROD_R_MIN);
-            }
-          }
-        }
-        const r = isMobile ? BASE_R : isProductionMode ? productionR : (inDraftedView ? deltaToRadius(pickValueDelta) : BASE_R);
-
-        const skipAnim = isMobile && !isAnimating;
-        const tDuration = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 100 : 550) : 0);
-        const tDelay    = skipAnim ? 0 : (isAnimating ? (prefersReducedMotion ? 0   : i * 22) : 0);
-        // In production mode, exclude `r` from transition so radius snaps instantly
-        // when entering from Draft Results (variable delta-size → directional tier-band size).
-        // `cy` movement is handled by the group transform so ring/star travel with the dot.
-        const groupTransition = tDuration > 0
-          ? `transform ${tDuration}ms ease-out ${tDelay}ms`
-          : "none";
-        const transition = tDuration > 0
-          ? isProductionMode
-            ? [`fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
-            : [`r ${tDuration}ms ease-out ${tDelay}ms`, `fill ${tDuration}ms ease-out ${tDelay}ms`, `opacity ${tDuration}ms ease-out ${tDelay}ms`].join(", ")
-          : "none";
-
-        // ST-primary: player logged more raw ST snaps than position snaps this step
-        // Uses absolute snap counts (not percentages) so fringe players with tiny position
-        // snap rates don't trigger this. Minimum 50 ST snaps to exclude garbage time.
-        let isSTprimary = false;
-        if (isProductionMode) {
-          const isSTRow = (row: { stSnapCount?: number | null; snapCount?: number | null } | null) =>
-            row != null &&
-            row.stSnapCount != null && row.stSnapCount >= 50 &&
-            row.snapCount    != null && row.stSnapCount > row.snapCount;
-          if (chartMode === 'career') {
-            const lastRow = player.seasonData ? player.seasonData[player.seasonData.length - 1] : null;
-            isSTprimary = isSTRow(lastRow);
-          } else if (currentStepId) {
-            const season = parseInt(currentStepId, 10);
-            if (!isNaN(season)) {
-              const row = player.seasonData?.find(s => s.season === season) ?? null;
-              isSTprimary = isSTRow(row);
-            }
-          }
-        }
-
-        // Pro Bowl ring + All Pro star: production/career steps only
-        let showProBowl = false;
-        let showAllPro  = false;
-        if (isProductionMode) {
-          if (chartMode === 'career') {
-            showProBowl = player.seasonData?.some(sr => sr.proBowl) ?? false;
-            showAllPro  = player.seasonData?.some(sr => sr.allPro)  ?? false;
-          } else if (currentStepId === 'rookie-contract') {
-            // Cumulative: any Pro Bowl or All-Pro in Years 1–4 of rookie window
-            const rcSeasons = player.seasonData?.filter(
-              sr => sr.season >= player.draft_year && sr.season <= player.draft_year + 3
-            ) ?? [];
-            showProBowl = rcSeasons.some(sr => sr.proBowl);
-            showAllPro  = rcSeasons.some(sr => sr.allPro);
-          } else if (currentStepId === 'veteran') {
-            // Cumulative: any Pro Bowl or All-Pro in Years 5+
-            const vetSeasons = player.seasonData?.filter(
-              sr => sr.season >= player.draft_year + 4
-            ) ?? [];
-            showProBowl = vetSeasons.some(sr => sr.proBowl);
-            showAllPro  = vetSeasons.some(sr => sr.allPro);
-          } else if (currentStepId) {
-            const season = parseInt(currentStepId, 10);
-            if (!isNaN(season)) {
-              const sr = player.seasonData?.find(s => s.season === season);
-              showProBowl = sr?.proBowl ?? false;
-              showAllPro  = sr?.allPro  ?? false;
-            }
-          }
-        }
-        // No awards on washed-out (out-of-league) dots.
-        if (isWashedOut) { showProBowl = false; showAllPro = false; }
-
-        const dotStroke      = isMobile ? "#ffffff" : stroke;
-        const dotStrokeWidth = isMobile
-          ? (isZoomedMobile ? 0.8 : 2.5)
-          : (inDraftedView ? 2.5 : 1.5);
-
-        // Two-tone team rings: projection + draft-results modes on mobile (not production/career)
-        const showTwoTone =
-          !isProductionMode &&
-          isMobile &&
-          inDraftedView &&
-          !isDrafted &&
-          !!player.team_drafted &&
-          !!TEAM_COLORS[player.team_drafted];
-
-        const filteredOut = isPlayerFiltered(
-          player, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
-          consensusFilter, classMaxPick
-        );
-        const isHighlighted = highlightedId === player.player_id;
-
-        return (
-          <g
-            key={`${player.player_id}-${i}`}
-            style={{ opacity: filteredOut ? 0.12 : 1, pointerEvents: filteredOut ? "none" : "auto" }}
-          >
-            {/* Inner group translates to (x, cy) — all children ride the same animation */}
-            <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
-              {/* Search spotlight (brief f, item 3) — rings the located dot; never scopes. */}
-              {isHighlighted && (
-                <circle className="dm-glow-ring" cx={0} cy={0} r={r + 4} fill="none" pointerEvents="none" />
-              )}
-              {showTwoTone ? (
-                <>
-                  <circle
-                    cx={0} cy={0} r={r + 2.5}
-                    fill={stroke}
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    style={{ pointerEvents: "none" }}
-                  />
-                  <circle
-                    cx={0} cy={0} r={r}
-                    fill={fill}
-                    stroke="none"
-                    style={{ pointerEvents: "none" }}
-                  />
-                </>
-              ) : (
-                <circle
-                  cx={0} cy={0} r={r}
-                  stroke={isWashedOut ? fill : dotStroke}
-                  strokeWidth={isWashedOut ? 1.5 : dotStrokeWidth}
-                  style={{
-                    fill: isWashedOut ? "none" : fill,
-                    opacity: isWashedOut ? 0.50 : dotOpacity,
-                    cursor: "pointer",
-                    transition,
-                  }}
-                  onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
-                  onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
-                  onMouseLeave={isMobile ? undefined : (() => { setHoveredId(null); onDotLeave(); })}
-                />
-              )}
-              {/* ST-primary wash: white overlay that dilutes the team color for ST specialists */}
-              {isSTprimary && !showTwoTone && (
-                <circle
-                  cx={0} cy={0} r={r}
-                  fill="rgba(255,255,255,0.42)"
-                  style={{ pointerEvents: 'none' }}
-                />
-              )}
-
-              {/* Pro Bowl ring — travels with the dot via the parent group transform */}
-              {showProBowl && !showTwoTone && (
-                <circle
-                  cx={0} cy={0}
-                  r={r + 3.5}
-                  fill="none"
-                  stroke="#D4A017"
-                  strokeWidth={1.5}
-                  opacity={0.85}
-                  style={{ pointerEvents: "none" }}
-                />
-              )}
-
-              {/* All Pro star — travels with the dot via the parent group transform */}
-              {showAllPro && !showTwoTone && (
-                <path
-                  d={starPath(0, 0, 4.5, 2.0)}
-                  fill="white"
-                  opacity={0.9}
-                  style={{ pointerEvents: "none" }}
-                />
-              )}
-
-              {isMobile && (
-                <rect
-                  x={-TOUCH_TARGET}
-                  y={-TOUCH_TARGET}
-                  width={TOUCH_TARGET * 2}
-                  height={TOUCH_TARGET * 2}
-                  fill="transparent"
-                  stroke="none"
-                  style={{ cursor: "pointer" }}
-                  onClick={e => { e.stopPropagation(); onDotClick(player); }}
-                />
-              )}
-            </g>
-          </g>
-        );
-      })}
+      {/* ── In-scope dots (full fidelity) ───────────────────────────────── */}
+      {inScopeDots}
     </g>
   );
 }
