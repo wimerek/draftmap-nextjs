@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player, SearchIndexEntry } from "@/lib/sheets";
-import { VALID_DRAFT_YEARS } from "@/lib/draftYears";
+import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/draftYears";
 import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
@@ -741,6 +741,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // class finishes loading (scoredReady), then the resolver lands the act + opens the card.
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
   const pendingTeleportRef = useRef<{ playerId: string; year: number } | null>(null);
+  // Reset (Brief 1, Piece 6) clears the search field by remounting PlayerSearch (its
+  // query/expanded state is internal) — bumping this key is the clear signal.
+  const [searchResetKey, setSearchResetKey] = useState(0);
 
   // ── "How to Read" modal ───────────────────────────────────────────────────
   const [htrOpen, setHtrOpen] = useState(false);
@@ -1599,6 +1602,28 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
   const handleShowLinesToggle = useCallback(() => setShowLines(l => !l), []);
 
+  // ── Reset (Brief 1, Piece 6) — one handler, two affordances (logo + footer house) ──
+  // Instant snap (no animated rewind): clears every filter, the pinned-team identity
+  // (handlePinTeam(null) also wipes localStorage so it doesn't rehydrate), the search
+  // field + glow-ring, and returns to Act 1 / THE BOARD ('projection'). If not already
+  // on the newest class, navigates there (which drops the query string).
+  const handleResetView = useCallback(() => {
+    setPositionFilter([]);
+    setRoundFilter([]);
+    setTeamFilter([]);
+    setSchoolFilter([]);
+    handlePinTeam(null);
+    setHighlightedPlayerId(null);
+    setSearchResetKey(k => k + 1);
+    setCurrentStepId('projection');
+    if (selectedYear !== CURRENT_DRAFT_YEAR) {
+      setSelectedYear(CURRENT_DRAFT_YEAR);
+      router.replace(`/draft/${CURRENT_DRAFT_YEAR}`, { scroll: false });
+    } else {
+      updateURL({ pos: null, round: null, team: null, school: null, step: null });
+    }
+  }, [handlePinTeam, selectedYear, router, updateURL]);
+
   // ── Desktop drag-to-scroll ────────────────────────────────────────────────
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isMobile) return;
@@ -1641,6 +1666,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     availableTeams,
     availableSchools,
     hasActiveFilters,
+    // "Showing N of X players" (Brief 1, Piece 5): N = lit subset, X = full class.
+    litCount: hasActiveFilters ? litPlayers.length : players.length,
+    totalCount: players.length,
+    // Reset (Brief 1, Piece 6) — wired to the logo + footer house inside the sidebar.
+    onResetView: handleResetView,
     // Your team (brief f): the ☆ MY TEAM row + per-row pin icons. Same teamFilter
     // writer as the checkboxes (no parallel filter); onPinTeam is the only pin writer.
     pinnedTeam,
@@ -1714,7 +1744,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
           scoreboard={{
             // Player search re-homed into the identity column (fix-pass-3 §2) — was the
             // header top-right slot. Same matcher/teleport/glow-ring; only its home moved.
-            searchSlot: <PlayerSearch onSelect={handleSearchSelect} />,
+            searchSlot: <PlayerSearch key={searchResetKey} onSelect={handleSearchSelect} />,
             // Lens (brief f): under an active lens the slot counts the SCOPE-FILTERED
             // (lit) subset — the SAME set the chart re-lights — so the slot can't
             // contradict the chart. No lens → the full class set (byte-identical to d).

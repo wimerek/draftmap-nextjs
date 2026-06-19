@@ -651,44 +651,57 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
 }
 
-/* ── Collapse row + button ───────────────────────────────────────────────── */
-.sb-collapse-row {
+/* ── Panel-collapse button (Brief 1, Piece 2) ─────────────────────────────────
+   Hollow ti-layout-sidebar-left icon button. Lives at the LEFT of the FILTERS
+   header row when expanded; moves to the top of the rail when collapsed. The
+   layout-box body (.sb-collapse-fill) fills on hover, mirroring the footer house. */
+.sb-collapse-btn {
   position: relative;
-  display: flex;
-  justify-content: flex-end;
-  padding: 5px 10px 5px;
-  background: #0B2239;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  color: rgba(245,240,232,0.55);
+  transition: color 150ms, background 150ms;
+}
+.sb-collapse-btn:hover {
+  color: #F5F0E8;
+  background: rgba(255,255,255,0.06);
+}
+.sb-collapse-fill {
+  fill: transparent;
+  transition: fill 150ms;
+}
+.sb-collapse-btn:hover .sb-collapse-fill {
+  fill: rgba(245,240,232,0.12);
 }
 
-/* Active-filter badge on collapsed sidebar */
-.sb-filter-badge {
+/* Active-filter badge riding the collapse button (shown on the collapsed rail) */
+.sb-collapse-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: 0;
+  right: 0;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #D4A017;
   pointer-events: none;
 }
-.sb-collapse-btn {
+
+/* Collapsed-rail toggle housing — centers the button at the top of the 54px rail */
+.sb-rail-toggle {
   display: flex;
-  align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 20px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: rgba(245,240,232,0.60);
-  font-weight: 700;
-  transition: background 150ms, color 150ms;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-.sb-collapse-btn:hover { background: rgba(255,255,255,0.16); color: rgba(245,240,232,0.90); }
 
 /* ── Brand row ───────────────────────────────────────────────────────────── */
 .sb-brand {
@@ -950,41 +963,48 @@ a { color: inherit; text-decoration: none; }
 /* ── Filter dropdown (sb-fd-*) ──────────────────────────────────────────────── */
 .sb-fd { display: flex; flex-direction: column; }
 
+/* Ghost grammar (Brief 1, Piece 3): flat-on-navy + hairline outline at rest;
+   bg-lift on hover; gold LEFT-EDGE bar (inset shadow) + gold summary when active —
+   the border stays a neutral hairline (NO full gold border, so it reads as a control,
+   not a mini-scoreboard). Distinct from the scoreboard's filled lit housing. */
 .sb-fd-header {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
   padding: 7px 10px;
-  background: rgba(255,255,255,0.06);
-  border: 1.5px solid rgba(255,255,255,0.15);
+  background: transparent;
+  border: 1px solid rgba(245,240,232,0.13);
   border-radius: 6px;
   cursor: pointer;
-  transition: background 150ms, border-color 150ms;
+  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
   text-align: left;
 }
-.sb-fd-header:hover { background: rgba(255,255,255,0.10); }
-.sb-fd-header--active { border-color: rgba(212,160,23,0.45); }
+.sb-fd-header:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(245,240,232,0.20);
+}
+.sb-fd-header--active { box-shadow: inset 2.5px 0 0 #D4A017; }
 
 .sb-fd-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(245,240,232,0.45);
+  color: rgba(245,240,232,0.55);
   flex-shrink: 0;
 }
 .sb-fd-summary {
   flex: 1;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: rgba(245,240,232,0.65);
+  color: rgba(245,240,232,0.55);
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sb-fd-summary--active { color: #D4A017; }
+.sb-fd-summary--active { color: #E8C879; }
 
 .sb-fd-clear {
   font-size: 9.5px;
@@ -1001,8 +1021,13 @@ a { color: inherit; text-decoration: none; }
 
 .sb-fd-chevron {
   font-size: 10px;
-  color: rgba(245,240,232,0.35);
+  color: rgba(245,240,232,0.42);
   flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+.sb-fd-chevron--open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .sb-fd-chevron { transition: none; }
 }
 
 .sb-fd-body {
@@ -1146,6 +1171,71 @@ a { color: inherit; text-decoration: none; }
   background: #D4A017;
   box-shadow: 0 0 0 3px rgba(212,160,23,0.20);
 }
+
+/* ── "Showing N of X players" count (Brief 1, Piece 5) ──────────────────────── */
+.sb-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(245,240,232,0.42);
+  padding: 2px 2px 0;
+  letter-spacing: 0.01em;
+}
+.sb-count-n { color: #E8C879; font-weight: 700; }
+
+/* ── Brand logo as a reset affordance (Brief 1, Piece 6) ────────────────────── */
+.sb-brand-logo-btn {
+  display: flex;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.sb-brand-logo-btn:focus-visible {
+  outline: 2px solid rgba(212,160,23,0.60);
+  outline-offset: 2px;
+}
+
+/* ── Footer meta cluster: Home (reset) + About (Brief 1, Piece 6) ───────────── */
+.sb-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.sb-footer--collapsed { justify-content: center; padding: 10px 0 12px; }
+.sb-footer-home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(245,240,232,0.55);
+  border-radius: 5px;
+  transition: color 200ms ease, background 200ms ease;
+}
+.sb-footer-home:hover { color: #F5F0E8; background: rgba(255,255,255,0.06); }
+.sb-footer-home:focus-visible {
+  outline: 2px solid rgba(212,160,23,0.60);
+  outline-offset: 1px;
+}
+/* Hollow at rest → fills on hover */
+.sb-footer-home svg .sb-house-fill { fill: transparent; transition: fill 200ms ease; }
+.sb-footer-home:hover svg .sb-house-fill { fill: currentColor; }
+.sb-footer-about {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(245,240,232,0.55);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+.sb-footer-about:hover { color: #F5F0E8; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase Beta — Mobile layout (<768px)

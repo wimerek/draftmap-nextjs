@@ -31,7 +31,7 @@ export default function FilterDropdown({
             aria-label={`Clear ${label} filter`}
           >Clear</button>
         )}
-        <span className="sb-fd-chevron">{isOpen ? "▾" : "▸"}</span>
+        <span className={`sb-fd-chevron${isOpen ? " sb-fd-chevron--open" : ""}`} aria-hidden="true">▸</span>
       </button>
       {isOpen && (
         <div className="sb-fd-body">

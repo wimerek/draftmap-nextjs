@@ -28,6 +28,12 @@ export interface SidebarProps {
   availableTeams: string[];
   availableSchools: string[];
   hasActiveFilters: boolean;
+  // "Showing N of X players" (Brief 1, Piece 5): N = lit (scope-filtered) count, X = total.
+  litCount: number;
+  totalCount: number;
+  // Reset (Brief 1, Piece 6): clears filters + pin + search, returns to Act 1 / newest class.
+  // Wired to BOTH the brand logo and the footer house.
+  onResetView: () => void;
   // Your team (brief f, item 2) — the ☆ MY TEAM row + per-row pin icons. The pin is
   // identity (onPinTeam); selecting a team still flows through onTeamFilterChange.
   pinnedTeam: string | null;
@@ -36,6 +42,13 @@ export interface SidebarProps {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+
+// HIDDEN 2026-06-18 — Brief 1 declutter. Legacy sidebar sections (Hide Drafted,
+// Map Display, How to Read, Player List link) are gated behind this flag, NOT
+// deleted: components + handlers stay intact for later resurfacing (the Act-2 key
+// in Brief 2 restores a movement-lines toggle via the same handler). Flip to true
+// to bring them all back.
+const SHOW_LEGACY = false;
 
 const DEF_POSITIONS = ["EDGE", "DT", "LB", "CB", "S"];
 const OFF_POSITIONS = ["RB", "WR", "TE", "OT", "IOL", "QB"];
@@ -71,6 +84,42 @@ function getSchoolSummary(f: string[]) {
   if (f.length === 0) return "All Schools";
   if (f.length <= 2) return f.join(", ");
   return `${f.length} schools`;
+}
+
+// ── Panel-collapse icons (Tabler ti-layout-sidebar-left-*) ───────────────────────
+// Hollow stroked layout box at rest; the `.sb-collapse-fill` body fills on hover
+// (CSS), mirroring the HouseIcon grammar. Collapse = chevron-in (expanded state),
+// Expand = chevron-out (collapsed rail).
+function SidebarCollapseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect className="sb-collapse-fill" x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M15 10l-2 2l2 2" />
+    </svg>
+  );
+}
+function SidebarExpandIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect className="sb-collapse-fill" x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M14 10l2 2l-2 2" />
+    </svg>
+  );
+}
+
+// ── House icon (footer reset) ───────────────────────────────────────────────────
+// Hollow stroked outline at rest; the `.sb-house-fill` body fills on hover (CSS).
+function HouseIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+      <path className="sb-house-fill" d="M3 9.2 10 3.5l7 5.7V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.2Z" />
+    </svg>
+  );
 }
 
 // ── SidebarSection ────────────────────────────────────────────────────────────
@@ -115,6 +164,8 @@ export default function Sidebar(props: SidebarProps) {
     chartMode,
     availableTeams, availableSchools,
     hasActiveFilters,
+    litCount, totalCount,
+    onResetView,
     pinnedTeam, onToggleTeam, onPinTeam,
   } = props;
 
@@ -143,15 +194,22 @@ export default function Sidebar(props: SidebarProps) {
   return (
     <aside className={`dm-sidebar${collapsed ? " dm-sidebar--collapsed" : ""}`}>
 
-      {/* ── Brand header ── */}
+      {/* ── Brand header (logo doubles as Reset — Brief 1, Piece 6) ── */}
       <div className={`sb-brand${collapsed ? " sb-brand--collapsed" : ""}`}>
-        <Image
-          src="/brand/draftmap-mark.svg"
-          alt="DraftMap"
-          width={collapsed ? 34 : 72}
-          height={collapsed ? 34 : 72}
-          className="sb-brand-mark"
-        />
+        <button
+          className="sb-brand-logo-btn"
+          onClick={onResetView}
+          title="Reset — clears filters and pinned team"
+          aria-label="Reset — clears filters and pinned team"
+        >
+          <Image
+            src="/brand/draftmap-mark.svg"
+            alt="DraftMap"
+            width={collapsed ? 34 : 72}
+            height={collapsed ? 34 : 72}
+            className="sb-brand-mark"
+          />
+        </button>
         {!collapsed && (
           <div className="sb-brand-text">
             <span className="sb-brand-name">DraftMap</span>
@@ -160,26 +218,42 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {/* ── Collapse button row (+ active filter badge when collapsed) ── */}
-      <div className="sb-collapse-row">
-        <button
-          className="sb-collapse-btn"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? "Expand panel" : "Collapse panel"}
-          aria-label={collapsed ? "Expand panel" : "Collapse panel"}
-        >
-          {collapsed ? "›" : "‹"}
-        </button>
-        {collapsed && hasActiveFilters && (
-          <span className="sb-filter-badge" aria-label="Filters active" />
-        )}
-      </div>
+      {/* ── Collapsed-rail toggle: expand button at the top of the 54px rail, carrying
+            the filter-active gold badge. (Expanded, the toggle lives in the FILTERS
+            header row instead.) ── */}
+      {collapsed && (
+        <div className="sb-rail-toggle">
+          <button
+            className="sb-collapse-btn"
+            onClick={() => setCollapsed(false)}
+            title="Expand panel"
+            aria-label="Expand panel"
+            aria-expanded={false}
+          >
+            <SidebarExpandIcon />
+            {hasActiveFilters && (
+              <span className="sb-collapse-badge" aria-label="Filters active" />
+            )}
+          </button>
+        </div>
+      )}
 
-      {/* ── FILTERS section (manually rendered — no SidebarSection, needs Clear all slot) ── */}
-      {!collapsed ? (
+      {/* ── FILTERS section (manually rendered — no SidebarSection, needs Clear all slot).
+            Emoji icon dropped (Brief 1): with the legacy sections hidden, FILTERS is the
+            only header, so the collapse button + label + "Clear all" carry it.
+            Collapsed → not rendered; the rail toggle's badge signals active filters. ── */}
+      {!collapsed && (
         <div className="sb-section sb-section--open">
           <div className="sb-section-header sb-section-header--no-toggle">
-            <span className="sb-section-icon">📋</span>
+            <button
+              className="sb-collapse-btn"
+              onClick={() => setCollapsed(true)}
+              title="Collapse panel"
+              aria-label="Collapse panel"
+              aria-expanded={true}
+            >
+              <SidebarCollapseIcon />
+            </button>
             <span className="sb-section-label">Filters</span>
             {hasActiveFilters && (
               <button className="sb-clear-all" onClick={onClearAllFilters}>Clear all</button>
@@ -378,29 +452,36 @@ export default function Sidebar(props: SidebarProps) {
               </div>
             </FilterDropdown>
 
-            {/* Hide Drafted toggle */}
-            <div className="sb-field-group">
-              <button
-                className={`sb-live-btn${liveMode ? " active" : ""}`}
-                onClick={onLiveModeToggle}
-              >
-                <span className="sb-live-dot" />
-                Hide Drafted
-              </button>
-              <div className="sb-field-hint">
-                Dims players who were drafted — useful during a live draft or to spot who went undrafted.
+            {/* HIDDEN 2026-06-18 — Brief 1 declutter. "Hide Drafted" toggle (handler +
+                component kept intact behind SHOW_LEGACY; resurface later). */}
+            {SHOW_LEGACY && (
+              <div className="sb-field-group">
+                <button
+                  className={`sb-live-btn${liveMode ? " active" : ""}`}
+                  onClick={onLiveModeToggle}
+                >
+                  <span className="sb-live-dot" />
+                  Hide Drafted
+                </button>
+                <div className="sb-field-hint">
+                  Dims players who were drafted — useful during a live draft or to spot who went undrafted.
+                </div>
               </div>
+            )}
+
+            {/* Showing N of X players (Brief 1, Piece 5) — live-updates with the filters */}
+            <div className="sb-count">
+              Showing <span className="sb-count-n">{litCount}</span> of {totalCount} players
             </div>
 
           </div>
         </div>
-      ) : (
-        <div className="sb-section sb-section--icon-only" title="Filters">
-          <span className="sb-section-icon">📋</span>
-        </div>
       )}
 
-      {/* ── MAP DISPLAY ── */}
+      {/* HIDDEN 2026-06-18 — Brief 1 declutter. MAP DISPLAY section (movement-lines
+          toggle + dot-size legend + projection note). The Act-2 key in Brief 2 restores
+          a lines toggle via the same handleShowLinesToggle. */}
+      {SHOW_LEGACY && (
       <SidebarSection label="Map Display" icon="🗺" collapsed={collapsed}>
         {showTrailsToggle && (
           <div className="sb-field-group">
@@ -436,11 +517,14 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         )}
       </SidebarSection>
+      )}
 
       {/* ── Spacer ── */}
       <div className="sb-spacer" />
 
-      {/* ── HOW TO READ (collapsed by default) ── */}
+      {/* HIDDEN 2026-06-18 — Brief 1 declutter. HOW TO READ section (kept behind
+          SHOW_LEGACY; the in-chart "How to Read" modal still covers this content). */}
+      {SHOW_LEGACY && (
       <SidebarSection label="How to Read" icon="?" defaultOpen={false} collapsed={collapsed}>
         <p className="sb-help-text">
           <strong>Zones:</strong> STARTER (top), ROLE PLAYER (mid), FRINGE (bottom), WASHED OUT (below field). Based on snap share vs. peers at each position.
@@ -455,8 +539,11 @@ export default function Sidebar(props: SidebarProps) {
           <strong>Dot color:</strong> College colors in projection; NFL team colors after draft day.
         </p>
       </SidebarSection>
+      )}
 
-      {/* ── Player List link (very bottom) ── */}
+      {/* HIDDEN 2026-06-18 — Brief 1 declutter. In-app "Player List" link (the /players
+          route stays in the sitemap; only this in-app nav link hides). */}
+      {SHOW_LEGACY && (
       <div className="sb-nav-link-row">
         <Link
           href="/players"
@@ -466,6 +553,22 @@ export default function Sidebar(props: SidebarProps) {
           <span className="sb-nav-link-icon">☰</span>
           {!collapsed && <span className="sb-nav-link-label">Player List</span>}
         </Link>
+      </div>
+      )}
+
+      {/* ── Footer meta cluster: Home (reset) + About (Brief 1, Piece 6) ── */}
+      <div className={`sb-footer${collapsed ? " sb-footer--collapsed" : ""}`}>
+        <button
+          className="sb-footer-home"
+          onClick={onResetView}
+          title="Reset — clears filters and pinned team"
+          aria-label="Reset — clears filters and pinned team"
+        >
+          <HouseIcon />
+        </button>
+        {!collapsed && (
+          <Link href="/about" className="sb-footer-about">About</Link>
+        )}
       </div>
 
     </aside>
