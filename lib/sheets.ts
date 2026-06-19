@@ -834,6 +834,18 @@ async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcom
       posCounts.forEach((c, pos) => {
         if (c > bestCount) { bestCount = c; playedPosition = pos; }
       });
+      // Fallback: when played_position is fully blank across every season row, the
+      // modal resolves null and the qualified dot would floor to TOO FEW SNAPS via
+      // chartMath's Step-0 fail-safe. Recover the position from the player_id using
+      // the SAME derivation computeSnapPct trusts (pos = 3rd token from the end,
+      // …-{pos}-{school}-{year}). Precedence: modal non-blank → id-parsed → null.
+      // Last resort only — a player with even one labeled season keeps his modal.
+      if (playedPosition === null) {
+        const idParts = pid.split('-');
+        const idPosRaw = idParts.length >= 3 ? idParts[idParts.length - 3] : '';
+        const idPos = normalizePosition(idPosRaw);
+        if (idPos && idPos !== 'ST') playedPosition = idPos;
+      }
       const stSeasons = Array.from(stBySeason.entries())
         .sort(([a], [b]) => a - b)
         .map(([season, { wpct, count }]) => ({
@@ -847,9 +859,21 @@ async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcom
     });
 
     // Reference pool: qualified players' careerUsage, keyed by played_position.
+    // The pool is keyed by the RAW played_position string while the id-fallback above
+    // emits a normalizePosition() token. Both match on today's data because every raw
+    // played_position is already canonical (one of the 11 chart tokens). Warn once if
+    // a non-canonical raw value appears — that's the only case where raw and fallback
+    // keys could diverge and silently mis-pool a recovered player.
+    let nonCanonicalPosWarned = false;
     const usagePoolByPos = new Map<string, number[]>();
     usageAgg.forEach(({ careerUsage, playedPosition, qualified }) => {
       if (!qualified || playedPosition === null || careerUsage === null) return;
+      if (!nonCanonicalPosWarned && normalizePosition(playedPosition) !== playedPosition) {
+        console.warn(
+          `[usage-pool] non-canonical played_position "${playedPosition}" does not round-trip through normalizePosition — raw pool keys and the id-fallback's normalized keys may diverge (investigate dirty data)`,
+        );
+        nonCanonicalPosWarned = true;
+      }
       const list = usagePoolByPos.get(playedPosition) ?? [];
       list.push(careerUsage);
       usagePoolByPos.set(playedPosition, list);

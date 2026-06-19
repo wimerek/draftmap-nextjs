@@ -607,6 +607,14 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     if (currentStepId === 'veteran') {
       return player.stepScores.find(s => s.stepId === 'veteran')?.score ?? null
     }
+    // Act 3 field beat ('act3' synthetic step). The field represents rookie-contract
+    // usage, so the big number mirrors the table's "Rookie Contract" totals row.
+    // Fall back to career (outcomeScore) when no rookie-contract score exists.
+    if (currentStepId === 'act3') {
+      return player.stepScores.find(s => s.stepId === 'rookie-contract')?.score
+        ?? player.outcomeScore
+        ?? null
+    }
     return null
   }, [player, currentStepId])
 
@@ -617,6 +625,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     if (currentStepId === 'career') return 'Career'
     if (currentStepId === 'rookie-contract') return 'RC'
     if (currentStepId === 'veteran') return 'Vet'
+    if (currentStepId === 'act3') return 'RC'
     return null
   }, [currentStepId])
 
