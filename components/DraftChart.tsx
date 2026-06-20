@@ -753,14 +753,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // ── "How to Read" modal ───────────────────────────────────────────────────
   const [htrOpen, setHtrOpen] = useState(false);
 
-  // First-visit auto-open — once data has loaded.
-  useEffect(() => {
-    if (!loading && typeof window !== 'undefined') {
-      if (!localStorage.getItem('dm_htr_seen')) {
-        setHtrOpen(true);
-      }
-    }
-  }, [loading]);
+  // First-visit auto-open DISABLED 2026-06-19 — the "How to Read" modal no longer
+  // pops up for new users; it opens on demand via the help button only. Pending the
+  // help-button / first-time-orientation overhaul (Zeta/E6). To restore: re-add a
+  // useEffect that calls setHtrOpen(true) when !localStorage.getItem('dm_htr_seen').
 
   // Hydrate the pinned team AFTER mount (read in an effect, never during render) so
   // SSR + first client render both start null → no hydration mismatch and no flash.
