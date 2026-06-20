@@ -31,7 +31,9 @@ import {
   ZONE_TAB_FILL, ZONE_TAB_BAR, ZONE_TAB_BAR_W, ZONE_TAB_W, ZONE_TAB_H,
   ZONE_LINE_COLOR, ZONE_LABEL_COLOR, ZONE_COUNT_COLOR,
   RD_LABEL_COLOR, RD_AXIS_RULE_COLOR, RD_TICK_COLOR, RD_TICK_H,
-  RESOLVED_Y_TOP_LABEL, RESOLVED_Y_AXIS_TITLE, RESOLVED_Y_AXIS_QUALIFIER,
+  RESOLVED_Y_AXIS_TITLE, RESOLVED_Y_AXIS_QUALIFIER,
+  RESOLVED_TIER_DESCRIPTOR,
+  PENDING_Y_AXIS_TITLE, PENDING_Y_AXIS_QUALIFIER,
   Y_AXIS_TITLE_GAP, Y_AXIS_SPINE_INSET,
   PENDING_REACH_THREAD_OPACITY,
   LENS_GHOST_OPACITY, LENS_LIT_THREAD_OPACITY_MIN, LENS_LIT_THREAD_OPACITY_MAX,
@@ -201,17 +203,9 @@ export default function JellyfishField(props: JellyfishFieldProps) {
       {/* Background — parchment (navy is chrome only). */}
       <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
 
-      {/* Rider 1 — left-edge Y-label tabs (LABELS ONLY; behind threads/dots so no
-          existing position moves). Tab grammar = c.2 verbatim, no boundary line.
-          ⚠ Brief-f: the TOP OF MARKET tab is dropped here (filtered) — the left-edge
-          axis title below replaces it; the strip floor tabs are KEPT. */}
-      <g>
-        {(layout.resolvedYTabs ?? [])
-          .filter((z) => z.label !== RESOLVED_Y_TOP_LABEL)
-          .map((z) => (
-            <ZoneTab key={z.label} zone={z} x0={margin.left} lineX2={wallX} faint={false} />
-          ))}
-      </g>
+      {/* Brief 2 Item 4: the left-edge Y-label strip tabs (Rider 1) are GONE — the
+          left-edge axis title below names the Y dimension, and the right-axis wall tabs
+          + their tier descriptors are the single label home. */}
 
       {/* Y-AXIS FURNITURE (brief-f) — moved OUT of the data field (it was occluded by
           the early-pick PREMIUM dots). A faint left SPINE (same ink/weight as the X
@@ -234,22 +228,16 @@ export default function JellyfishField(props: JellyfishFieldProps) {
         <tspan fontWeight={400} fill="#6B7280"> · {RESOLVED_Y_AXIS_QUALIFIER}</tspan>
       </text>
 
-      {/* Floor-strip baselines + labels. */}
+      {/* Floor strip — NONE only. Brief 2 Item 4 + Brief 3: PROVE IT now spreads
+          continuously (its dots floated up off the strip), so its dashed baseline +
+          editorial eyebrow are gone. NONE stays floored, so its dashed baseline is KEPT
+          — but the "NEVER PAID AGAIN" editorial gloss is removed; the right-axis
+          "NONE · no second contract" wall tab labels it now. */}
       <g aria-hidden="true">
-        <line
-          x1={margin.left} y1={layout.proveItStripY} x2={wallX} y2={layout.proveItStripY}
-          stroke={TIER_THREAD_COLOR.PROVE_IT} strokeWidth={1} strokeDasharray="2 4" opacity={0.35}
-        />
         <line
           x1={margin.left} y1={layout.noneStripY} x2={wallX} y2={layout.noneStripY}
           stroke={TIER_THREAD_COLOR.NONE} strokeWidth={1} strokeDasharray="2 4" opacity={0.35}
         />
-        <text x={margin.left} y={layout.proveItStripY - 6} fontSize={10} fill="#6B7280" letterSpacing={0.5}>
-          PROVE IT
-        </text>
-        <text x={margin.left} y={layout.noneStripY - 6} fontSize={10} fill="#6B7280" letterSpacing={0.5}>
-          NEVER PAID AGAIN
-        </text>
       </g>
 
       {/* Threads (behind dots). Every dot threads — grey NONE/PROVE-IT included.
@@ -271,23 +259,35 @@ export default function JellyfishField(props: JellyfishFieldProps) {
         })}
       </g>
 
-      {/* Tier wall. */}
+      {/* Tier wall. The tabs stack: NAME · descriptor · count/% (Brief 2 Item 5 — the
+          right-axis tabs are now the load-bearing tier labels; the locked 2–3 word
+          descriptor is a third small line, the fuller definitions live in Reads & Keys). */}
       <g>
         {wallNodes.map((n) => (
           <g key={`wall-${n.tier}`}>
             <rect x={n.x} y={n.y} width={wallNodeW} height={n.h} fill={n.color} rx={2} />
             <text
               x={n.x + wallNodeW + WALL_LABEL_DX}
-              y={n.cy - 4}
+              y={n.cy - 8}
               fontSize={11}
               fontWeight={700}
               fill={NAVY}
             >
               {n.label}
             </text>
+            {/* Locked tier descriptor (Item 5) — quiet subline; tune size on real render
+                (PROVE IT's is the longest). */}
             <text
               x={n.x + wallNodeW + WALL_LABEL_DX}
-              y={n.cy + 10}
+              y={n.cy + 3}
+              fontSize={8}
+              fill="#6B7280"
+            >
+              {RESOLVED_TIER_DESCRIPTOR[n.tier]}
+            </text>
+            <text
+              x={n.x + wallNodeW + WALL_LABEL_DX}
+              y={n.cy + 15}
               fontSize={10}
               fill={lensed ? LENS_WALL_DIM_COLOR : "#6B7280"}
             >
@@ -299,7 +299,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
             {lensed && (
               <text
                 x={n.x + wallNodeW + WALL_LABEL_DX}
-                y={n.cy + 24}
+                y={n.cy + 28}
                 fontSize={LENS_WALL_LIT_SIZE}
                 fontWeight={700}
                 fill={LENS_WALL_LIT_COLOR}
@@ -337,13 +337,8 @@ export default function JellyfishField(props: JellyfishFieldProps) {
         return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
       })()}
 
-      {/* Field title (left). */}
-      <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
-        THE SECOND CONTRACT
-      </text>
-      <text x={margin.left} y={bandTop - 12} fontSize={11} fill="#6B7280">
-        Where the league&apos;s money landed — {layout.fieldCount} players
-      </text>
+      {/* On-canvas field title removed (Brief 2 follow-up): Acts 1–2 have no chart title,
+          so Act 3 drops it too — the journey bar + state-aware key subhead carry it. */}
 
       {/* Round-start anchors + axis hairline (ride-along — all three field modes). */}
       <RoundAnchorAxis layout={layout} />
@@ -517,6 +512,27 @@ function PendingJellyfishField({
       {/* Background — parchment. */}
       <rect x={0} y={0} width={svgW} height={svgH} fill={PARCHMENT} />
 
+      {/* Y-AXIS FURNITURE (Brief 2 Item 2) — ports the resolved field's rotated left-edge
+          axis label so height-as-usage is legible: faint left spine + the USAGE dimension
+          title rotated bottom-to-top in the left margin. NOT a second set of band tabs —
+          the pending field already labels its bands inline-left. */}
+      <line
+        x1={margin.left - Y_AXIS_SPINE_INSET} y1={bandTop}
+        x2={margin.left - Y_AXIS_SPINE_INSET} y2={bandTop + bandH + 20}
+        stroke={RD_AXIS_RULE_COLOR} strokeWidth={1}
+        aria-hidden="true"
+      />
+      <text
+        transform={`rotate(-90 ${margin.left - Y_AXIS_SPINE_INSET - Y_AXIS_TITLE_GAP} ${bandTop + bandH / 2})`}
+        x={margin.left - Y_AXIS_SPINE_INSET - Y_AXIS_TITLE_GAP} y={bandTop + bandH / 2}
+        textAnchor="middle" dominantBaseline="middle"
+        fontSize={11} letterSpacing={1}
+        aria-hidden="true"
+      >
+        <tspan fontWeight={700} fill={NAVY}>{PENDING_Y_AXIS_TITLE}</tspan>
+        <tspan fontWeight={400} fill="#6B7280"> · {PENDING_Y_AXIS_QUALIFIER}</tspan>
+      </text>
+
       {/* COULDN'T STICK strip — full team-color dots (matches the NONE / PROVE IT strips);
           the dashed top edge + zone label carry "unranked · too few snaps to rank". */}
       <line
@@ -612,13 +628,8 @@ function PendingJellyfishField({
         return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
       })()}
 
-      {/* Field title (left). */}
-      <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
-        ON THE FIELD
-      </text>
-      <text x={margin.left} y={bandTop - 12} fontSize={11} fill="#6B7280">
-        Still on the rookie deal — where they line up · {dots.length} players
-      </text>
+      {/* On-canvas field title removed (Brief 2 follow-up): Acts 1–2 have no chart title,
+          so Act 3 drops it too — the journey bar + state-aware key subhead carry it. */}
 
       <RoundAnchorAxis layout={layout} />
     </svg>
@@ -632,7 +643,7 @@ function PendingJellyfishField({
 function FloorJellyfishField({
   layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId,
 }: JellyfishFieldProps) {
-  const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH, zones, stripTopY, floorY, scoreboardText } = layout;
+  const { svgW, svgH, margin, wallX, wallNodeW, dots, wallNodes, bandTop, bandH, zones, stripTopY, floorY } = layout;
   const stripTop = stripTopY ?? bandTop + bandH;
   const floor = floorY ?? bandTop + 0.82 * bandH;
 
@@ -713,20 +724,9 @@ function FloorJellyfishField({
         return hd ? <GlowRing cx={hd.x} cy={hd.y} /> : null;
       })()}
 
-      {/* Field title (left). */}
-      <text x={margin.left} y={bandTop - 28} fontSize={13} fontWeight={700} fill={NAVY} letterSpacing={1}>
-        ON THE CLOCK
-      </text>
-      <text x={margin.left} y={bandTop - 12} fontSize={11} fill="#6B7280">
-        Drafted, not yet snapped — {dots.length} players on the floor
-      </text>
-
-      {/* Scoreboard area — static text label (the live scoreboard is brief d). */}
-      {scoreboardText && (
-        <text x={wallX} y={bandTop - 16} fontSize={13} fontWeight={700} fill={NAVY} textAnchor="end" letterSpacing={1}>
-          {scoreboardText}
-        </text>
-      )}
+      {/* On-canvas field title + top-right "FIRST SNAPS — …" label removed (Brief 2
+          follow-up): Acts 1–2 have no chart title, so Act 3 drops it too — the journey
+          bar + state-aware key subhead carry the framing. */}
 
       <RoundAnchorAxis layout={layout} />
     </svg>

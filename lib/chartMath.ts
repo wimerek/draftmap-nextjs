@@ -20,13 +20,14 @@ import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, ROUND_EXPECTED_PCT, TIER_D
 import type { ContractTier, Verdict } from './verdict';
 import {
   PAID_REGION_BOTTOM, PROVE_IT_STRIP_Y, NONE_STRIP_Y, STRIP_JITTER_PX,
+  PROVE_IT_PLACEMENT, PROVE_IT_BAND_TOP, PROVE_IT_BAND_BOTTOM,
+  PROVE_IT_REF_SHARE, PROVE_IT_BAND_CURVE,
   WALL_TIER_ORDER, WALL_NODE_W, WALL_GAP, WALL_MIN_NODE_H, WALL_RIGHT_PAD,
   TIER_THREAD_COLOR,
   LANE_PX, LANE_EDGE_JITTER_PX, ST_CEILING, GUTTER_SPREAD_PX,
   PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC,
   ZONE_TAB_INSET_PX, ZONE_TAB_H, LANE_TAB_PAD,
   USAGE_TIER_THRESHOLDS, STRIP_LABEL_VERDICT_AFTER_SEASONS,
-  RESOLVED_Y_TOP_LABEL, RESOLVED_Y_PROVE_IT_LABEL, RESOLVED_Y_NONE_LABEL,
 } from './act3Constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -688,6 +689,28 @@ function paidShareToYFraction(share: number): number {
   return (1 - Math.sqrt(clamped)) * PAID_REGION_BOTTOM;
 }
 
+/**
+ * Brief 3 (render-gated): resolve a PROVE IT dot's Y fraction from its real
+ * verdict_share instead of the fixed PROVE_IT_STRIP_Y. A null share resolves to 0
+ * (the floor) — deliberately NOT the paid tiers' tierMedianShare imputation; a
+ * PROVE IT unknown defaults DOWN, not to a tier median. Mode chosen by
+ * PROVE_IT_PLACEMENT; NONE is unaffected (stays on its strip).
+ */
+function proveItYFraction(verdictShare: number | null): number {
+  const share = verdictShare ?? 0;
+  if (PROVE_IT_PLACEMENT === 'continuous') {
+    // One true scale: PROVE IT rides the same √-share map as the paid tiers. A high
+    // share rises to BRIDGE/SOLID HEIGHT; the thread still pulls back to the PROVE IT
+    // wall node, so tier identity is carried by the destination, not the height.
+    return paidShareToYFraction(share);
+  }
+  // 'subband': a dedicated low band that spreads by share but never enters paid territory.
+  const ref = PROVE_IT_REF_SHARE > 0 ? share / PROVE_IT_REF_SHARE : 0;
+  const clamped = Math.max(0, Math.min(1, ref));
+  const t = PROVE_IT_BAND_CURVE === 'sqrt' ? Math.sqrt(clamped) : clamped;
+  return PROVE_IT_BAND_BOTTOM - t * (PROVE_IT_BAND_BOTTOM - PROVE_IT_BAND_TOP);
+}
+
 /** Class-local context the Y strategy needs (e.g. per-tier median share for ST null-share imputation). */
 export interface JellyfishYContext {
   /** Median verdict_share within the rendered class, per paid tier. */
@@ -717,8 +740,8 @@ export const resolvedShareYStrategy: JellyfishYStrategy = (input, ctx) => {
   // The resolved field only ever feeds verdict-bearing dots; guard defensively.
   const v = input.verdict;
   if (!v) return NONE_STRIP_Y;
-  if (v.tier === 'NONE')     return NONE_STRIP_Y;     // lowest floor strip
-  if (v.tier === 'PROVE_IT') return PROVE_IT_STRIP_Y; // floor strip above NONE
+  if (v.tier === 'NONE')     return NONE_STRIP_Y;     // lowest floor strip — UNCHANGED in both PROVE IT modes
+  if (v.tier === 'PROVE_IT') return proveItYFraction(v.verdictShare); // Brief 3: spread by share (was PROVE_IT_STRIP_Y)
   // Paid tier (BRIDGE/SOLID/PREMIUM): continuous √-share region.
   // ST specialists carry a null share (no market line) → impute the tier's
   // class-local median share as a PLOTTING coordinate only (membership exact,
@@ -817,10 +840,8 @@ export interface JellyfishLayout {
   scoreboardText?: string;
 
   // ── Brief d riders ────────────────────────────────────────────────────────
-  /** Rider 1 — resolved-field left-edge Y-label tabs (resolved mode only). LABELS
-   *  ONLY: no boundary lines, no no-fire lanes; rendered BEHIND threads/dots so no
-   *  existing position moves. */
-  resolvedYTabs?: PendingZone[];
+  // (Rider 1 resolved-field left-edge Y-label tabs were removed in Brief 2 Item 4 —
+  //  the left-edge axis title + right-axis wall tabs are the single label home now.)
   /** Rider 3 — pending tier nodes for already-signed players (pending mode only).
    *  The subset of the 5 tiers present among signed pending players; signed dots get
    *  a reaching thread (dot.threadPath) from their UNMOVED usage-Y up to these nodes. */
@@ -877,7 +898,11 @@ export function computeJellyfishLayout(
   players: Player[],
   yStrategy: JellyfishYStrategy = resolvedShareYStrategy,
 ): JellyfishLayout {
-  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  // Brief 2 Item 3 + follow-up: top 72 → 44 → 24. The descriptive subhead AND the
+  // on-canvas field title are now off the canvas (subhead → Reads & Keys, title removed
+  // entirely), so NOTHING renders above bandTop — the band can start near the very top
+  // of the field. Tune on render.
+  const margin = { top: 24, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
   const svgW = JELLYFISH_SVG_W;
   const svgH = JELLYFISH_SVG_H;
   const bandTop = margin.top;
@@ -1002,18 +1027,13 @@ export function computeJellyfishLayout(
 
   const dots: JellyfishDot[] = building;
 
-  // ── Rider 1: resolved-field left-edge Y-label tabs (LABELS ONLY) ────────────
-  // Names the verdict-Y meaning using c.2's tab grammar (ZONE_TAB_INSET_PX = tab sits
-  // just inside the top of the region it names). Resolved is NOT the pending zone
-  // system: NO boundary lines, NO no-fire lanes, NO counts. Rendered behind threads/
-  // dots so NOT a single existing dot/thread/wall node moves (deploy-coherence).
+  // Floor-strip Y coordinates. Brief 2 Item 4: the left-edge Y-label tabs (Rider 1) are
+  // GONE — the left-edge axis title names the Y dimension and the right-axis wall tabs +
+  // descriptors are the single label home. NONE keeps its dot strip (noneStripY); the
+  // PROVE IT strip is orphaned by Brief 3's continuous placement (kept here only as the
+  // unchanged-mode fallback coordinate — the render no longer draws its strip).
   const proveItStripY = bandTop + PROVE_IT_STRIP_Y * bandH;
   const noneStripY    = bandTop + NONE_STRIP_Y * bandH;
-  const resolvedYTabs: PendingZone[] = [
-    { label: RESOLVED_Y_TOP_LABEL,      y: bandTop,       tabY: bandTop + ZONE_TAB_INSET_PX,       count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
-    { label: RESOLVED_Y_PROVE_IT_LABEL, y: proveItStripY, tabY: proveItStripY + ZONE_TAB_INSET_PX, count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
-    { label: RESOLVED_Y_NONE_LABEL,     y: noneStripY,    tabY: noneStripY + ZONE_TAB_INSET_PX,    count: 0, hasLine: false, dashed: false, tint: true, showCount: false },
-  ];
 
   return {
     svgW, svgH, margin, bandTop, bandH, maxPick,
@@ -1026,7 +1046,6 @@ export function computeJellyfishLayout(
     noneStripY,
     mode: 'resolved',
     roundAnchors,
-    resolvedYTabs,
   };
 }
 
@@ -1176,7 +1195,11 @@ export function applyNoFireLanes(dots: JellyfishDot[], boundaries: NoFireBoundar
 // ── Pending field layout (Parts 2–3, 6b) ──────────────────────────────────────
 
 export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
-  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  // Brief 2 Item 3 + follow-up: top 72 → 44 → 24. The descriptive subhead AND the
+  // on-canvas field title are now off the canvas (subhead → Reads & Keys, title removed
+  // entirely), so NOTHING renders above bandTop — the band can start near the very top
+  // of the field. Tune on render.
+  const margin = { top: 24, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
   const svgW = JELLYFISH_SVG_W;
   const svgH = JELLYFISH_SVG_H;
   const bandTop = margin.top;
@@ -1339,7 +1362,11 @@ export function computePendingFieldLayout(players: Player[]): JellyfishLayout {
 // ── 2026 capital-floor layout (Part 4) ─────────────────────────────────────────
 
 export function computeFloorLayout(players: Player[], draftYear: number): JellyfishLayout {
-  const margin = { top: 72, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
+  // Brief 2 Item 3 + follow-up: top 72 → 44 → 24. The descriptive subhead AND the
+  // on-canvas field title are now off the canvas (subhead → Reads & Keys, title removed
+  // entirely), so NOTHING renders above bandTop — the band can start near the very top
+  // of the field. Tune on render.
+  const margin = { top: 24, right: WALL_RIGHT_PAD, bottom: 56, left: 80 };
   const svgW = JELLYFISH_SVG_W;
   const svgH = JELLYFISH_SVG_H;
   const bandTop = margin.top;

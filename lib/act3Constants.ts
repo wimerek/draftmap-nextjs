@@ -120,6 +120,44 @@ export const NONE_STRIP_Y       = 0.96; // tune on real render
  */
 export const STRIP_JITTER_PX = 3; // tune on real render
 
+// ── BRIEF 3 — Resolved PROVE IT continuous placement (render-gated) ───────────
+//
+// PROVE IT carries a REAL verdict_share (lib/verdict.ts: "PROVE_IT carries a value
+// but renders on its floor strip") that the fixed PROVE_IT_STRIP_Y discards. These
+// knobs let the floor PROVE IT dots spread by guarantee instead. MODE SWITCH so both
+// candidates render side-by-side for Derek's render-gated decision — NOTHING here
+// ships until he signs off at the render. NONE stays on NONE_STRIP_Y in BOTH modes.
+//
+// A PROVE IT unknown share (23 null rows) resolves to 0 (the floor) — deliberately
+// NOT the paid tiers' tierMedianShare imputation: a PROVE IT unknown defaults DOWN.
+
+/**
+ * 'continuous' — route PROVE IT through the SAME paidShareToYFraction the paid tiers
+ *   use. A 0.29-share dot rises to ~BRIDGE/SOLID height with its thread pulling back
+ *   to the PROVE IT node; zero-share dots pile at PAID_REGION_BOTTOM. Maximal honesty
+ *   (Derek's "let the tentacles do the work"); most tests the high-tail read.
+ * 'subband'   — map PROVE IT into a dedicated low band [TOP, BOTTOM] just below paid
+ *   territory: spreads by share but never invades BRIDGE. Conservative compromise.
+ */
+export type ProveItPlacement = 'continuous' | 'subband';
+export const PROVE_IT_PLACEMENT: ProveItPlacement = 'continuous'; // render-gated — flip to compare; Derek decides
+
+/** Mode B band geometry (Y-fractions of the plotting band, 0=top … 1=bottom). */
+export const PROVE_IT_BAND_TOP    = 0.80; // just below PAID_REGION_BOTTOM (0.78) — no BRIDGE invasion — tune on render
+export const PROVE_IT_BAND_BOTTOM = 0.94; // just above NONE_STRIP_Y (0.96) — zero-share dots sink here — tune on render
+
+/**
+ * Mode B reference share → band top. Set near the TOP of PROVE IT's observed positive
+ * range (resolved p90≈0.099, p95≈0.146) — deliberately BELOW the 0.2855 max so one
+ * cheap-position outlier doesn't stretch the band; anything above clamps to the top.
+ * Tune on render.
+ */
+export const PROVE_IT_REF_SHARE = 0.10; // tune on real render
+
+/** Mode B curve: 'sqrt' spreads the dense low end (resolved median share ≈0.013);
+ *  'linear' maps raw. Median is tiny so most positives want spreading. Tune on render. */
+export const PROVE_IT_BAND_CURVE: 'sqrt' | 'linear' = 'sqrt'; // tune on real render
+
 // ── Usage tiers (hover Block 3 "ON THE FIELD") ────────────────────────────────
 
 /**
@@ -204,8 +242,12 @@ export const MIN_GAMES_QUALIFY = 6; // mirror of the a3 bake value — NOT a liv
 // Zone boundary LINES sit at the body-Y of P65 (Starter) and P25 (Role Player);
 // those TRUE percentile thresholds are reused from USAGE_TIER_THRESHOLDS above.
 
-/** Empty headroom above the usage body so P100 doesn't pin to the very top. */
-export const PENDING_HEADROOM_FRAC = 0.06; // tune on real render
+/** Empty headroom above the usage body so P100 doesn't pin to the very top. Brief 2
+ *  Item 3: 0.06 → 0.03 — with the on-canvas subhead moved into Reads & Keys, the field
+ *  no longer needs the larger top gap; this lifts the STARTER band toward the top of the
+ *  viewport (parity with the resolved field, whose PREMIUM dots sit ~at bandTop). Tune
+ *  on real render. */
+export const PENDING_HEADROOM_FRAC = 0.03; // tune on real render
 
 /** Top edge (Y-fraction) of the COULDN'T STICK strip — the body's lower bound. */
 export const COULDNT_STICK_STRIP_TOP_FRAC = 0.86; // tune on real render
@@ -336,16 +378,14 @@ export const PENDING_REACH_THREAD_OPACITY = 0.18; // locked working value — tu
  *  so we never fabricate a rank for a 4-yr starting punter. */
 export const KP_STRIP_COPY = 'Kicking specialist — not tracked by snap share'; // tune on real render
 
-// ── Rider 1 — resolved-field left-edge Y labels ───────────────────────────────
+// ── Rider 1 — resolved-field left-edge Y labels (DELETED, Brief 2 Item 4) ──────
 //
-// The resolved jellyfish ships with no Y-axis labels; a reader can't tell what "up"
-// means. These name the verdict-Y meaning using c.2's tab grammar (ZONE_TAB_* +
-// ZONE_TAB_INSET_PX). LABELS ONLY — resolved is not the pending zone system, so NO
-// boundary lines, no no-fire lanes; the tabs render BEHIND threads/dots (no position
-// changes). Tune copy + placement on the real render (flag for Derek's eyeball).
-export const RESOLVED_Y_TOP_LABEL      = 'TOP OF MARKET';        // ⚠ brief-f: now FILTERED OUT at render (the left-edge axis title replaces it); chartMath still emits the tab — render drops it. Removable in a later chartMath cleanup.
-export const RESOLVED_Y_PROVE_IT_LABEL = 'SIGNED · PROMISED NOTHING'; // PROVE IT strip — KEPT
-export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip — KEPT
+// The left-edge strip eyebrows (TOP OF MARKET / SIGNED · PROMISED NOTHING / NEVER
+// SIGNED AGAIN) are GONE: the left-edge axis title (RESOLVED_Y_AXIS_TITLE) names the
+// Y dimension, and the right-axis wall tabs + their tier descriptors
+// (RESOLVED_TIER_DESCRIPTOR below) are now the single label home for the tiers. With
+// Brief 3's continuous PROVE IT placement the PROVE IT strip is orphaned (its dots
+// floated up), so its strip + label are removed too; only the NONE dot strip remains.
 
 /**
  * Brief-f Y-AXIS LABEL (locked): a single two-line left-edge axis title NAMES the Y
@@ -355,6 +395,33 @@ export const RESOLVED_Y_NONE_LABEL     = 'NEVER SIGNED AGAIN';   // NONE strip �
  */
 export const RESOLVED_Y_AXIS_TITLE     = 'GUARANTEED MONEY';
 export const RESOLVED_Y_AXIS_QUALIFIER = "share of position's top market";
+
+/**
+ * Brief 2 Item 2 — PENDING field Y-AXIS LABEL. Mirrors the resolved axis treatment so
+ * the pending field reads as a measured USAGE axis the way resolved reads as a measured
+ * money axis. Same rotated left-edge title; the pending field already labels its bands
+ * inline-left (STARTER/ROLE PLAYER/FRINGE/strip), so this is the rotated axis label
+ * ONLY — never a second set of band tabs.
+ */
+export const PENDING_Y_AXIS_TITLE     = 'USAGE';
+export const PENDING_Y_AXIS_QUALIFIER = "share of position's snaps";
+
+/**
+ * Brief 2 Item 5 — right-axis tier descriptors (resolved field). LOCKED family. A 2–3
+ * word subline under each wall tab; with the bottom-strip editorial labels gone (Item 4)
+ * and PROVE IT spread continuously (Brief 3), the wall tabs are the load-bearing tier
+ * labels. Tier display NAMES stay locked (project_second_contract_verdict) — this is a
+ * subline, NOT a rename. (BRIDGE is NOT a small deal: top-of-position pay for ONE year,
+ * e.g. franchise tags / 5th-year options — the "one year" cue is why it sits below SOLID.)
+ * The fuller plain-language definitions live in Reads & Keys (ActKey), same off-canvas move.
+ */
+export const RESOLVED_TIER_DESCRIPTOR: Record<ContractTier, string> = {
+  PREMIUM:  'top of the market',
+  SOLID:    'real multi-year money',
+  BRIDGE:   'top money, one year',
+  PROVE_IT: 'signed, no substantial guarantees',
+  NONE:     'no second contract',
+};
 
 /** Inset (px, ≈ one dot width) pushing the Y-axis spine + title LEFT off the leftmost
  *  dots, so the spine reads as axis furniture and not as connected to the data. The

@@ -42,6 +42,34 @@ const ACT_NAME: Record<Act, string> = {
   3: "4 Years Later",
 };
 
+// ── Act-3 state (Brief 2 Item 1) ──────────────────────────────────────────────
+// The Act-3 field renders one of three states (floor / pending / resolved). chartMode
+// already carries that state 1:1 (DraftChart derives it via selectClassState):
+//   'floor' → floor · 'pending' → pending · 'verdict' → resolved.
+// So the key reads the state straight off chartMode — no need to thread players in.
+type Act3State = "floor" | "pending" | "resolved";
+function act3StateFromMode(mode?: ChartMode): Act3State {
+  if (mode === "floor") return "floor";
+  if (mode === "pending") return "pending";
+  return "resolved"; // 'verdict' (and any default) → resolved
+}
+
+// LOCKED factual subheads (moved OFF the canvas — Brief 2 Item 1). The descriptive
+// load lives here now; the on-canvas titles are short orienting labels only. No
+// "— N players" count (the scoreboard already shows the class count).
+const ACT3_SUBHEAD: Record<Act3State, string> = {
+  floor:
+    "Vertical position shows draft selection. This changes as they take the field and earn snaps.",
+  pending:
+    "Vertical position shows usage: a player's share of the snaps at their position. It reflects how much their team played them compared to others at the same position.",
+  resolved:
+    "Vertical position shows the second contract: guaranteed money relative to the top of their position. It's the league's own measure of value — what teams paid to keep them once they reached the open market.",
+};
+
+// (The fuller "What the tiers mean" definition block was removed in the Brief 2
+// follow-up — the right-axis RESOLVED_TIER_DESCRIPTOR sublines carry the tier meaning
+// now. The state-aware subhead + "Roughly two-thirds…" line stay.)
+
 const FADE_MS = 190; // body cross-fade per leg — see .sb-key-body transition
 
 function usePrefersReducedMotion(): boolean {
@@ -163,9 +191,12 @@ function Act2Body({
   );
 }
 
-function Act3Body() {
+function Act3Body({ state }: { state: Act3State }) {
   return (
     <>
+      {/* State subhead (Brief 2 Item 1) — factual, moved off the canvas; sits ABOVE the
+          resolved-framing "Roughly two-thirds…" line. */}
+      <p className="sb-key-lead">{ACT3_SUBHEAD[state]}</p>
       <p className="sb-key-lead">
         Roughly two-thirds of a draft class never earn a second contract with substantial
         guarantees.
@@ -223,6 +254,7 @@ export default function ActKey({
   onShowLinesToggle: () => void;
 }) {
   const act = actFromMode(chartMode);
+  const act3State = act3StateFromMode(chartMode);
   const reduced = usePrefersReducedMotion();
 
   // Cross-fade: `shown` is the act currently painted; it lags `act` by one fade-out
@@ -252,7 +284,7 @@ export default function ActKey({
       <div className={`sb-key-body${visible ? "" : " sb-key-body--hidden"}`}>
         {shown === 1 && <Act1Body />}
         {shown === 2 && <Act2Body showLines={showLines} onShowLinesToggle={onShowLinesToggle} />}
-        {shown === 3 && <Act3Body />}
+        {shown === 3 && <Act3Body state={act3State} />}
       </div>
       {/* Persistent footer — constant in every act (outside the cross-fade). */}
       <p className="sb-key-hint">Hover a dot for a quick look &middot; click for the full card.</p>
