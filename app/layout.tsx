@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 import PostHogProvider from "@/components/PostHogProvider";
 
@@ -23,6 +23,10 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@nfldraftmap",
   },
+};
+
+export const viewport: Viewport = {
+  width: 1280,
 };
 
 export default function RootLayout({
