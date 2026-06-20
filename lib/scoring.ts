@@ -500,6 +500,84 @@ export function computeWeightedScore(
   return Math.round(Math.min(100, Math.max(0, total)))
 }
 
+// ── Pre-sorted cohort fast path (perf, Brief 4) ─────────────────────────────────
+//
+// computeWeightedScore re-sorts the entire position cohort on every percentile
+// call — the cohort is identical across all player-seasons at a position, so the
+// same ~1,000-element arrays get sorted tens of thousands of times. The helpers
+// below sort each (position × stat) cohort ONCE and binary-search the rank,
+// producing byte-identical scores. Used only by the seasonal hot path
+// (scoreFromSeasonStats); the career path keeps computeWeightedScore unchanged.
+
+/** First index i where sorted[i] >= value == count of elements strictly < value. */
+function lowerBound(sorted: number[], value: number): number {
+  let lo = 0
+  let hi = sorted.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (sorted[mid] < value) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+/**
+ * Percentile (0–100) of `value` within a PRE-SORTED ascending cohort array.
+ * Reproduces computePercentile exactly: strictly-less count over (n-1),
+ * 50 for an empty/single-element cohort.
+ */
+function percentileFromSorted(value: number, sorted: number[]): number {
+  if (sorted.length <= 1) return 50
+  const below = lowerBound(sorted, value)
+  return Math.round((below / (sorted.length - 1)) * 100)
+}
+
+/**
+ * Build a per-stat sorted reference array from a cohort of stat vectors.
+ * Applies the SAME non-null + finite filter computeWeightedScore applies when
+ * it assembles cohortValues, so the resulting arrays are identical (just sorted
+ * once instead of per call).
+ */
+function buildSortedStatRefs(
+  cohortVecs: Partial<Record<StatKey, number | null>>[],
+): Partial<Record<StatKey, number[]>> {
+  const acc: Partial<Record<StatKey, number[]>> = {}
+  for (const vec of cohortVecs) {
+    for (const [key, val] of Object.entries(vec) as [StatKey, number | null][]) {
+      if (val == null || !Number.isFinite(val)) continue
+      ;(acc[key] ??= []).push(val)
+    }
+  }
+  for (const key of Object.keys(acc) as StatKey[]) {
+    acc[key]!.sort((a, b) => a - b)
+  }
+  return acc
+}
+
+/**
+ * Weighted percentile score using pre-sorted cohort references — the binary-search
+ * twin of computeWeightedScore. Identical reweighting and clamping; only the
+ * percentile lookup changes (lowerBound instead of filter+sort). Same inputs →
+ * identical output.
+ */
+function computeWeightedScoreSorted(
+  playerStats: Partial<Record<StatKey, number | null>>,
+  sortedRefByStat: Partial<Record<StatKey, number[]>>,
+  rawWeights: Partial<Record<StatKey, number>>,
+): number {
+  const weights = reweightForAvailable(rawWeights, playerStats)
+  if (Object.keys(weights).length === 0) return 0
+
+  let total = 0
+  for (const [key, weight] of Object.entries(weights) as [StatKey, number][]) {
+    const playerValue = playerStats[key] ?? 0
+    const sorted      = sortedRefByStat[key] ?? []
+    total += percentileFromSorted(playerValue, sorted) * weight
+  }
+
+  return Math.round(Math.min(100, Math.max(0, total)))
+}
+
 // ── Tier and award functions ───────────────────────────────────────────────────
 
 /**
@@ -793,11 +871,18 @@ export function computeRawTrajectory(scores: number[]): number | null {
  * @param playerSeasons  All seasons for this one player, any order (sorted internally)
  * @param allSeasons     Reference population: all seasons for all players at this position
  * @param awards         Career award counts (for award floor on combined score)
+ * @param sortedRef      Optional pre-sorted per-stat cohort references for this
+ *                       position (perf, Brief 4). When provided, the per-season
+ *                       percentile lookup binary-searches instead of re-sorting
+ *                       `allSeasons` on every stat — byte-identical output. When
+ *                       omitted, falls back to building cohort vectors inline
+ *                       (preserves the original, export-stable behavior).
  */
 export function scoreFromSeasonStats(
   playerSeasons: SeasonStats[],
   allSeasons: SeasonStats[],
   awards: { allPro: number; proBowls: number },
+  sortedRef?: Partial<Record<StatKey, number[]>>,
 ): PlayerOutcomeScore {
   const position = playerSeasons[0]?.position ?? 'QB'
   const pfrId    = playerSeasons[0]?.pfrId ?? ''
@@ -818,7 +903,10 @@ export function scoreFromSeasonStats(
   const draftYear = parseInt(idParts[idParts.length - 1], 10)
 
   const weights    = POSITION_WEIGHTS[position] ?? POSITION_WEIGHTS.ST
-  const cohortVecs = allSeasons.map(buildSeasonStatVector)
+  // Perf (Brief 4): use the pre-sorted cohort refs when the batch path supplies
+  // them; otherwise build them once here so a direct (non-batch) call to this
+  // exported fn still works identically — no per-stat re-sort either way.
+  const refByStat  = sortedRef ?? buildSortedStatRefs(allSeasons.map(buildSeasonStatVector))
 
   // Score each season that has any involvement data
   const seasonScores: Array<{ season: number; score: number; team?: string | null }> = []
@@ -832,7 +920,7 @@ export function scoreFromSeasonStats(
     if (!hasInvolvement) continue
 
     const vec      = buildSeasonStatVector(s)
-    let rawSeason  = computeWeightedScore(vec, cohortVecs, weights)
+    let rawSeason  = computeWeightedScoreSorted(vec, refByStat, weights)
 
     if (position === 'OT' || position === 'IOL') {
       rawSeason = applyOLineContext(rawSeason, s.team, s.season, s.offSnapPct ?? 0)
@@ -1055,14 +1143,23 @@ export function scoreAllFromSeasons(
     byPosition.set(season.position, posList)
   }
 
+  // Perf (Brief 4): sort each position's per-stat cohort ONCE here (~11 positions
+  // × ~14 stats), then hand the sorted refs to every player-season scorer. This
+  // replaces ~49k redundant per-call sorts of the same ~1k-element arrays.
+  const sortedRefByPosition = new Map<ScoringPosition, Partial<Record<StatKey, number[]>>>()
+  byPosition.forEach((seasons, position) => {
+    sortedRefByPosition.set(position, buildSortedStatRefs(seasons.map(buildSeasonStatVector)))
+  })
+
   const results = new Map<string, PlayerOutcomeScore>()
 
   byPlayer.forEach((playerSeasons, pfrId) => {
     const position      = playerSeasons[0].position
     const cohort        = byPosition.get(position) ?? playerSeasons
+    const sortedRef     = sortedRefByPosition.get(position)
     const award         = awards.get(pfrId) ?? { allPro: 0, proBowls: 0 }
     const sortedSeasons = [...playerSeasons].sort((a, b) => a.season - b.season)
-    results.set(pfrId, scoreFromSeasonStats(sortedSeasons, cohort, award))
+    results.set(pfrId, scoreFromSeasonStats(sortedSeasons, cohort, award, sortedRef))
   })
 
   // ── Trajectory multiplier normalization ──────────────────────────────────────
@@ -1081,12 +1178,19 @@ export function scoreAllFromSeasons(
     }
   })
 
+  // Sort each position's trajectory cohort ONCE (was re-sorted inside the
+  // per-player loop below — same redundant-sort smell, Brief 4 freebie).
+  const sortedTrajByPos = new Map<ScoringPosition, number[]>()
+  trajByPos.forEach((list, pos) => {
+    sortedTrajByPos.set(pos, [...list].sort((a, b) => a - b))
+  })
+
   results.forEach(outcome => {
-    const cohort = [...(trajByPos.get(outcome.position as ScoringPosition) ?? [])].sort((a, b) => a - b)
+    const cohort = sortedTrajByPos.get(outcome.position as ScoringPosition) ?? []
     if (cohort.length === 0) return
     for (const step of outcome.stepScores) {
       if (step.trajectoryRaw == null) continue
-      const below = cohort.filter(v => v < step.trajectoryRaw!).length
+      const below = lowerBound(cohort, step.trajectoryRaw)  // count strictly < raw
       const percentile = below / cohort.length  // 0.0–1.0
       step.trajectoryMultiplier = 0.7 + percentile * 0.8  // 0.7 at p0, 1.5 at p100
     }
