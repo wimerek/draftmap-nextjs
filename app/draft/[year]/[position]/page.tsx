@@ -77,7 +77,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : `Consensus pre-draft rankings versus actual ${year} NFL Draft results for every ${position}.`;
 
   return {
-    title: `${year} NFL Draft ${position} Class — DraftMap`,
+    title: `${year} NFL Draft ${position} Class | DraftMap`,
     description,
     alternates: {
       canonical: `${APEX}/draft/${year}/${positionSlug}`,
@@ -107,7 +107,7 @@ export default async function PositionTwinPage({ params }: Props) {
         <h1 className="twin-title">
           {year} NFL Draft {position} Class
         </h1>
-        <p className="twin-subtitle">Consensus board vs. draft day — the full {position} class, charted.</p>
+        <p className="twin-subtitle">Consensus board vs. draft day: the full {position} class, charted.</p>
       </header>
 
       {/* ── Chart (position-filtered, draft-results state) ── */}

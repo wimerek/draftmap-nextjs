@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${year} NFL Draft Map`,
-    description: `${year} NFL Draft chart — visualize every prospect by position, round, and tier. Spot depth cliffs and find sleepers.`,
+    description: `${year} NFL Draft chart: every prospect visualized by position, round, and tier, with positional depth and talent cliffs in view.`,
     openGraph: {
       title: `${year} NFL Draft Map | DraftMap`,
       description: `Visual ${year} NFL Draft analysis. Every prospect charted by position and tier.`,

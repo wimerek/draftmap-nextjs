@@ -55,10 +55,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${player.name} NFL Draft Profile | DraftMap`,
-    description: `${player.name} — ${player.pos}, ${player.school}. Projected Round ${player.rd}, Rank #${player.rank}. View measurables and draft analysis on DraftMap.`,
+    description: `${player.name}: ${player.pos}, ${player.school}. Projected Round ${player.rd}, Rank #${player.rank}. View measurables and draft analysis on DraftMap.`,
     openGraph: {
       title: `${player.name} NFL Draft Profile | DraftMap`,
-      description: `${player.name} — ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}.`}`,
+      description: `${player.name}: ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}.`}`,
       url: `https://draftmap.app/players/${slug}`,
       siteName: 'DraftMap',
       type: 'profile',
@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: 'summary',
       title: `${player.name} NFL Draft Profile | DraftMap`,
-      description: `${player.name} — ${player.pos}, ${player.school}.`,
+      description: `${player.name}: ${player.pos}, ${player.school}.`,
     },
     alternates: {
       canonical: `https://draftmap.app/players/${slug}`,
@@ -98,7 +98,7 @@ export default async function PlayerPage({ params }: Props) {
     '@type': 'Person',
     name: player.name,
     url: `https://draftmap.app/players/${params.slug}`,
-    description: `${player.name} — ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}, Rank #${player.rank} in the ${player.draft_year} NFL Draft.`}`,
+    description: `${player.name}: ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}, Rank #${player.rank} in the ${player.draft_year} NFL Draft.`}`,
     affiliation: {
       '@type': 'Organization',
       name: player.school,

@@ -110,7 +110,7 @@ export default function JellyfishField(props: JellyfishFieldProps) {
           onMouseLeave={isMobile ? undefined : onDotLeave}
           onClick={() => onDotClick(p)}
         >
-          <title>{p.name} — data gap (no contract row)</title>
+          <title>{p.name}: data gap (no contract row)</title>
         </circle>
       );
     }

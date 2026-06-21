@@ -2,96 +2,11 @@ import type { Player } from './sheets';
 import type { DisplaySeasonRow } from './scoring';
 import { scoutToInches } from './chartMath';
 
-// ── Deterministic hash ────────────────────────────────────────────────────────
-
-function deterministicIndex(id: string, length: number): number {
-  const hash = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  return hash % length;
-}
-
-// ── Flair phrase pools ────────────────────────────────────────────────────────
-
-const FLAIR_GENERAL = [
-  // Exclamation style — prepended as standalone sentence before fact
-  "Boo-yah!",
-  "En fuego!",
-  "He came to play.",
-  "The tape don't lie.",
-  "Put some respect on his name.",
-  "That's what we call a football player.",
-  "He showed up to work.",
-  "Say his name.",
-  "Boom goes the dynamite.",
-  "That's money, baby.",
-  "No days off.",
-  "Straight business.",
-  "He's got that dog in him.",
-  "Locked. In.",
-  // Lead-in style — followed by em dash then the fact
-  "Cool as the other side of the pillow —",
-  "Don't sleep on him —",
-  "Built for this —",
-  "He rumbled, he grinded, he produced —",
-  "The résumé speaks for itself —",
-  "Old school toughness, new school results —",
-  "He heard his name called. He answered —",
-  "He could go... all... the... way —",
-  "Coach's dream, opponent's nightmare —",
-  "He did the work when nobody was watching —",
-  "Just call him butter, because he's been on a roll —",
-  "Not just a player — a problem —",
-  "Back, back, back... still producing —",
-  "Pencil him in —",
-  "This one's for the film room —",
-  "Couldn't stop him, couldn't slow him down —",
-  "Consistent as sunrise —",
-  "The definition of a professional —",
-  "He made believers out of everyone —",
-  "Some guys just know how to ball —",
-  "Night in, night out, he delivers —",
-  "Ask the film room — they already know —",
-  "Every snap, every down, every game —",
-  "His draft class knows exactly who he is —",
-  "Put the work in. Put the work in. Put the work in —",
-  "The game tape is his autobiography —",
-  "He got the memo and then some —",
-  "Wears it on the field every single Sunday —",
-  "He's been doing it since day one —",
-  "The numbers back it up —",
-];
-
-const FLAIR_DRAFT_FALL = [
-  "Slept on? Not for long —",
-  "They passed on him. Mistake —",
-  "He heard his name called late. He made them pay —",
-  "Disrespected on draft day. Respected every Sunday after —",
-  "Fell through the board, rose through the ranks —",
-  "They had him wrong on draft day —",
-];
-
-const FLAIR_CUP_OF_COFFEE = [
-  "Not every story ends in Canton — but his is still worth telling.",
-  "He laced 'em up and gave everything he had.",
-  "Few players make it this far. He was one of them.",
-  "Every snap in the NFL is earned. He earned his.",
-  "The league isn't easy. He answered the call anyway.",
-  "Behind every roster spot is a story. Here's his.",
-  "He heard his name called on draft day — and that moment is forever.",
-  "Not a household name, but a professional. That means something.",
-  "Short career, full effort. That's the only way he knew how to play.",
-  "He did something most players only dream about — he made it.",
-  "Grit over headlines. Every time.",
-  "The grind was real. So was his commitment to it.",
-];
-
-function addFlair(fact: string, playerId: string, pool: 'general' | 'draftFall' | 'cupOfCoffee'): string {
-  if (pool === 'cupOfCoffee') {
-    const phrases = FLAIR_CUP_OF_COFFEE;
-    return phrases[deterministicIndex(playerId, phrases.length)];
-  }
-  const phrases = pool === 'draftFall' ? FLAIR_DRAFT_FALL : FLAIR_GENERAL;
-  const phrase = phrases[deterministicIndex(playerId, phrases.length)];
-  return `${phrase} ${fact}`;
+// Voice sweep §9: Chalk Talk flair removed. cup-of-coffee players get no fun fact
+// at all (the `{funFact && …}` guard in PlayerCard hides the panel for them);
+// every other category returns its bare stat line, unadorned.
+function addFlair(fact: string, _playerId: string, pool: 'general' | 'draftFall' | 'cupOfCoffee'): string {
+  return pool === 'cupOfCoffee' ? '' : fact;
 }
 
 // ── Primary stat key by position ──────────────────────────────────────────────

@@ -163,7 +163,7 @@ function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCoun
       const sharePct = usage.careerUsage != null ? `${Math.round(usage.careerUsage * 100)}% snaps` : "—";
       block3 = (
         <span style={{ color: "rgba(245,240,232,0.7)" }}>
-          {sharePct}{usage.games != null ? ` · ${usage.games} g` : ""} — too few snaps to rank
+          {sharePct}{usage.games != null ? ` · ${usage.games} g` : ""} · too few snaps to rank
         </span>
       );
     }
@@ -197,7 +197,7 @@ function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCoun
 
         {/* Footer */}
         <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
-          › Click dot for full Player Card
+          › Click dot for the full Player Card
         </div>
       </div>
     </div>
@@ -292,7 +292,7 @@ function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMod
     // NOT "too few snaps to rank yet" (which would imply a future rank that won't come).
     const isSpecialist = ["K", "P", "LS"].includes((player.pos ?? "").toUpperCase());
     if (chartMode === "floor" && !hasSeasons) {
-      headline = <span style={{ color: dim }}>Yet to take an NFL snap</span>;
+      headline = <span style={{ color: dim }}>Yet to take a pro snap</span>;
     } else if (isSpecialist) {
       headline = <span style={{ color: dim }}>{KP_STRIP_COPY}</span>;
     } else {
@@ -331,7 +331,7 @@ function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMod
 
         {/* Footer */}
         <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
-          › Click dot for full Player Card
+          › Click dot for the full Player Card
         </div>
       </div>
     </div>
@@ -369,7 +369,7 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
   // "Selected:" reveal. Only rendered for ranked players.
   const defParts: string[] = [];
   if (player.rd != null)   defParts.push(`Round ${player.rd}`);
-  if (player.rank != null) defParts.push(`Pick ${player.rank}`);
+  if (player.rank != null) defParts.push(`No. ${player.rank}`);
   const defLine = ranked && defParts.length > 0 ? `Ranked: ${defParts.join(" · ")}` : null;
 
   return (
@@ -389,7 +389,7 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
 
         {/* Footer */}
         <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
-          › Click dot for full Player Card
+          › Click dot for the full Player Card
         </div>
       </div>
     </div>
@@ -486,7 +486,7 @@ function Act2HoverCard({ player, x, y, maxPick }: TooltipState & { maxPick: numb
 
         {/* Footer */}
         <div style={{ marginTop: 9, fontSize: 10, color: "rgba(245,240,232,0.4)" }}>
-          › Click dot for full Player Card
+          › Click dot for the full Player Card
         </div>
       </div>
     </div>

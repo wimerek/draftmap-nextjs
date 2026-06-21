@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "DraftMap — NFL Draft at a glance. Find your sleeper.",
+  title: "DraftMap | NFL Draft, charted from projection to outcome",
   description:
-    "Visual NFL draft analysis. See depth by position, spot talent cliffs, and find sleepers — no takes, just data.",
+    "Visual NFL draft analysis. Every prospect charted by position, round, and tier, with positional depth and talent cliffs made plain.",
 };
 
 export default function HomePage() {
@@ -17,7 +17,7 @@ export default function HomePage() {
             DraftMap
           </h1>
           <p className="text-lg text-dm-text-secondary">
-            NFL Draft at a glance. Find your sleeper.
+            NFL Draft: Projection. Selection. Outcome.
           </p>
         </div>
 

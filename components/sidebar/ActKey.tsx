@@ -59,11 +59,11 @@ function act3StateFromMode(mode?: ChartMode): Act3State {
 // "— N players" count (the scoreboard already shows the class count).
 const ACT3_SUBHEAD: Record<Act3State, string> = {
   floor:
-    "Vertical position shows draft selection. This changes as they take the field and earn snaps.",
+    "Every pick starts at the draft-day floor. Vertical position rises as they take the field and earn snaps.",
   pending:
     "Vertical position shows usage: a player's share of the snaps at their position. It reflects how much their team played them compared to others at the same position.",
   resolved:
-    "Vertical position shows the second contract: guaranteed money relative to the top of their position. It's the league's own measure of value — what teams paid to keep them once they reached the open market.",
+    "Vertical position shows the second contract: guaranteed money relative to the top of their position. It's the league's own measure of value: what teams paid to keep them once they reached the open market.",
 };
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2
@@ -133,11 +133,11 @@ function Act1Body() {
   return (
     <>
       <p className="sb-key-lead">
-        Each dot is a draft prospect, ranked by where analysts project they&rsquo;ll be
-        drafted &mdash; round 1 at the top.
+        Each dot is a draft prospect, placed by where the consensus projects they&rsquo;ll be
+        drafted, with round 1 at the top.
       </p>
       <KeyRow sample={<span className="sb-key-swatch sb-key-swatch--dot" />}>
-        <span className="sb-key-term">Color</span> &mdash; their college&rsquo;s team colors.
+        <span className="sb-key-term">Color</span>: their college&rsquo;s team colors.
       </KeyRow>
     </>
   );
@@ -149,14 +149,14 @@ function Act2Body({
   return (
     <>
       <p className="sb-key-lead">
-        The actual draft &mdash; where teams picked each player.
+        The actual draft: where teams picked each player.
       </p>
       <KeyRow sample={<span className="sb-key-swatch sb-key-swatch--dot" />}>
-        <span className="sb-key-term">Color</span> &mdash; their drafting team&rsquo;s colors.
+        <span className="sb-key-term">Color</span>: their drafting team&rsquo;s colors.
       </KeyRow>
       <KeyRow sample={<SizeSample />}>
-        <span className="sb-key-term">Size</span> &mdash; the difference between where a player
-        was ranked and picked.
+        <span className="sb-key-term">Size</span>: the gap between a player&rsquo;s consensus
+        ranking and his actual pick.
       </KeyRow>
       {/* Lines explainer — colored text only; the inline ↑↓ arrows carry direction, so
           no arrow sample. reach = sky, steal = gold (matches the chart's leader lines). */}
@@ -164,7 +164,7 @@ function Act2Body({
         <span className="sb-key-reach">&uarr; Reaches</span>
         {" · "}
         <span className="sb-key-steal">&darr; Steals</span>
-        {" — consensus ranking vs. actual pick."}
+        {": where the pick diverged from the consensus."}
       </p>
       {/* Movement-lines toggle — a real Off/On switch (gold track + sliding knob),
           reusing showLines / onShowLinesToggle. */}
@@ -184,8 +184,8 @@ function Act2Body({
       </button>
       {/* Cliffs — reframed from an encoding row to an observational hint (no sample). */}
       <div className="sb-key-hintblock">
-        <span className="sb-key-term">Hint</span> &mdash; gaps between groups of picks mark where
-        NFL teams saw value drop off.
+        <span className="sb-key-term">Hint</span>: gaps between groups of picks mark where
+        teams saw value drop off.
       </div>
     </>
   );
@@ -202,7 +202,7 @@ function Act3Body({ state }: { state: Act3State }) {
         guarantees.
       </p>
       <KeyRow sample={<span className="sb-key-swatch sb-key-swatch--dot" />}>
-        <span className="sb-key-term">Color</span> &mdash; their NFL team now.
+        <span className="sb-key-term">Color</span>: the team that drafted them.
       </KeyRow>
       {/* Top honor — ranked; only the single highest a player reached is shown. Each
           honor listed individually with its REAL glyph (imported from the field). */}
@@ -220,26 +220,17 @@ function Act3Body({ state }: { state: Act3State }) {
       <KeyRow sample={<GlyphSample glyph="triangle" />}>
         Played more special-teams snaps than offense/defense.
       </KeyRow>
-      {/* Threads — hover-to-EXPLAIN progressive disclosure (panel-only, NOT a chart lens). */}
-      <div className="sb-key-threads" tabIndex={0}>
-        <div className="sb-key-row">
-          <span className="sb-key-sample"><ThreadSample /></span>
-          <span className="sb-key-text">
-            <span className="sb-key-term">Threads</span> &mdash; group players by the contract
-            they earned.
-          </span>
-        </div>
-        <div className="sb-key-explainer">
-          <p>
-            Each thread pulls a player from where they were drafted to the second-contract
-            tier they reached &mdash; Premium, Solid, Bridge, Prove It, or None &mdash; by
-            guaranteed money against their position&rsquo;s market.
-          </p>
-          <Link href="/about" className="sb-key-explainer-link">
-            Why the market is the measure &rarr;
-          </Link>
-        </div>
-      </div>
+      {/* Threads — panel-only grouping (NOT a chart lens). The "why" link is now
+          always-visible directly under the row (no hover reveal). */}
+      <KeyRow sample={<ThreadSample />}>
+        <span className="sb-key-term">Threads</span>: group players by the second-contract
+        tier they reached.
+      </KeyRow>
+      <p className="sb-key-threadlink">
+        <Link href="/about" className="sb-key-explainer-link">
+          Why the market is the measure &rarr;
+        </Link>
+      </p>
     </>
   );
 }

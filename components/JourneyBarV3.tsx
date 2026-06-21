@@ -32,9 +32,9 @@ export interface JourneyBarV3Props {
 }
 
 const BEATS: Array<{ n: 1 | 2 | 3; roman: string; title: string; teach: string }> = [
-  { n: 1, roman: "I",   title: "THE BOARD",     teach: "Where experts ranked them" },
-  { n: 2, roman: "II",  title: "DRAFT DAY",     teach: "Where teams picked them" },
-  { n: 3, roman: "III", title: "4 YEARS LATER", teach: "What the league decided" },
+  { n: 1, roman: "I",   title: "THE BOARD",     teach: "Where the consensus ranked them" },
+  { n: 2, roman: "II",  title: "DRAFT DAY",     teach: "Where teams drafted them" },
+  { n: 3, roman: "III", title: "4 YEARS LATER", teach: "What became of them" },
 ];
 
 // ── Knobs (E4 doctrine — tune on the real render, no hunting) ───────────────

@@ -376,7 +376,7 @@ export const PENDING_REACH_THREAD_OPACITY = 0.18; // locked working value — tu
  *  rows by design (snap share is not tracked) → usage null → they fall into the
  *  COULDN'T STICK strip. Honest specialist copy replaces "too few snaps to rank yet"
  *  so we never fabricate a rank for a 4-yr starting punter. */
-export const KP_STRIP_COPY = 'Kicking specialist — not tracked by snap share'; // tune on real render
+export const KP_STRIP_COPY = 'Specialist: snap share not tracked'; // tune on real render
 
 // ── Rider 1 — resolved-field left-edge Y labels (DELETED, Brief 2 Item 4) ──────
 //
@@ -417,7 +417,7 @@ export const PENDING_Y_AXIS_QUALIFIER = "share of position's snaps";
  */
 export const RESOLVED_TIER_DESCRIPTOR: Record<ContractTier, string> = {
   PREMIUM:  'top of the market',
-  SOLID:    'real multi-year money',
+  SOLID:    'multi-year guarantees',
   BRIDGE:   'top money, one year',
   PROVE_IT: 'signed, no substantial guarantees',
   NONE:     'no second contract',

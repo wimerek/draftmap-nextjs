@@ -143,7 +143,7 @@ export default function MobileHandleBar({ open, onOpen, onClose, sidebarProps }:
           <Image src="/brand/draftmap-mark.svg" alt="DraftMap" width={34} height={34} style={{ borderRadius: 4 }} />
           <div>
             <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 22, fontWeight: 900, color: "#F5F0E8", lineHeight: 1 }}>DraftMap</div>
-            <div style={{ fontSize: 10, color: "rgba(245,240,232,0.45)", fontStyle: "italic" }}>NFL Draft at a glance.</div>
+            <div style={{ fontSize: 10, color: "rgba(245,240,232,0.45)", fontStyle: "italic" }}>NFL Draft: Projection. Selection. Outcome.</div>
           </div>
         </div>
 

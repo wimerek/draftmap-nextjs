@@ -1406,30 +1406,10 @@ a { color: inherit; text-decoration: none; }
   color: rgba(245,240,232,0.40);
 }
 
-/* Threads — hover/focus reveals a progressive-disclosure explainer (panel-only). */
-.sb-key-threads { border-radius: 5px; }
-.sb-key-threads:focus-visible {
-  outline: 2px solid rgba(212,160,23,0.45);
-  outline-offset: 2px;
-}
-.sb-key-explainer {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 220ms ease, opacity 200ms ease, margin-top 220ms ease;
-  margin-top: 0;
-}
-.sb-key-threads:hover .sb-key-explainer,
-.sb-key-threads:focus-within .sb-key-explainer {
-  max-height: 160px;
-  opacity: 1;
-  margin-top: 7px;
-}
-.sb-key-explainer p {
-  margin: 0 0 6px;
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: rgba(245,240,232,0.52);
+/* Threads "why" link — promoted to always-visible directly under the Threads row
+   (Voice sweep §2: the hover-reveal explainer paragraph was removed). */
+.sb-key-threadlink {
+  margin: 7px 0 0;
 }
 .sb-key-explainer-link {
   font-size: 10.5px;
@@ -1438,9 +1418,6 @@ a { color: inherit; text-decoration: none; }
   text-decoration: none;
 }
 .sb-key-explainer-link:hover { color: #D4A017; text-decoration: underline; }
-@media (prefers-reduced-motion: reduce) {
-  .sb-key-explainer { transition: opacity 200ms ease; }
-}
 
 /* ── Brand logo as a reset affordance (Brief 1, Piece 6) ────────────────────── */
 .sb-brand-logo-btn {

@@ -4,18 +4,18 @@ import PostHogProvider from "@/components/PostHogProvider";
 
 export const metadata: Metadata = {
   title: {
-    default: "DraftMap — NFL Draft at a glance",
+    default: "DraftMap | NFL Draft analysis",
     template: "%s | DraftMap",
   },
   description:
-    "NFL Draft analysis platform. Visual tools to find sleepers, spot depth cliffs, and understand draft value — without the talking heads.",
+    "NFL Draft analysis platform. Visual tools to chart prospects by position and round, surface positional depth and talent cliffs, and weigh draft value.",
   metadataBase: new URL("https://draftmap.app"),
   openGraph: {
     type: "website",
     siteName: "DraftMap",
-    title: "DraftMap — NFL Draft at a glance",
+    title: "DraftMap | NFL Draft analysis",
     description:
-      "NFL Draft analysis platform. Visual tools to find sleepers, spot depth cliffs, and understand draft value.",
+      "Visual tools to chart NFL Draft prospects by position and round, surface depth and talent cliffs, and weigh draft value.",
     url: "https://draftmap.app",
     // og:image added per-route via generateMetadata()
   },

@@ -76,7 +76,7 @@ export default async function Image() {
             2026 NFL Draft
           </div>
           <div style={{ color: '#94a3b8', fontSize: '36px' }}>
-            Ranked. Visualized. Mapped.
+            Projection. Selection. Outcome.
           </div>
         </div>
 

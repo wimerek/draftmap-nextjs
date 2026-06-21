@@ -10,7 +10,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const year = resolveYear(searchParams.year);
   return {
     title: `${year} NFL Draft Prospects`,
-    description: `Search and filter every ${year} NFL Draft prospect — measurables, scouting grades, and projected round.`,
+    description: `Search and filter every ${year} NFL Draft prospect by measurables, scouting grades, and projected round.`,
     openGraph: {
       title: `${year} NFL Draft Prospects | DraftMap`,
       description: `Every ${year} NFL Draft prospect with measurables, scouting grades, and projected round.`,

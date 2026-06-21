@@ -76,9 +76,9 @@ function steal(prep: PreppedClass, position: string, year: number): Capsule | nu
 
   let answer =
     `${top.player.name} was ranked ${posRankLabel(position, top.posRank)} on the consensus board ` +
-    `— #${top.player.rank} overall — but lasted until pick ${top.player.pick_drafted}, where the ` +
+    `(#${top.player.rank} overall) but lasted until pick ${top.player.pick_drafted}, where the ` +
     `${teamName(top)} took him${roundClause}. A ${top.delta}-spot fall, the largest gap between ` +
-    `expectation and draft day of any ${position} in the class.`;
+    `consensus and draft day of any ${position} in the class.`;
 
   // Runner-up sentence: only OTHER drafted players with Δ ≥ +10.
   const runners = candidates.slice(1).filter((p) => (p.delta as number) >= 10);
@@ -114,9 +114,9 @@ function conviction(prep: PreppedClass, position: string, year: number): Capsule
   const ahead = Math.abs(top.delta as number);
 
   let answer =
-    `The ${teamName(top)} took ${top.player.name} at pick ${top.player.pick_drafted} ` +
-    `— ${ahead} spots ahead of his #${top.player.rank} consensus rank. ` +
-    `The league's biggest vote of confidence against the public board at the position.`;
+    `The ${teamName(top)} took ${top.player.name} at pick ${top.player.pick_drafted}` +
+    `, ${ahead} spots ahead of his #${top.player.rank} consensus rank. ` +
+    `That's the league's strongest disagreement with the public board at the position.`;
 
   // Runner-up sentence: OTHER drafted players with Δ ≤ −10. Positive register only.
   const runners = candidates.slice(1).filter((p) => (p.delta as number) <= -10);
@@ -151,7 +151,7 @@ function cliff(prep: PreppedClass, position: string, year: number): Capsule | nu
     id: 'cliff',
     question: `Where did the ${position} talent drop off in ${year}?`,
     answer:
-      `No cliff this year — teams drained the ${position} board steadily from pick ${first} ` +
+      `No cliff this year. Teams drafted ${position}s steadily from pick ${first} ` +
       `to pick ${last}.`,
   };
 
@@ -177,8 +177,7 @@ function cliff(prep: PreppedClass, position: string, year: number): Capsule | nu
 
   const answer =
     `After ${before.player.name} went at pick ${before.player.pick_drafted}, the next ${position} ` +
-    `didn't come off the board for ${maxGap} picks. The sharpest drop in the class — teams that ` +
-    `waited paid for it.`;
+    `didn't come off the board for ${maxGap} picks. That's the sharpest drop in the class.`;
 
   return { id: 'cliff', question: `Where did the ${position} talent drop off in ${year}?`, answer };
 }
@@ -205,7 +204,7 @@ function spend(
   else comparison = `below the position's average of ${avg}`;
 
   const answer =
-    `Teams spent ${n} picks on ${position} — ${k} in the first two rounds. ` +
+    `Teams spent ${n} picks on ${position}, ${k} of them in the first two rounds. ` +
     `That's ${comparison} since 2018.`;
 
   return { id: 'spend', question: `How much did teams invest in ${position} in the ${year} draft?`, answer };
@@ -248,8 +247,8 @@ function bet(prep: PreppedClass, position: string, year: number): Capsule | null
   const pct = totalValue > 0 ? Math.round((winner.posValue / totalValue) * 100) : 0;
 
   const answer =
-    `The ${resolveTeamName(winnerTeam)} spent more draft capital on ${position} than any other club — ` +
-    `${formatPickList(winner.picks)} — ${pct}% of their total draft investment.`;
+    `The ${resolveTeamName(winnerTeam)} spent more draft capital on ${position} than any other club: ` +
+    `${formatPickList(winner.picks)}, ${pct}% of their total draft investment.`;
 
   return { id: 'bet', question: `Which team bet biggest on ${position} in ${year}?`, answer };
 }
@@ -267,7 +266,7 @@ function slipped(prep: PreppedClass, position: string, year: number): Capsule | 
   // accuracy problem (Epsilon 4: UDFA-signed accuracy fix). Activates after that lands.
   const answer =
     `${top.player.name}, ranked #${top.player.rank} on the consensus board, ` +
-    `heard ${prep.totalPicks} names called — and not his.`;
+    `went undrafted through all ${prep.totalPicks} picks.`;
 
   return {
     id: 'slipped',

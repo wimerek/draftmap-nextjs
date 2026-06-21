@@ -80,7 +80,7 @@ export default async function Image({ params }: { params: { year: string } }) {
             {`${year} NFL Draft`}
           </div>
           <div style={{ color: '#94a3b8', fontSize: '36px' }}>
-            Ranked. Visualized. Mapped.
+            Projection. Selection. Outcome.
           </div>
         </div>
 

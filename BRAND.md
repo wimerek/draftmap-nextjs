@@ -12,7 +12,7 @@ The primary brand lockup consists of the mark, wordmark, and tagline arranged ho
 |---|---|
 | Mark | `draftmap-mark.svg` — 72 × 72px (sidebar), 34 × 34px (collapsed), border-radius 5px |
 | Wordmark | "DraftMap" — Barlow Condensed Black 900, 30px, letter-spacing 0.01em, color #F5F0E8 |
-| Tagline | "NFL Draft at a glance." — Inter 400 italic, 10px, color rgba(245,240,232,0.48) |
+| Tagline | "NFL Draft: Projection. Selection. Outcome." — Inter 400 italic, 10px, color rgba(245,240,232,0.48) |
 | Gap (mark → text) | 12px |
 | Gap (wordmark → tagline) | 2px |
 | Container background | #0B2239 (dark navy) |

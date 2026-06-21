@@ -511,10 +511,10 @@ export default function Scoreboard({
   const pendingStrip = (
     <ProportionStrip
       total={stats.N}
-      subLabel={`${stats.stillInLeagueCount} still in · ${stats.couldntStickCount} couldn't stick`}
+      subLabel={`${stats.stillInLeagueCount} still in · ${stats.couldntStickCount} too few snaps`}
       segments={[
         { key: "still", label: "still in league", count: stats.stillInLeagueCount, color: STRIP_STILL_COLOR },
-        { key: "couldnt", label: "couldn't stick", count: stats.couldntStickCount, color: STRIP_COULDNT_COLOR },
+        { key: "couldnt", label: "too few snaps", count: stats.couldntStickCount, color: STRIP_COULDNT_COLOR },
       ]}
     />
   );
@@ -576,7 +576,7 @@ export default function Scoreboard({
       caption = (
         <>
           <div className="sb-statelabel sb-x-fade">THE BOARD</div>
-          <div className="sb-def sb-x-fade">projections not yet posted</div>
+          <div className="sb-def sb-x-fade">consensus not yet posted</div>
           <div className="sb-util">consensus board</div>
         </>
       );
@@ -605,10 +605,10 @@ export default function Scoreboard({
     // ── State 5: Act 3 rest — RESOLVED ──────────────────────────────────────────
     caption = (
       <>
-        <div className="sb-statelabel sb-x-fade">GOT PAID</div>
+        <div className="sb-statelabel sb-x-fade">SUBSTANTIAL GUARANTEES</div>
         <div className="sb-herofig sb-x-fade"><span className="sb-num"><CountUp n={stats.gotPaidCount} animate={animateCount} /></span> <DenomFigure n={stats.N} /></div>
         <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters</div>
-        <div className="sb-util">second-contract window closed</div>
+        <div className="sb-util">second contracts resolved</div>
         {unmatched.length > 0 && (
           <div className="sb-util sb-util--warn">⚠ {unmatched.length} unmatched</div>
         )}
@@ -622,7 +622,7 @@ export default function Scoreboard({
         <div className="sb-statelabel sb-x-fade">STILL IN THE LEAGUE</div>
         <div className="sb-herofig sb-x-fade"><span className="sb-num"><CountUp n={stats.stillInLeagueCount} animate={animateCount} /></span> <DenomFigure n={stats.N} /></div>
         <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters so far</div>
-        <div className="sb-util">second deals through {selectedYear + 5}</div>
+        <div className="sb-util">second-contract window through {selectedYear + 5}</div>
         {pendingStrip}
       </>
     );

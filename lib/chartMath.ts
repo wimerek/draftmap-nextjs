@@ -27,7 +27,7 @@ import {
   LANE_PX, LANE_EDGE_JITTER_PX, ST_CEILING, GUTTER_SPREAD_PX,
   PENDING_HEADROOM_FRAC, COULDNT_STICK_STRIP_TOP_FRAC,
   ZONE_TAB_INSET_PX, ZONE_TAB_H, LANE_TAB_PAD,
-  USAGE_TIER_THRESHOLDS, STRIP_LABEL_VERDICT_AFTER_SEASONS,
+  USAGE_TIER_THRESHOLDS,
 } from './act3Constants';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1067,18 +1067,13 @@ const STARTER_PCT = USAGE_TIER_THRESHOLDS[0].min; // 65 — TRUE percentile thre
 const ROLE_PCT    = USAGE_TIER_THRESHOLDS[1].min; // 25 — TRUE percentile threshold
 
 /**
- * Maturity-conditional strip label (Gate-2 Fix 4 — Derek-locked). Counts distinct
- * completed seasons across the class's usage.seasons (already draft_year-forward
- * filtered — same source selectClassState reads, NO calendar math). A young class
- * (≤ 2 completed seasons) must NOT speak verdict language — the strip reads "TOO FEW
- * SNAPS"; a mature class (≥ STRIP_LABEL_VERDICT_AFTER_SEASONS) reads "COULDN'T STICK".
+ * Strip label (Voice sweep §4). The pending strip now always reads "TOO FEW SNAPS"
+ * (unranked register) — the maturity-gated "COULDN'T STICK" verdict language is retired
+ * here; the deferred metric-accuracy pass owns any future verdict wording. Param kept
+ * for call-site stability.
  */
-function stripLabelForClass(players: Player[]): string {
-  const seasons = new Set<number>();
-  for (const p of players) {
-    for (const s of p.usage?.seasons ?? []) seasons.add(s.season);
-  }
-  return seasons.size >= STRIP_LABEL_VERDICT_AFTER_SEASONS ? "COULDN'T STICK" : "TOO FEW SNAPS";
+function stripLabelForClass(_players: Player[]): string {
+  return "TOO FEW SNAPS";
 }
 
 /**
