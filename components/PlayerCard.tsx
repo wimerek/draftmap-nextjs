@@ -546,8 +546,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     return `${pos}-${rankStr}/${totalStr} ${draftClassSuffix}`;
   }, [player, posRank, totalDraftedAtPos, draftClassSuffix]);
 
-  const role = player.role && player.role !== "N/A" ? player.role : "Balanced";
-
   // Height display for meta block
   const heightNum = parseInt(String(player.height ?? ""), 10);
   const heightDisplay = isNaN(heightNum) ? null : inchesToHeightDisplay(scoutToInches(heightNum));
@@ -592,7 +590,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
   }, [player, currentStepId])
 
   const hasProductionData = (player.seasonData?.length ?? 0) > 0
-  const sectionLabel = hasProductionData ? 'Player Production' : 'Player Profile'
 
   const activeUsage = useMemo(() => {
     if (!player.stepScores) return null
@@ -715,8 +712,8 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
         {/* ── Body (scrolling) ──────────────────────────────────────── */}
         <div className="dm-body">
 
-          {/* ── Player Production / Player Profile ──────────────────── */}
-          <div className="dm-band">{sectionLabel}</div>
+          {/* ── Player Production ───────────────────────────────────── */}
+          <div className="dm-band">Player Production</div>
           {hasProductionData ? (
             <div className="pcm-section-block dm-production-body">
               {/* Usage snapshot */}
@@ -860,38 +857,9 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
             </div>
           ) : (
             <div className="pcm-section-block">
-              <div className="pcm-profile-rail">
-                {/* Role pennant */}
-                <div>
-                  <div className="pcm-profile-label">Role</div>
-                  <div className="pcm-role-pennant">{role}</div>
-                </div>
-
-                {/* Strengths panel */}
-                <div className="pcm-strengths-panel">
-                  <div className="pcm-profile-label">Strengths Profile</div>
-                  <div className="pcm-strength-stack">
-                    {[
-                      { s: player.s1, mod: "", kicker: "Primary" },
-                      { s: player.s2, mod: " pcm-s-secondary", kicker: "Secondary" },
-                      { s: player.s3, mod: " pcm-s-supportive", kicker: "Supportive" },
-                    ].map(({ s, mod, kicker }) => (
-                      <div key={kicker} className={`pcm-strength-row${mod}`}>
-                        <div className="pcm-pennant-tail">
-                          <div className="pcm-tail-strip upper" />
-                          <div className="pcm-tail-strip lower" />
-                        </div>
-                        <div className="pcm-pennant-flag">
-                          <div className="pcm-pennant-kicker">{kicker}</div>
-                          <span className="pcm-pennant-text">
-                            {s && s !== "N/A" ? s : "—"}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <p className="pcm-production-pending">
+                No NFL production yet. Usage and stats will appear here once {player.name.split(" ")[0]} takes the field.
+              </p>
             </div>
           )}
 

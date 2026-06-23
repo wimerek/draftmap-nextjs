@@ -28,7 +28,7 @@ type SortKey =
   | "rank" | "name" | "pos" | "rd"
   | "height" | "weight" | "hand" | "arm"
   | "forty" | "split10" | "vertical" | "broad" | "cone3" | "shuttle" | "bench"
-  | "role" | "rd_drafted" | "pick_drafted" | "team_drafted";
+  | "rd_drafted" | "pick_drafted" | "team_drafted";
 
 // ── Measurable column definitions ─────────────────────────────────────────────
 
@@ -131,7 +131,6 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
       else if (sk === "rd_drafted")   cmp = (a.rd_drafted   ?? 99) - (b.rd_drafted   ?? 99);
       else if (sk === "pick_drafted") cmp = (a.pick_drafted ?? 9999) - (b.pick_drafted ?? 9999);
       else if (sk === "team_drafted") cmp = (a.team_drafted ?? "").localeCompare(b.team_drafted ?? "");
-      else if (sk === "role")         cmp = (a.role ?? "").localeCompare(b.role ?? "");
       else {
         // numeric measurable
         const av = a[sortKey as keyof Player] as number | null;
@@ -294,10 +293,6 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
                   {m.abbr} <SortArrow col={m.key as SortKey} />
                 </th>
               ))}
-              <th onClick={() => toggleSort("role")} style={thBase}>Role <SortArrow col="role" /></th>
-              <th style={{ ...thBase, cursor: "default" }}>S1</th>
-              <th style={{ ...thBase, cursor: "default" }}>S2</th>
-              <th style={{ ...thBase, cursor: "default" }}>S3</th>
               <th onClick={() => toggleSort("rd_drafted")}   style={thBase}>Rd <SortArrow col="rd_drafted" /></th>
               <th onClick={() => toggleSort("pick_drafted")} style={thBase}>Pick <SortArrow col="pick_drafted" /></th>
               <th onClick={() => toggleSort("team_drafted")} style={thBase}>Team <SortArrow col="team_drafted" /></th>
@@ -351,12 +346,6 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
                       </td>
                     );
                   })}
-                  {/* Role */}
-                  <td style={{ ...tdBase, color: "#6a5a4a", fontSize: 11 }}>{p.role ?? "—"}</td>
-                  {/* Strengths */}
-                  <td style={{ ...tdBase, fontSize: 11, color: "#5a6a4a" }}>{p.s1 ?? "—"}</td>
-                  <td style={{ ...tdBase, fontSize: 11, color: "#5a6a4a" }}>{p.s2 ?? "—"}</td>
-                  <td style={{ ...tdBase, fontSize: 11, color: "#5a6a4a" }}>{p.s3 ?? "—"}</td>
                   {/* Draft results */}
                   <td style={{ ...tdBase, color: "#6a5a4a" }}>{p.rd_drafted ?? "—"}</td>
                   <td style={{ ...tdBase, color: "#6a5a4a" }}>{p.pick_drafted ?? "—"}</td>

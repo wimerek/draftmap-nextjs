@@ -3303,6 +3303,13 @@ a { color: inherit; text-decoration: none; }
   color: var(--dm-text-secondary, #4b5563);
   line-height: 1.3;
 }
+.pcm-production-pending {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--dm-text-secondary, #4b5563);
+  line-height: 1.4;
+  margin: 2px 0;
+}
 .dm-usage-legend {
   text-align: right;
   font-size: 0.65rem;
