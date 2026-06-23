@@ -16,6 +16,7 @@ const IVORY_MUTED = 'rgba(245,240,232,0.62)';
 
 /** Must match the id + label of each section <h2> in page.tsx. */
 export const ABOUT_SECTIONS: Array<{ id: string; label: string }> = [
+  { id: 'what-is-draftmap', label: 'What is DraftMap?' },
   { id: 'why-it-exists', label: 'Why It Exists' },
   { id: 'the-unexpected-challenge', label: 'The Unexpected Challenge' },
   { id: 'letting-the-league-answer', label: 'Letting the League Answer' },

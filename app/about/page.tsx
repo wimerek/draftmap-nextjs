@@ -142,6 +142,12 @@ export default async function AboutPage() {
       <main className="min-w-0 flex-1 px-8 py-12 sm:px-12">
         {/* ① Hook (full width) — only slightly larger than the headers */}
         <section className="mb-12">
+          <p
+            className="mb-2"
+            style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: "#B07F0E" }}
+          >
+            The NFL Draft
+          </p>
           <p className="text-dm-text leading-[1.18] text-[24px] sm:text-[28px]" style={heading}>
             Outside the first round, only about a third of drafted players ever
             receive substantial guaranteed money on a second contract: the
@@ -158,13 +164,13 @@ export default async function AboutPage() {
 
         {/* ③ What-it-is (moved after the chart) */}
         <section className="mb-16 max-w-[68ch]">
-          <p className="text-xl sm:text-2xl text-dm-text font-medium">
-            DraftMap is a map of the NFL Draft.
-          </p>
-          <p className="mt-4 text-base sm:text-lg text-dm-text-secondary leading-relaxed">
-            It lays out, in a single view, what the consensus projected, how teams
-            actually drafted, and what became of every pick. You can take in a full
-            class all at once and explore at your own pace.
+          <h2 id="what-is-draftmap" className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text" style={heading}>
+            What is DraftMap?
+          </h2>
+          <p className="text-base sm:text-lg text-[#2A3F50] leading-relaxed">
+            DraftMap is a map of the NFL Draft. It lays out, in a single view, what the
+            consensus projected, how teams actually drafted, and what became of every pick.
+            You can take in a full class all at once and explore at your own pace.
           </p>
         </section>
 
@@ -201,11 +207,11 @@ export default async function AboutPage() {
             <p>
               There&rsquo;s no shortage of opinions, and I&rsquo;m no scout, so most
               are better than mine. But the honest truth is that even the scouts and
-              front offices are guessing.
+              front offices are guessing to some degree.
             </p>
             <p>
               So, underneath it all, one question kept surfacing: is there an
-              objective measure of how a player actually performs?
+              objective measure of how a player actually performs on the field after being drafted?
             </p>
             <p>
               After all, the NFL season ends with a Super Bowl champion. One team
@@ -221,16 +227,16 @@ export default async function AboutPage() {
             <p>
               Part of it is playing time. A team can only field eleven men at once,
               so how often a draft pick plays isn&rsquo;t opinion. It&rsquo;s a
-              deliberate decision by the coaching staff, made with real stakes.
+              deliberate decision by the coaching staff.
             </p>
             <p>
               But playing time only gets us halfway. Every team plays its best
-              players, and some teams&rsquo; best are better than others.
+              players, but some teams&rsquo; best are better than others.
             </p>
             <p>
               The full answer arrives when a player&rsquo;s rookie deal ends and the
               league&rsquo;s open market sets his value, in guaranteed money. Real
-              dollars. Real cap space. Jobs on the line.
+              dollars. Real cap space. Front office jobs on the line.
             </p>
             <p>
               Neither measure is perfect. But together they&rsquo;re the closest the
@@ -252,7 +258,7 @@ export default async function AboutPage() {
           <h2 id="we-werent-the-only-ones" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
             We Weren&rsquo;t the Only Ones
           </h2>
-          <div className="mt-4 space-y-4 text-base sm:text-lg text-dm-text-secondary leading-relaxed">
+          <div className="mt-4 space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
             <p>
               While reasoning these concepts out on my own for DraftMap, I was stunned
               to learn that others had reached the same conclusion, only far more
@@ -286,7 +292,7 @@ export default async function AboutPage() {
             </figcaption>
           </figure>
 
-          <div className="space-y-4 text-base sm:text-lg text-dm-text-secondary leading-relaxed">
+          <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
             <p>
               For the details, I defer to{" "}
               <a
@@ -316,7 +322,7 @@ export default async function AboutPage() {
           <h2 id="get-in-touch" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
             Get in Touch
           </h2>
-          <p className="mt-4 text-base sm:text-lg text-dm-text-secondary leading-relaxed">
+          <p className="mt-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
             Found a bug, have an idea, or want to build something together? Reach me at{" "}
             <a
               href="mailto:data@draftmap.app"
@@ -345,7 +351,7 @@ export default async function AboutPage() {
               }}
             />
             <span
-              className="text-2xl text-dm-text"
+              className="text-lg text-dm-text"
               style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic" }}
             >
               — Derek
@@ -388,7 +394,7 @@ function NarrativeSection({
       <h2 id={id} className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text" style={heading}>
         {title}
       </h2>
-      <div className="space-y-4 text-base sm:text-lg text-dm-text-secondary leading-relaxed">
+      <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
         {children}
       </div>
     </div>

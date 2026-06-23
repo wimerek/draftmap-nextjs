@@ -1853,7 +1853,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               <PositionColumns
                 layout={layout}
                 isZoomedMobile={isZoomedMobile}
-                onHowToReadClick={() => setHtrOpen(true)}
+                /* onHowToReadClick hidden 2026-06-22 — stale content, restore when help is rebuilt */
                 linkYear={selectedYear}
               />
               <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} />

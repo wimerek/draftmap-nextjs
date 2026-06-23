@@ -650,12 +650,12 @@ export default function Scoreboard({
   // instrument FRAME + motion-on-change stay as built.
   return (
     <div className="sb-root">
-      {/* IDENTITY (left) — a "navigate" stack, TOP-aligned: DRAFT CLASS eyebrow → big
+      {/* IDENTITY (left) — a "navigate" stack, TOP-aligned: NFL DRAFT CLASS eyebrow → big
           year (chevrons balanced around it, centered as a unit) → player-search FIELD
-          beneath (fix-pass-3 §2). Widened so DRAFT CLASS fits one line + the search reads
+          beneath (fix-pass-3 §2). Widened so NFL DRAFT CLASS fits one line + the search reads
           as a field. Hairline divider on its right edge. */}
       <div className="sb-region sb-region--id">
-        <div className="sb-eyebrow">DRAFT CLASS</div>
+        <div className="sb-eyebrow">NFL DRAFT CLASS</div>
         <ClassSwitcher
           selectedYear={selectedYear}
           availableYears={availableYears}

@@ -17,7 +17,7 @@ export default function HomePage() {
             DraftMap
           </h1>
           <p className="text-lg text-dm-text-secondary">
-            NFL Draft: Projection. Selection. Outcome.
+            Projection. Selection. Outcome.
           </p>
         </div>
 
