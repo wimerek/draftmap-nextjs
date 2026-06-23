@@ -40,6 +40,11 @@ html, body {
 }
 a { color: inherit; text-decoration: none; }
 
+/* Smooth anchor scrolling (About-page TOC); disabled for reduced-motion users. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
 /* ── DraftChart page frame ────────────────────────────────────────────────── */
 
 .dm-page {
@@ -3569,4 +3574,12 @@ a { color: inherit; text-decoration: none; }
   .twin-title {
     font-size: 24px;
   }
+}
+
+/* ── About page Sankey (RoundTierSankey) ─────────────────────────────────────── */
+/* Keyboard focus ring for the interactive flows/nodes (gold, brand accent).
+   :focus-visible only → no ring on mouse click, visible ring on Tab. */
+.sankey-focusable:focus-visible {
+  outline: 2px solid #D4A017;
+  outline-offset: 1px;
 }
