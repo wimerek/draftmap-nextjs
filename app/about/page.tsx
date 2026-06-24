@@ -199,7 +199,7 @@ export default async function AboutPage() {
             <p>That&rsquo;s why I built DraftMap.</p>
           </NarrativeSection>
 
-          <NarrativeSection id="the-unexpected-challenge" title="The Unexpected Challenge">
+          <NarrativeSection id="the-unexpected-challenge" title="The Unexpected Challenge" aside={<AlgorithmNote />}>
             <p>
               Visually painting the consensus rankings and the actual picks was the
               easy part.
@@ -224,8 +224,7 @@ export default async function AboutPage() {
             </p>
           </NarrativeSection>
 
-          {/* Letting the League Answer — method notes in the margin; a diminished
-              "Put plainly" recap closes the prose column. */}
+          {/* Letting the League Answer — method notes in the margin. */}
           <EditorialRow className="mb-12 last:mb-0" aside={<MethodNotes />}>
             <h2
               id="letting-the-league-answer"
@@ -265,14 +264,14 @@ export default async function AboutPage() {
                 offer one. I just show you what the league decided.
               </p>
             </div>
-            <PutPlainly />
           </EditorialRow>
         </section>
 
         {/* ⑤ Credibility band — full-width breakout pull-quote + Sources sidenote */}
         <section className="mt-16 border-t border-[#e2dac9] pt-10">
-          {/* Intro — prose measure, empty gutter */}
-          <div className="lg:max-w-[68ch]">
+          {/* Heading + intro — on the page's editorial measure; Sources rides up
+              beside the heading line. */}
+          <EditorialRow aside={<SourcesNote />}>
             <h2 id="we-werent-the-only-ones" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
               We Weren&rsquo;t the Only Ones
             </h2>
@@ -293,30 +292,32 @@ export default async function AboutPage() {
                 draft picks.
               </p>
             </div>
-          </div>
+          </EditorialRow>
 
-          {/* Merrick pull-quote — TRUE full-width breakout (prose + gutter), the
+          {/* Merrick pull-quote — bounded to the prose column (no aside), the
               section's "exhale" between the intro and the closing paragraph. */}
-          <figure
-            className="my-7 border-l-[3px] pl-5 lg:max-w-none w-full"
-            style={{ borderColor: GOLD }}
-          >
-            <blockquote
-              className="text-lg sm:text-xl leading-snug text-dm-text"
-              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic" }}
+          <EditorialRow>
+            <figure
+              className="my-7 border-l-[3px] pl-5 w-full"
+              style={{ borderColor: GOLD }}
             >
-              &ldquo;A player&rsquo;s first contract is based on draft position, so
-              it&rsquo;s a prediction: how good a team thinks you&rsquo;ll be. But your
-              second contract is based on your market value to the team, so it&rsquo;s an
-              outcome.&rdquo;
-            </blockquote>
-            <figcaption className="mt-3 text-sm font-semibold text-dm-text-secondary">
-              — Jason Merrick, Virginia Commonwealth University
-            </figcaption>
-          </figure>
+              <blockquote
+                className="text-lg sm:text-xl leading-snug text-dm-text"
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic" }}
+              >
+                &ldquo;A player&rsquo;s first contract is based on draft position, so
+                it&rsquo;s a prediction: how good a team thinks you&rsquo;ll be. But your
+                second contract is based on your market value to the team, so it&rsquo;s an
+                outcome.&rdquo;
+              </blockquote>
+              <figcaption className="mt-3 text-sm font-semibold text-dm-text-secondary">
+                — Jason Merrick, Virginia Commonwealth University
+              </figcaption>
+            </figure>
+          </EditorialRow>
 
-          {/* Closing paragraph (de-linked prose) + Sources sidenote */}
-          <EditorialRow aside={<SourcesNote />}>
+          {/* Closing paragraph (de-linked prose), no aside. */}
+          <EditorialRow>
             <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
               <p>
                 For the details, I defer to their Wharton School research paper.
@@ -361,14 +362,14 @@ export default async function AboutPage() {
             Get in Touch
           </h2>
           <p className="mt-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
-            Found a bug, have an idea, or want to build something together? Reach me at{" "}
+            Have an idea, found a bug, or want to build something together? Reach me at{" "}
             <a
               href="mailto:data@draftmap.app"
               className="text-dm-text underline decoration-dm-accent decoration-2 underline-offset-2 hover:text-dm-accent transition-colors"
             >
               ✉ data@draftmap.app
             </a>
-            . DraftMap is a labor of love, and I read every message.
+            . DraftMap is a labor of love, and I personally read every message.
           </p>
 
           <Link
@@ -454,28 +455,28 @@ function OrientationKey() {
   ];
   return (
     <div>
-      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611", marginBottom: 10 }}>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611", marginBottom: 10 }}>
         How to read it
       </p>
       <div className="relative">
         <div
           aria-hidden
           className="absolute"
-          style={{ left: 8.75, top: 20, bottom: 20, width: 1.5, background: "#e3c98f", zIndex: 0 }}
+          style={{ left: 8.75, top: 26, bottom: 26, width: 1.5, background: "#e3c98f", zIndex: 0 }}
         />
         {rows.map((r) => (
-          <div key={r.num} className="flex items-center gap-2.5" style={{ height: 40 }}>
+          <div key={r.num} className="flex items-center gap-2.5" style={{ height: 52 }}>
             <span
               className="relative flex shrink-0 items-center justify-center"
               style={{
-                width: 19,
-                height: 19,
+                width: 21,
+                height: 21,
                 borderRadius: 9999,
                 border: "1.5px solid #B8860B",
                 background: IVORY,
                 fontFamily: "Inter, sans-serif",
                 fontWeight: 600,
-                fontSize: 9,
+                fontSize: 10,
                 color: "#9a7611",
                 zIndex: 1,
               }}
@@ -485,13 +486,13 @@ function OrientationKey() {
             <span className="min-w-0">
               <span
                 className="block"
-                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239", lineHeight: 1.1 }}
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239", lineHeight: 1.1 }}
               >
                 {r.label}
               </span>
               <span
                 className="block"
-                style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.25 }}
+                style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78", lineHeight: 1.25 }}
               >
                 {r.sub}
               </span>
@@ -508,27 +509,27 @@ function OrientationKey() {
 function MethodNotes() {
   return (
     <div>
-      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}>
         The two measures
       </p>
       <div className="mt-3">
-        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
           Playing time
         </p>
-        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78", lineHeight: 1.4 }}>
           A coaching decision, not opinion.
         </p>
       </div>
       <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
       <div>
-        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
           Market value
         </p>
-        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78", lineHeight: 1.4 }}>
           Guaranteed money after the rookie deal.
         </p>
       </div>
-      <p className="mt-3" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontStyle: "italic", fontSize: 10, color: "#5a6b78" }}>
+      <p className="mt-3" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontStyle: "italic", fontSize: 11, color: "#9a7611" }}>
         Both normalized by position.
       </p>
     </div>
@@ -544,19 +545,19 @@ function SourcesNote() {
     <div>
       <p
         className="border-b pb-1.5"
-        style={{ borderColor: "#e2dac9", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}
+        style={{ borderColor: "#e2dac9", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}
       >
         Sources
       </p>
 
       <div className="mt-3">
-        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
           Merrick et al.
         </p>
-        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78", lineHeight: 1.4 }}>
           VCU &amp; Wharton &mdash; draft value &amp; the second contract.
         </p>
-        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#9a7611", lineHeight: 1.5 }}>
+        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 11.5, color: "#9a7611", lineHeight: 1.5 }}>
           <a href="https://ssrn.com/abstract=5035307" target="_blank" rel="noopener" className={link}>
             SSRN 5035307
           </a>
@@ -570,13 +571,13 @@ function SourcesNote() {
       <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
 
       <div>
-        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
           Massey &amp; Thaler
         </p>
-        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78", lineHeight: 1.4 }}>
           <span style={{ fontStyle: "italic" }}>The Loser&rsquo;s Curse</span> (2013).
         </p>
-        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#9a7611", lineHeight: 1.5 }}>
+        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 11.5, color: "#9a7611", lineHeight: 1.5 }}>
           <a href="https://ssrn.com/abstract=697121" target="_blank" rel="noopener" className={link}>
             SSRN 697121
           </a>
@@ -586,36 +587,25 @@ function SourcesNote() {
   );
 }
 
-// §Letting-the-league-answer closer: a diminished embedded recap, in the prose
-// column. Quieter than the Merrick pull-quote — smaller body, upright, no
-// attribution, no gold left-border. A single gold-underlined seed phrase.
-function PutPlainly() {
+// §The-unexpected-challenge: a small margin note on measurement. Type + a quiet
+// flowchart glyph (model inputs → a single output), then one diminished line
+// ceding the contest to NFL front offices.
+function AlgorithmNote() {
   return (
-    <div className="mt-6">
-      <div className="border-t" style={{ borderColor: "#e2dac9" }} />
-      <p
-        className="mt-4"
-        style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#a99a78" }}
-      >
-        Put plainly
+    <div>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611", marginBottom: 10 }}>
+        Measuring Performance
       </p>
-      <p
-        className="mt-2"
-        style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 15, color: "#2A3F50", lineHeight: 1.6, maxWidth: "60ch" }}
-      >
-        Even if I had access to every performance metric and could somehow build a
-        position-specific model to grade every player, which I&rsquo;m not sure is even
-        possible, it still couldn&rsquo;t beat the outcome given by{" "}
-        <span style={{ color: "#0B2239", fontWeight: 500, borderBottom: "2px solid #D4A017", paddingBottom: 1 }}>
-          the league&rsquo;s open market
-        </span>
-        . NFL front offices have more firepower and more on the line than I ever will.
-      </p>
-      <p
-        className="mt-4"
-        style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontSize: 20, color: "#0B2239", lineHeight: 1.2 }}
-      >
-        There&rsquo;s no out-analyzing that.
+      <svg width="60" height="60" viewBox="0 0 64 64" fill="none" stroke="#0B2239" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: "block", margin: "2px auto 0" }}>
+        <rect x="24" y="5" width="16" height="11" rx="2.5" />
+        <rect x="5" y="28" width="16" height="11" rx="2.5" />
+        <rect x="43" y="28" width="16" height="11" rx="2.5" />
+        <circle cx="32" cy="53" r="6.5" />
+        <path d="M32,16 V22 M13,22 H51 M13,22 V28 M51,22 V28" />
+        <path d="M13,39 V46 H32 M51,39 V46 H32 M32,46 V46.5" />
+      </svg>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#2A3F50", lineHeight: 1.5, marginTop: 10 }}>
+        No algorithm beats an NFL front office. They have more firepower and more at stake than I&rsquo;ll ever have.
       </p>
     </div>
   );
