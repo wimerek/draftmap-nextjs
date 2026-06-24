@@ -140,6 +140,7 @@ export default async function AboutPage() {
 
       {/* ── Main column — single, full main-width ───────────────────────────── */}
       <main className="min-w-0 flex-1 px-8 py-12 sm:px-12">
+        <div className="mx-auto w-full max-w-[900px]">
         {/* ① Hook (full width) — only slightly larger than the headers */}
         <section className="mb-12">
           <p
@@ -162,20 +163,23 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        {/* ③ What-it-is (moved after the chart) */}
-        <section className="mb-16 max-w-[68ch]">
-          <h2 id="what-is-draftmap" className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text" style={heading}>
-            What is DraftMap?
-          </h2>
-          <p className="text-base sm:text-lg text-[#2A3F50] leading-relaxed">
-            DraftMap is a map of the NFL Draft. It lays out, in a single view, what the
-            consensus projected, how teams actually drafted, and what became of every pick.
-            You can take in a full class all at once and explore at your own pace.
-          </p>
+        {/* ③ What-it-is — first row of the editorial grid; orientation key in the margin */}
+        <section className="mb-16">
+          <EditorialRow aside={<OrientationKey />}>
+            <h2 id="what-is-draftmap" className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text" style={heading}>
+              What is DraftMap?
+            </h2>
+            <p className="text-base sm:text-lg text-[#2A3F50] leading-relaxed">
+              DraftMap is a map of the NFL Draft. It lays out, in a single view, what the
+              consensus projected, how teams actually drafted, and what became of every pick.
+              You can take in a full class all at once and explore at your own pace.
+            </p>
+          </EditorialRow>
         </section>
 
-        {/* ④ Narrative — single column, readable measure */}
-        <section className="max-w-[72ch]">
+        {/* ④ Narrative — editorial grid: prose + (mostly sparse) margin */}
+        <section>
+          {/* Why It Exists — margin intentionally clear (the "rest beat") */}
           <NarrativeSection id="why-it-exists" title="Why It Exists">
             <p>
               Leading up to the draft, the coverage piles up: rankings, mock
@@ -207,7 +211,7 @@ export default async function AboutPage() {
             <p>
               There&rsquo;s no shortage of opinions, and I&rsquo;m no scout, so most
               are better than mine. But the honest truth is that even the scouts and
-              front offices are guessing to some degree.
+              front offices are guessing on draft night.
             </p>
             <p>
               So, underneath it all, one question kept surfacing: is there an
@@ -220,64 +224,83 @@ export default async function AboutPage() {
             </p>
           </NarrativeSection>
 
-          <NarrativeSection id="letting-the-league-answer" title="Letting the League Answer">
-            <p>
-              It does. And the answer, surprisingly, comes from the league itself.
-            </p>
-            <p>
-              Part of it is playing time. A team can only field eleven men at once,
-              so how often a draft pick plays isn&rsquo;t opinion. It&rsquo;s a
-              deliberate decision by the coaching staff.
-            </p>
-            <p>
-              But playing time only gets us halfway. Every team plays its best
-              players, but some teams&rsquo; best are better than others.
-            </p>
-            <p>
-              The full answer arrives when a player&rsquo;s rookie deal ends and the
-              league&rsquo;s open market sets his value, in guaranteed money. Real
-              dollars. Real cap space. Front office jobs on the line.
-            </p>
-            <p>
-              Neither measure is perfect. But together they&rsquo;re the closest the
-              sport has to an objective measure of a player&rsquo;s value.
-            </p>
-            <p>
-              DraftMap normalizes both by position so they&rsquo;re comparable, and
-              that&rsquo;s it.
-            </p>
-            <p>
-              I&rsquo;m not asking you to trust my opinion, because I don&rsquo;t
-              offer one. I just show you what the league decided.
-            </p>
-          </NarrativeSection>
+          {/* Letting the League Answer — method notes in the margin; a diminished
+              "Put plainly" recap closes the prose column. */}
+          <EditorialRow className="mb-12 last:mb-0" aside={<MethodNotes />}>
+            <h2
+              id="letting-the-league-answer"
+              className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text"
+              style={heading}
+            >
+              Letting the League Answer
+            </h2>
+            <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
+              <p>
+                It does. And the answer, surprisingly, comes from the league itself.
+              </p>
+              <p>
+                Part of it is playing time. A team can only field eleven men at once,
+                so how often a draft pick plays isn&rsquo;t opinion. It&rsquo;s a
+                deliberate decision by the coaching staff.
+              </p>
+              <p>
+                But playing time only gets us halfway. Every team plays its best
+                players, but some teams&rsquo; best are better than others.
+              </p>
+              <p>
+                The full answer arrives when a player&rsquo;s rookie deal ends and the
+                league&rsquo;s open market sets his value, in guaranteed money. Real
+                dollars. Real cap space. Front office jobs on the line.
+              </p>
+              <p>
+                Neither measure is perfect. But together they&rsquo;re the closest the
+                sport has to an objective measure of a player&rsquo;s value.
+              </p>
+              <p>
+                DraftMap normalizes both by position so they&rsquo;re comparable, and
+                that&rsquo;s it.
+              </p>
+              <p>
+                I&rsquo;m not asking you to trust my opinion, because I don&rsquo;t
+                offer one. I just show you what the league decided.
+              </p>
+            </div>
+            <PutPlainly />
+          </EditorialRow>
         </section>
 
-        {/* ⑤ Credibility band */}
-        <section className="mt-16 max-w-[72ch] border-t border-[#e2dac9] pt-10">
-          <h2 id="we-werent-the-only-ones" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
-            We Weren&rsquo;t the Only Ones
-          </h2>
-          <div className="mt-4 space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
-            <p>
-              While reasoning these concepts out on my own for DraftMap, I was stunned
-              to learn that others had reached the same conclusion, only far more
-              rigorously.
-            </p>
-            <p>
-              Researchers led by Jason Merrick of Virginia Commonwealth University,
-              with Wharton&rsquo;s Cade Massey among them, had landed on the same
-              measure of true draft value: a player&rsquo;s second contract as a share
-              of the cap. An NFL team had handed them twelve years of its private
-              scouting data to work from. Their study is far more comprehensive than
-              anything I could do, and Massey himself co-wrote &ldquo;The Loser&rsquo;s
-              Curse,&rdquo; the foundational study of how teams overvalue their top
-              draft picks.
-            </p>
+        {/* ⑤ Credibility band — full-width breakout pull-quote + Sources sidenote */}
+        <section className="mt-16 border-t border-[#e2dac9] pt-10">
+          {/* Intro — prose measure, empty gutter */}
+          <div className="lg:max-w-[68ch]">
+            <h2 id="we-werent-the-only-ones" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
+              We Weren&rsquo;t the Only Ones
+            </h2>
+            <div className="mt-4 space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
+              <p>
+                While reasoning these concepts out on my own for DraftMap, I was stunned
+                to learn that others had reached the same conclusion, only far more
+                rigorously.
+              </p>
+              <p>
+                Researchers led by Jason Merrick of Virginia Commonwealth University,
+                with Wharton&rsquo;s Cade Massey among them, had landed on the same
+                measure of true draft value: a player&rsquo;s second contract as a share
+                of the cap. An NFL team had handed them twelve years of its private
+                scouting data to work from. Their study is far more comprehensive than
+                anything I could do, and Massey himself co-wrote &ldquo;The Loser&rsquo;s
+                Curse,&rdquo; the foundational study of how teams overvalue their top
+                draft picks.
+              </p>
+            </div>
           </div>
 
-          {/* Merrick pull-quote — the prediction-vs-outcome framing */}
-          <figure className="my-7 border-l-[3px] pl-5" style={{ borderColor: GOLD }}>
+          {/* Merrick pull-quote — TRUE full-width breakout (prose + gutter), the
+              section's "exhale" between the intro and the closing paragraph. */}
+          <figure
+            className="my-7 border-l-[3px] pl-5 lg:max-w-none w-full"
+            style={{ borderColor: GOLD }}
+          >
             <blockquote
               className="text-lg sm:text-xl leading-snug text-dm-text"
               style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic" }}
@@ -292,33 +315,48 @@ export default async function AboutPage() {
             </figcaption>
           </figure>
 
-          <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
-            <p>
-              For the details, I defer to{" "}
-              <a
-                href="https://ssrn.com/abstract=5035307"
-                target="_blank"
-                rel="noopener"
-                className="text-dm-text underline decoration-dm-accent decoration-2 underline-offset-2 hover:text-dm-accent transition-colors"
-              >
-                their Wharton School research paper
-              </a>
-              . It&rsquo;s exceptional, and well worth your time. (See also the{" "}
-              <a
-                href="https://news.vcu.edu/article/nfl-draft-statistical-modeling-research"
-                target="_blank"
-                rel="noopener"
-                className="text-dm-text underline decoration-dm-accent decoration-2 underline-offset-2 hover:text-dm-accent transition-colors"
-              >
-                VCU write-up
-              </a>
-              .)
-            </p>
-          </div>
+          {/* Closing paragraph (de-linked prose) + Sources sidenote */}
+          <EditorialRow aside={<SourcesNote />}>
+            <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
+              <p>
+                For the details, I defer to their Wharton School research paper.
+                It&rsquo;s exceptional, and well worth your time. (See also the VCU
+                write-up.)
+              </p>
+            </div>
+          </EditorialRow>
         </section>
 
-        {/* ⑥ Get in Touch */}
-        <section className="mt-16 max-w-[72ch] border-t border-[#e2dac9] pt-10">
+        {/* ⑥ Get in Touch — founder photo + signature move into the gutter */}
+        <EditorialRow
+          className="mt-16 border-t border-[#e2dac9] pt-10"
+          aside={
+            <div className="flex flex-col items-start gap-3">
+              {/* Founder photo + signature.
+                  Default treatment is pure grayscale (shipped). To preview the soft
+                  navy-duotone alternative in-browser, swap the filter below to:
+                  filter: "grayscale(100%) sepia(40%) hue-rotate(175deg) saturate(180%) brightness(0.92)" */}
+              <Image
+                src="/brand/derek.png"
+                alt="Derek, founder of DraftMap"
+                width={66}
+                height={66}
+                className="object-cover"
+                style={{
+                  borderRadius: 9999,
+                  filter: "grayscale(100%)",
+                  boxShadow: "0 0 0 1px #e2dac9",
+                }}
+              />
+              <span
+                className="text-dm-text"
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic", fontSize: 20 }}
+              >
+                — Derek
+              </span>
+            </div>
+          }
+        >
           <h2 id="get-in-touch" className="scroll-mt-24 text-xl sm:text-2xl text-dm-text" style={heading}>
             Get in Touch
           </h2>
@@ -333,38 +371,13 @@ export default async function AboutPage() {
             . DraftMap is a labor of love, and I read every message.
           </p>
 
-          {/* Founder photo + signature.
-              Default treatment is pure grayscale (shipped). To preview the soft
-              navy-duotone alternative in-browser, swap the filter below to:
-              filter: "grayscale(100%) sepia(40%) hue-rotate(175deg) saturate(180%) brightness(0.92)" */}
-          <div className="mt-6 flex items-center gap-4">
-            <Image
-              src="/brand/derek.png"
-              alt="Derek, founder of DraftMap"
-              width={60}
-              height={60}
-              className="object-cover"
-              style={{
-                borderRadius: 9999,
-                filter: "grayscale(100%)",
-                boxShadow: "0 0 0 1px #e2dac9",
-              }}
-            />
-            <span
-              className="text-lg text-dm-text"
-              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontStyle: "italic" }}
-            >
-              — Derek
-            </span>
-          </div>
-
           <Link
             href="/draft"
             className="mt-8 inline-flex items-center gap-2 rounded-md bg-dm-accent px-6 py-3 text-base font-semibold text-dm-text shadow-sm transition-opacity hover:opacity-90"
           >
             Open the map →
           </Link>
-        </section>
+        </EditorialRow>
 
         {/* ⑦ Footer copyright */}
         <footer className="mt-16 border-t border-[#e2dac9] pt-6 pb-4 max-w-[72ch]">
@@ -375,7 +388,32 @@ export default async function AboutPage() {
             © 2026 DraftMap · draftmap.app
           </Link>
         </footer>
+        </div>
       </main>
+    </div>
+  );
+}
+
+// ── Editorial grid ─────────────────────────────────────────────────────────
+// Prose (≤68ch, left) + margin/aside (~232px, right) with a ~3rem gutter.
+// Hero sections (hook + Sankey) sit OUTSIDE this grid; everything below uses it.
+// The lg: breakpoint is defensive — if mobile mode is ever re-enabled the aside
+// stacks below the prose. Margin content is never hidden.
+function EditorialRow({
+  aside,
+  className = "",
+  children,
+}: {
+  aside?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-1 gap-y-3 lg:grid-cols-[minmax(0,1fr)_200px] lg:gap-x-10 lg:items-start ${className}`}
+    >
+      <div className="min-w-0">{children}</div>
+      <aside className="lg:pt-1">{aside}</aside>
     </div>
   );
 }
@@ -383,20 +421,202 @@ export default async function AboutPage() {
 function NarrativeSection({
   id,
   title,
+  aside,
   children,
 }: {
   id: string;
   title: string;
+  aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-12 last:mb-0">
+    <EditorialRow className="mb-12 last:mb-0" aside={aside}>
       <h2 id={id} className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text" style={heading}>
         {title}
       </h2>
       <div className="space-y-4 text-base sm:text-lg text-[#2A3F50] leading-relaxed">
         {children}
       </div>
+    </EditorialRow>
+  );
+}
+
+// ── Margin asides ──────────────────────────────────────────────────────────
+
+// §What-is: the orientation key — a "connected rail" of I/II/III. Numerals,
+// not colored dots, carry the structure; labels use the tagline words
+// (Projection/Selection/Outcome), withholding the chart's act names.
+function OrientationKey() {
+  const rows = [
+    { num: "I", label: "Projection", sub: "Where the consensus ranked them" },
+    { num: "II", label: "Selection", sub: "Where teams drafted them" },
+    { num: "III", label: "Outcome", sub: "What became of them" },
+  ];
+  return (
+    <div>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611", marginBottom: 10 }}>
+        How to read it
+      </p>
+      <div className="relative">
+        <div
+          aria-hidden
+          className="absolute"
+          style={{ left: 8.75, top: 20, bottom: 20, width: 1.5, background: "#e3c98f", zIndex: 0 }}
+        />
+        {rows.map((r) => (
+          <div key={r.num} className="flex items-center gap-2.5" style={{ height: 40 }}>
+            <span
+              className="relative flex shrink-0 items-center justify-center"
+              style={{
+                width: 19,
+                height: 19,
+                borderRadius: 9999,
+                border: "1.5px solid #B8860B",
+                background: IVORY,
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                fontSize: 9,
+                color: "#9a7611",
+                zIndex: 1,
+              }}
+            >
+              {r.num}
+            </span>
+            <span className="min-w-0">
+              <span
+                className="block"
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239", lineHeight: 1.1 }}
+              >
+                {r.label}
+              </span>
+              <span
+                className="block"
+                style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.25 }}
+              >
+                {r.sub}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// §Letting-the-league-answer: two method notes. Type only — no numerals
+// (reserved for the acts), no icons, no color. ONE hairline between the items.
+function MethodNotes() {
+  return (
+    <div>
+      <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}>
+        The two measures
+      </p>
+      <div className="mt-3">
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+          Playing time
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+          A coaching decision, not opinion.
+        </p>
+      </div>
+      <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
+      <div>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+          Market value
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+          Guaranteed money after the rookie deal.
+        </p>
+      </div>
+      <p className="mt-3" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontStyle: "italic", fontSize: 10, color: "#5a6b78" }}>
+        Both normalized by position.
+      </p>
+    </div>
+  );
+}
+
+// §We-werent-the-only-ones: the citations, moved out of the prose into a quiet
+// Sources sidenote. Two entries, hairline between; gold-underline link style.
+function SourcesNote() {
+  const link =
+    "underline decoration-dm-accent decoration-2 underline-offset-2 transition-opacity hover:opacity-70";
+  return (
+    <div>
+      <p
+        className="border-b pb-1.5"
+        style={{ borderColor: "#e2dac9", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}
+      >
+        Sources
+      </p>
+
+      <div className="mt-3">
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+          Merrick et al.
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+          VCU &amp; Wharton &mdash; draft value &amp; the second contract.
+        </p>
+        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#9a7611", lineHeight: 1.5 }}>
+          <a href="https://ssrn.com/abstract=5035307" target="_blank" rel="noopener" className={link}>
+            SSRN 5035307
+          </a>
+          <span style={{ color: "#a99a78" }}> &middot; </span>
+          <a href="https://news.vcu.edu/article/nfl-draft-statistical-modeling-research" target="_blank" rel="noopener" className={link}>
+            VCU write-up
+          </a>
+        </p>
+      </div>
+
+      <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
+
+      <div>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 13, color: "#0B2239" }}>
+          Massey &amp; Thaler
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10.5, color: "#5a6b78", lineHeight: 1.4 }}>
+          <span style={{ fontStyle: "italic" }}>The Loser&rsquo;s Curse</span> (2013).
+        </p>
+        <p className="mt-1.5" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#9a7611", lineHeight: 1.5 }}>
+          <a href="https://ssrn.com/abstract=697121" target="_blank" rel="noopener" className={link}>
+            SSRN 697121
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// §Letting-the-league-answer closer: a diminished embedded recap, in the prose
+// column. Quieter than the Merrick pull-quote — smaller body, upright, no
+// attribution, no gold left-border. A single gold-underlined seed phrase.
+function PutPlainly() {
+  return (
+    <div className="mt-6">
+      <div className="border-t" style={{ borderColor: "#e2dac9" }} />
+      <p
+        className="mt-4"
+        style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#a99a78" }}
+      >
+        Put plainly
+      </p>
+      <p
+        className="mt-2"
+        style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 15, color: "#2A3F50", lineHeight: 1.6, maxWidth: "60ch" }}
+      >
+        Even if I had access to every performance metric and could somehow build a
+        position-specific model to grade every player, which I&rsquo;m not sure is even
+        possible, it still couldn&rsquo;t beat the outcome given by{" "}
+        <span style={{ color: "#0B2239", fontWeight: 500, borderBottom: "2px solid #D4A017", paddingBottom: 1 }}>
+          the league&rsquo;s open market
+        </span>
+        . NFL front offices have more firepower and more on the line than I ever will.
+      </p>
+      <p
+        className="mt-4"
+        style={{ fontFamily: "Oswald, sans-serif", fontWeight: 500, fontSize: 20, color: "#0B2239", lineHeight: 1.2 }}
+      >
+        There&rsquo;s no out-analyzing that.
+      </p>
     </div>
   );
 }
