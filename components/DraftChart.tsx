@@ -216,11 +216,27 @@ function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCoun
  * a 70th percentile can never be read as the same number.
  */
 function Sparkline({ points }: { points: Array<{ season: number; value: number | null }> }) {
-  const W = 132, H = 26, PAD = 4;
+  const W = 132, H = 32, PAD = 4;
+  // Y-axis auto-scales to THIS player's own min/max rather than a fixed 0–100%, which
+  // otherwise compresses real usage movement into a few pixels. The hover headline
+  // carries the absolute percentile; the sparkline carries the SHAPE. MIN_SPAN sets a
+  // floor on the visible window so a trivial wiggle doesn't fill the canvas and read as
+  // a cliff — set to 0 for pure min/max auto-scale.
+  const MIN_SPAN = 0.12;
   const pts = points.filter(p => p.value != null) as Array<{ season: number; value: number }>;
   if (pts.length === 0) return null;
   const xs = pts.map((_, i) => pts.length === 1 ? W / 2 : PAD + (i / (pts.length - 1)) * (W - 2 * PAD));
-  const ys = pts.map(p => PAD + (1 - Math.max(0, Math.min(1, p.value))) * (H - 2 * PAD));
+  const vals = pts.map(p => Math.max(0, Math.min(1, p.value)));
+  const vMin = Math.min(...vals);
+  const vMax = Math.max(...vals);
+  const mid = (vMin + vMax) / 2;
+  const lo = Math.min(vMin, mid - MIN_SPAN / 2);
+  const hi = Math.max(vMax, mid + MIN_SPAN / 2);
+  const span = hi - lo;
+  const usableH = H - 2 * PAD;
+  const ys = vals.map(v => span < 1e-6
+    ? PAD + usableH / 2
+    : PAD + (1 - (v - lo) / span) * usableH);
   const path = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
   return (
     <svg width={W} height={H} style={{ display: "block", marginTop: 4 }}>

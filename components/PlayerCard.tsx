@@ -422,25 +422,25 @@ type StatCol = {
 
 const STAT_COLUMNS: Partial<Record<string, StatCol[]>> = {
   QB: [
-    { header: 'YDS',  getValue: (r) => r.passYards,    isTotalsSum: true },
+    { header: 'PASS YDS', getValue: (r) => r.passYards, isTotalsSum: true },
     { header: 'TD',   getValue: (r) => r.passTDs,      isTotalsSum: true },
     { header: 'INT',  getValue: (r) => r.intsThrownQB ?? null, isTotalsSum: true },
-    { header: 'RUSH', getValue: (r) => r.rushYards,    isTotalsSum: true },
+    { header: 'RUSH YDS', getValue: (r) => r.rushYards, isTotalsSum: true },
   ],
   RB: [
-    { header: 'RUSH', getValue: (r) => r.rushYards,    isTotalsSum: true },
-    { header: 'REC',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'RUSH YDS', getValue: (r) => r.rushYards, isTotalsSum: true },
+    { header: 'REC YDS', getValue: (r) => r.recYards, isTotalsSum: true },
     { header: 'TD',   getValue: (r) => (r.rushTDs ?? 0) + (r.recTDs ?? 0), isTotalsSum: true },
     { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
   ],
   WR: [
-    { header: 'YDS',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'REC YDS', getValue: (r) => r.recYards, isTotalsSum: true },
     { header: 'TD',   getValue: (r) => r.recTDs,       isTotalsSum: true },
     { header: 'REC',  getValue: (r) => r.receptions,   isTotalsSum: true },
     { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
   ],
   TE: [
-    { header: 'YDS',  getValue: (r) => r.recYards,     isTotalsSum: true },
+    { header: 'REC YDS', getValue: (r) => r.recYards, isTotalsSum: true },
     { header: 'TD',   getValue: (r) => r.recTDs,       isTotalsSum: true },
     { header: 'REC',  getValue: (r) => r.receptions,   isTotalsSum: true },
     { header: 'SNP%', getValue: (r) => r.snapPct,      isTotalsSum: false },
@@ -604,10 +604,10 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     if (currentStepId === 'veteran') {
       return player.stepScores.find(s => s.stepId === 'veteran')?.score ?? null
     }
-    // Act 3 field beat ('act3' synthetic step). The field represents rookie-contract
-    // usage, so the big number mirrors the table's "Rookie Contract" totals row.
-    // Fall back to career (outcomeScore) when no rookie-contract score exists.
-    if (currentStepId === 'act3') {
+    // Act 1 ('projection'), Act 2 ('draft'), and the Act 3 field beat ('act3') all show
+    // the rookie-contract usage summary (→ career fallback). The big number mirrors the
+    // table's "Rookie Contract" totals row and stays consistent across every act.
+    if (currentStepId === 'act3' || currentStepId === 'projection' || currentStepId === 'draft') {
       return player.stepScores.find(s => s.stepId === 'rookie-contract')?.score
         ?? player.outcomeScore
         ?? null
@@ -622,7 +622,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
     if (currentStepId === 'career') return 'Career'
     if (currentStepId === 'rookie-contract') return 'RC'
     if (currentStepId === 'veteran') return 'Vet'
-    if (currentStepId === 'act3') return 'RC'
+    if (currentStepId === 'act3' || currentStepId === 'projection' || currentStepId === 'draft') return 'RC'
     return null
   }, [currentStepId])
 
