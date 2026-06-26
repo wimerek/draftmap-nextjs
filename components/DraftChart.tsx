@@ -666,11 +666,23 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [yearPulseKey, setYearPulseKey] = useState(0);
   const speedRef        = useRef(speed);
   const pausedRef       = useRef(paused);
-  const animTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const animEndAtRef    = useRef(0);   // performance.now() timestamp the 1→2 anim ends
-  const animRemainingRef = useRef(0);  // remaining ms captured at pause
   useEffect(() => { speedRef.current = speed; }, [speed]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
+
+  // ── Act 1→2 master frame clock (brief 2026-06-25) ────────────────────────────
+  // The visible projection→draft-results dot motion is now driven by ONE rAF-advanced
+  // clock owned here (replaces the fire-and-forget CSS transition that Pause could not
+  // stop). `oneToTwoElapsedMs` is null when not in the chapter, a number (0…total) while
+  // running/paused; PlayerDots interpolates every dot from it. elapsedRef is the source
+  // of truth the rAF loop mutates; the state mirror drives render. totalDurationRef is
+  // captured at chapter start = dotPositions.length*22 + 550 (the SAME stagger window the
+  // retired oneToTwoDurationMs used). Speed multiplies the per-frame advance, so the clock
+  // reaches `total` faster — it does NOT shrink `total`.
+  const [oneToTwoElapsedMs, setOneToTwoElapsedMs] = useState<number | null>(null);
+  const oneToTwoRafRef   = useRef<number | null>(null);
+  const lastFrameTsRef   = useRef<number>(0);
+  const elapsedRef       = useRef<number>(0);
+  const totalDurationRef = useRef<number>(0);
 
   // ── Beat-3 ('act3') field — DERIVED at render time, not captured at click ──
   // selectClassState on an empty players array returns 'floor'; deriving here
@@ -1400,14 +1412,87 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return () => clearTimeout(t);
   }, [isFieldMode, isAnimating]);
 
+  // ── Transport: 1→2 master-clock helpers (speed + pause aware) ────────────────
+  // The per-dot 550ms ease + i*22ms stagger is preserved EXACTLY (PlayerDots, DO-NOT-
+  // TOUCH the numbers) — only its driver moved from a CSS transition to this rAF clock so
+  // Pause can freeze it. cancelOneToTwo = sanitize (kill rAF + clear chapter flags), used
+  // on every act-nav site so no zombie "paused-forever" state rides along. commitOneToTwo
+  // = sanitize THEN land on draft (clock-end or Skip). startOneToTwo = run the clock 0→total.
+  // Declared here (before the nav handlers) so every act-nav site can list it as a dep
+  // without hitting a temporal-dead-zone reference.
+  const cancelOneToTwo = useCallback(() => {
+    if (oneToTwoRafRef.current != null) { cancelAnimationFrame(oneToTwoRafRef.current); oneToTwoRafRef.current = null; }
+    elapsedRef.current = 0;
+    setOneToTwoElapsedMs(null);
+    setIsAnimating(false);
+    setPaused(false);
+  }, []);
+
+  const commitOneToTwo = useCallback(() => {
+    cancelOneToTwo();
+    setViewMode('drafted');
+    setCurrentStepId('draft');
+  }, [cancelOneToTwo]);
+
+  const startOneToTwo = useCallback(() => {
+    if (oneToTwoRafRef.current != null) { cancelAnimationFrame(oneToTwoRafRef.current); oneToTwoRafRef.current = null; }
+    // viewMode='drafted' up front matches today (UDFA zone / labels appear at play start);
+    // during the chapter PlayerDots interpolates from the clock regardless of viewMode.
+    setViewMode('drafted');
+
+    // Reduced motion: skip the rAF entirely — instant snap to drafted (no-motion contract).
+    if (prefersReduced.current) {
+      commitOneToTwo();
+      return;
+    }
+
+    totalDurationRef.current = dotPositions.length * 22 + 550;
+    elapsedRef.current  = 0;
+    lastFrameTsRef.current = 0; // sentinel — seeded on the first frame
+    setIsAnimating(true);
+    setPaused(false);
+    setOneToTwoElapsedMs(0);
+
+    const frame = (ts: number) => {
+      if (lastFrameTsRef.current === 0) lastFrameTsRef.current = ts;
+      // Paused: keep lastFrameTs fresh so no time accrues, but do not advance the clock.
+      if (pausedRef.current) {
+        lastFrameTsRef.current = ts;
+        oneToTwoRafRef.current = requestAnimationFrame(frame);
+        return;
+      }
+      const delta = ts - lastFrameTsRef.current;
+      lastFrameTsRef.current = ts;
+      elapsedRef.current = Math.min(
+        elapsedRef.current + delta * speedRef.current,
+        totalDurationRef.current,
+      );
+      if (elapsedRef.current >= totalDurationRef.current) {
+        // At elapsed=total every dot's localT ≥ 1 (p=1), so the committed snap matches
+        // the final interpolated frame — no one-frame pop.
+        commitOneToTwo();
+        return;
+      }
+      setOneToTwoElapsedMs(elapsedRef.current);
+      oneToTwoRafRef.current = requestAnimationFrame(frame);
+    };
+    oneToTwoRafRef.current = requestAnimationFrame(frame);
+  }, [dotPositions.length, commitOneToTwo]);
+
+  // Tear down the rAF clock if the component unmounts mid-chapter.
+  useEffect(() => () => {
+    if (oneToTwoRafRef.current != null) cancelAnimationFrame(oneToTwoRafRef.current);
+  }, []);
+
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
     hints.recordInteraction('year'); // funnel: class_switched (+ hint_clicked if nudged)
+    cancelOneToTwo(); // a year switch fired mid-1→2 must not leave a zombie chapter
     setSelectedYear(newYear);
     setCurrentStepId('projection');
     setIsPlaying(false);
     router.replace(`/draft/${newYear}`, { scroll: false });
-  }, [router, hints]);
+  }, [router, hints, cancelOneToTwo]);
 
   // ── Player search teleport (brief f, item 3) ────────────────────────────────
   // Resolve a pending teleport once the destination class's SCORED data is in (landing
@@ -1422,11 +1507,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     const state = selectClassState(players, selectedYear);
     const classHasPicks = players.some(p => p.drafted);
     const landingStep = state === 'floor' ? (classHasPicks ? 'draft' : 'projection') : 'act3';
+    cancelOneToTwo(); // a search teleport fired mid-1→2 must not leave a zombie chapter
     setCurrentStepId(landingStep);
     setOpenPlayer(player);
     setHighlightedPlayerId(player.player_id);
     pendingTeleportRef.current = null;
-  }, [players, selectedYear, scoredReady]);
+  }, [players, selectedYear, scoredReady, cancelOneToTwo]);
 
   const handleSearchSelect = useCallback((entry: SearchIndexEntry) => {
     pendingTeleportRef.current = { playerId: entry.player_id, year: entry.draft_year };
@@ -1456,26 +1542,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return () => window.removeEventListener('keydown', onEsc);
   }, [highlightedPlayerId, openPlayer]);
 
-  // ── Transport: 1→2 animation scheduler (speed + pause aware) ─────────────────
-  // The per-dot CSS easing (550ms) lives in PlayerDots (DO-NOT-TOUCH); speed scales
-  // the DraftChart-owned STAGGER SCHEDULE — the duration after which the draft step
-  // commits. Pause clears this timer and banks the remaining ms; resume reschedules.
-  // Epsilon 5 applies the SAME speed multiplier to its 2→3 sweep.
-  const oneToTwoDurationMs = useCallback(
-    () => (dotPositions.length * 22 + 550) / speedRef.current,
-    [dotPositions.length],
-  );
-  const scheduleAnimEnd = useCallback((ms: number) => {
-    if (animTimerRef.current) clearTimeout(animTimerRef.current);
-    animEndAtRef.current = performance.now() + ms;
-    animTimerRef.current = setTimeout(() => {
-      animTimerRef.current = null;
-      setIsAnimating(false);
-      setPaused(false);
-      setCurrentStepId('draft');
-    }, ms);
-  }, []);
-
   // Shared step-animation logic — used by both manual clicks and auto-play.
   // Does NOT touch isPlaying so auto-play can call it without killing itself.
   const animateToStep = useCallback((stepId: string) => {
@@ -1485,16 +1551,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // Check viewMode (not currentStepId) because the sidebar toggle can set
     // currentStepId='draft' while viewMode stays 'projected'.
     if (stepId === 'draft' && viewMode === 'projected') {
-      setIsAnimating(false);
-      setViewMode("projected");
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimating(true);
-          setViewMode("drafted");
-          scheduleAnimEnd(oneToTwoDurationMs());
-        });
-      });
+      startOneToTwo();
       return;
     }
 
@@ -1513,8 +1570,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       return;
     }
 
+    // Projection (and any other plain step): sanitize the 1→2 chapter so no zombie
+    // isAnimating/paused rides into the destination act, then set the step.
+    cancelOneToTwo();
     setCurrentStepId(stepId);
-  }, [viewMode, dotPositions.length, journeySteps, scheduleAnimEnd, oneToTwoDurationMs]);
+  }, [viewMode, dotPositions.length, journeySteps, startOneToTwo, cancelOneToTwo]);
 
   // Manual step click — stops auto-play then delegates to animateToStep.
   const handleStepChange = useCallback((stepId: string) => {
@@ -1527,13 +1587,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // jump-cut below for its staged pivot+sweep behind the SAME onPlay, untouched cluster.
   const handleTransportSkip = useCallback(() => {
     if (!isAnimatingRef.current) return; // skip only finalizes an in-flight animation
-    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
-    setIsAnimating(false);
-    setPaused(false);
-    setViewMode('drafted');
-    setCurrentStepId('draft');
-    setRestartPulseKey(k => k + 1); // Btn3 pulses once (accidental-skip recovery)
-  }, []);
+    commitOneToTwo();                    // jump clock to end + land on draft
+    setRestartPulseKey(k => k + 1);      // Btn3 pulses once (accidental-skip recovery)
+  }, [commitOneToTwo]);
 
   const handleTransportPlay = useCallback(() => {
     hints.recordInteraction('play'); // funnel: hint_clicked if a play pulse was pending
@@ -1546,36 +1602,29 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // Act 2 → INSTANT JUMP-CUT to Act 3 rest for the selected class (ruling 1; the
     // locked reduced-motion fallback). NOT an animation — Epsilon 5 builds the sweep.
     if (chartMode === 'draft-results') {
+      cancelOneToTwo(); // sanitize before leaving the act (no zombie rides into Act 3)
       setCurrentStepId('act3');
     }
-  }, [animateToStep, chartMode, currentStep, currentStepId, hints]);
+  }, [animateToStep, cancelOneToTwo, chartMode, currentStep, currentStepId, hints]);
 
   const handleTransportPause = useCallback(() => {
     if (!isAnimatingRef.current) return;
-    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
-    animRemainingRef.current = Math.max(0, animEndAtRef.current - performance.now());
-    setPaused(true);
+    setPaused(true); // the rAF loop freezes the clock; dots hold exactly where they are
   }, []);
 
   const handleTransportResume = useCallback(() => {
     if (!isAnimatingRef.current) return;
-    setPaused(false);
-    scheduleAnimEnd(animRemainingRef.current > 0 ? animRemainingRef.current : oneToTwoDurationMs());
-  }, [scheduleAnimEnd, oneToTwoDurationMs]);
+    setPaused(false); // the rAF loop resumes advancing from the frozen elapsed value
+  }, []);
 
   const handleTransportRestart = useCallback(() => {
-    // Re-run / Replay the 1→2 chapter from the projected board.
-    if (animTimerRef.current) { clearTimeout(animTimerRef.current); animTimerRef.current = null; }
-    setPaused(false);
-    setIsAnimating(false);
-    setViewMode('projected');
+    // Re-run / Replay the 1→2 chapter from the projected board. startOneToTwo seats the
+    // clock at 0 (every dot at projected) and runs it; setCurrentStepId('projection')
+    // first keeps the surrounding act state consistent during the replay.
+    cancelOneToTwo();
     setCurrentStepId('projection');
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setIsAnimating(true);
-      setViewMode('drafted');
-      scheduleAnimEnd(oneToTwoDurationMs());
-    }));
-  }, [scheduleAnimEnd, oneToTwoDurationMs]);
+    startOneToTwo();
+  }, [cancelOneToTwo, startOneToTwo]);
 
   const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
 
@@ -1617,14 +1666,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       handleTransportSkip();
       if (beat === 2) return; // second click on the destination beat = skip only
     }
-    if (beat === 1) { animateToStep('projection'); return; }
+    if (beat === 1) { animateToStep('projection'); return; } // sanitizes via cancelOneToTwo
     if (beat === 2) { animateToStep('draft'); return; }
     // Beat 3 — ONE synthetic id. The field is derived at render time from the
     // loaded class data (act3Mode), NOT captured here, so a click fired while a
     // year's fetch is still in flight self-corrects once the data lands (all
     // instant; the 2→3 pivot animation is Epsilon 5 and does not exist yet).
+    cancelOneToTwo(); // sanitize before leaving for Act 3 (no zombie chapter state)
     setCurrentStepId('act3');
-  }, [animateToStep, handleTransportSkip]);
+  }, [animateToStep, handleTransportSkip, cancelOneToTwo]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -1663,6 +1713,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     handlePinTeam(null);
     setHighlightedPlayerId(null);
     setSearchResetKey(k => k + 1);
+    cancelOneToTwo(); // sanitize the 1→2 chapter before the reset snaps to Act 1
     setCurrentStepId('projection');
     if (selectedYear !== CURRENT_DRAFT_YEAR) {
       setSelectedYear(CURRENT_DRAFT_YEAR);
@@ -1670,7 +1721,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     } else {
       updateURL({ pos: null, round: null, team: null, school: null, step: null });
     }
-  }, [handlePinTeam, selectedYear, router, updateURL]);
+  }, [handlePinTeam, selectedYear, router, updateURL, cancelOneToTwo]);
 
   // ── Desktop drag-to-scroll ────────────────────────────────────────────────
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -1930,6 +1981,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 consensusFilter={consensusFilter}
                 classMaxPick={classMaxPick}
                 highlightedId={highlightedPlayerId}
+                oneToTwoElapsedMs={oneToTwoElapsedMs}
               />
               {isZoomedMobile && currentMobilePos && (
                 <MobilePlayerLabels

@@ -51,6 +51,13 @@ interface Props {
   /** Player search (brief f, item 3): dot to spotlight with a glow-ring. Highlights,
    *  never scopes — independent of the filters; rings the located dot only. */
   highlightedId?: string | null;
+  /** Act 1→2 master frame clock (owned by DraftChart). `null` → not in the
+   *  projection→draft-results chapter; PlayerDots behaves exactly as it does today
+   *  (CSS transitions / viewMode snap, all untouched). Non-null → we are mid-chapter:
+   *  interpolate cy/r/strokeWidth/fill per dot FROM this clock with `transition:none`,
+   *  so DraftChart's RAF owns every frame and Pause can freeze it. See the per-dot
+   *  block below. */
+  oneToTwoElapsedMs?: number | null;
 }
 
 // ── Filter function ────────────────────────────────────────────────────────────
@@ -104,6 +111,25 @@ function deltaToRadius(delta: number): number {
   return BASE_R + DOT_SURPRISE_GROWTH * (1 - Math.exp(-delta / DOT_SURPRISE_SATURATION));
 }
 
+// ── RGB lerp (Act 1→2 frame clock) ──────────────────────────────────────────────
+// The dot's fill (and stroke) morph from school color → drafted-team color across the
+// 1→2 chapter. All SCHOOL_COLORS/TEAM_COLORS values are 6-digit hex (verified), so a
+// straight channel-wise RGB lerp is safe; 3-digit hex is also handled defensively.
+function hexToRgb(hex: string): [number, number, number] {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgbLerp(a: string, b: string, t: number): string {
+  const [r1, g1, b1] = hexToRgb(a);
+  const [r2, g2, b2] = hexToRgb(b);
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const bl = Math.round(b1 + (b2 - b1) * t);
+  return `rgb(${r}, ${g}, ${bl})`;
+}
+
 export default function PlayerDots({
   dotPositions, liveMode, viewMode, chartMode = "projection",
   currentStepId,
@@ -115,6 +141,7 @@ export default function PlayerDots({
   positionFilter, roundFilter, teamFilter, schoolFilter,
   consensusFilter = [], classMaxPick = 0,
   highlightedId,
+  oneToTwoElapsedMs = null,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
@@ -312,13 +339,42 @@ export default function PlayerDots({
 
     const isHighlighted = highlightedId === player.player_id;
 
+    // ── Act 1→2 frame-clock interpolation (DO-NOT-TOUCH the timing numbers) ───────
+    // When oneToTwoElapsedMs is non-null we are mid projection→draft-results chapter,
+    // driven frame-by-frame from DraftChart's master clock so Pause can FREEZE it.
+    // We preserve the LOCKED timing feel exactly — per-dot ease-out over 550ms with an
+    // i*22ms stagger — only moving it from a CSS transition to JS so it can be frozen.
+    // easeOut = 1-(1-t)^3 (easeOutCubic), a close stand-in for CSS `ease-out`. Position
+    // (cy, x constant), size (r), strokeWidth, and fill/stroke (school→team RGB-lerp) all
+    // morph from the SAME p, so a pause freezes them coherently. Scoped to the
+    // projection↔draft boundary: production/career/field modes never enter here
+    // (oneToTwoElapsedMs stays null there), and mobile keeps its own no-anim path.
+    let effCy = cy, effR = r, effFill = fill, effStroke = dotStroke;
+    let effStrokeWidth = dotStrokeWidth;
+    let effGroupTransition = groupTransition;
+    let effTransition = transition;
+    if (oneToTwoElapsedMs !== null && !isProductionMode && !isMobile) {
+      const localT = Math.max(0, Math.min((oneToTwoElapsedMs - i * 22) / 550, 1));
+      const p = 1 - Math.pow(1 - localT, 3);
+      effCy = projectedY + p * (actualY - projectedY); // x is constant — only Y morphs
+      effR  = BASE_R + p * (deltaToRadius(pickValueDelta) - BASE_R);
+      const tc = player.team_drafted ? TEAM_COLORS[player.team_drafted] : null;
+      const tFill   = tc?.fill ?? sc.fill;        // UDFA / unknown team → stays school fill
+      const tStroke = tc?.secondary ?? "#333333"; // mirrors the projection stroke target
+      effFill   = rgbLerp(sc.fill, tFill, p);
+      effStroke = rgbLerp("#333333", tStroke, p);
+      effStrokeWidth = 1.5 + p * (2.5 - 1.5);
+      effGroupTransition = "none"; // JS owns every frame — no CSS transition
+      effTransition = "none";
+    }
+
     inScopeDots.push(
       <g key={`${player.player_id}-${i}`}>
         {/* Inner group translates to (x, cy) — all children ride the same animation */}
-        <g style={{ transform: `translate(${x}px, ${cy}px)`, transition: groupTransition }}>
+        <g style={{ transform: `translate(${x}px, ${effCy}px)`, transition: effGroupTransition }}>
           {/* Search spotlight (brief f, item 3) — rings the located dot; never scopes. */}
           {isHighlighted && (
-            <circle className="dm-glow-ring" cx={0} cy={0} r={r + 4} fill="none" pointerEvents="none" />
+            <circle className="dm-glow-ring" cx={0} cy={0} r={effR + 4} fill="none" pointerEvents="none" />
           )}
           {showTwoTone ? (
             <>
@@ -338,14 +394,14 @@ export default function PlayerDots({
             </>
           ) : (
             <circle
-              cx={0} cy={0} r={r}
-              stroke={isWashedOut ? fill : dotStroke}
-              strokeWidth={isWashedOut ? 1.5 : dotStrokeWidth}
+              cx={0} cy={0} r={effR}
+              stroke={isWashedOut ? fill : effStroke}
+              strokeWidth={isWashedOut ? 1.5 : effStrokeWidth}
               style={{
-                fill: isWashedOut ? "none" : fill,
+                fill: isWashedOut ? "none" : effFill,
                 opacity: isWashedOut ? 0.50 : dotOpacity,
                 cursor: "pointer",
-                transition,
+                transition: effTransition,
               }}
               onClick={isMobile ? undefined : (e => { e.stopPropagation(); onDotClick(player); })}
               onMouseEnter={isMobile ? undefined : (e => { setHoveredId(player.player_id); onDotHover(player, e.clientX, e.clientY); })}
