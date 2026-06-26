@@ -59,7 +59,7 @@ export interface Verdict {
  * class to "resolved" on Jan 1, months before the spring re-run lands, turning
  * every still-unsigned player into a false join-failure alarm.)
  */
-export const VERDICT_RESOLVED_THROUGH = 2021;
+export const VERDICT_RESOLVED_THROUGH = 2022;
 
 /**
  * Whether a draft class's verdicts are loaded ('resolved') or not yet ('pending').
