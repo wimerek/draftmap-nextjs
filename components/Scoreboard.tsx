@@ -50,6 +50,8 @@ const DENOM_TOOLTIP =
 export interface ScoreboardTransport {
   speed: number;
   restartPulseKey: number;
+  /** First-session hint: bump to breathe the PLAY button once (advance-act nudge). */
+  playPulseKey: number;
   onPlay: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -100,6 +102,12 @@ export interface ScoreboardProps {
    * glow-ring) stays wholly in PlayerSearch — the scoreboard only owns its PLACEMENT.
    */
   searchSlot?: ReactNode;
+  /**
+   * (first-session hints) Incrementing token — when it changes, the year switcher breathes
+   * ONCE (the Act-3 idle "explore other classes" nudge). Driven by the hint controller in
+   * DraftChart; the switcher stays dumb and only reacts to the key.
+   */
+  yearPulseKey?: number;
 }
 
 function ordinal(n: number): string {
@@ -282,14 +290,27 @@ function ProportionStrip({
 // REMOVED (fix-pass 5): it shared this row and bumped the year sideways; the team
 // chip + sidebar filter list + recomputed counts now signal the active lens.
 function ClassSwitcher({
-  selectedYear, availableYears, onYearChange, disabled,
+  selectedYear, availableYears, onYearChange, disabled, pulseKey = 0,
 }: {
   selectedYear: number;
   availableYears: number[];
   onYearChange: (y: number) => void;
   disabled: boolean;
+  /** First-session hint: bump to breathe the year button once (Act-3 explore nudge). */
+  pulseKey?: number;
 }) {
   const [open, setOpen] = useState(false);
+  // One-shot hint breath (~1.5s) on the year button — same key-bump shape as the
+  // transport pulses; skip the initial mount value so it never fires on first paint.
+  const [pulsing, setPulsing] = useState(false);
+  const prevPulseKey = useRef(pulseKey);
+  useEffect(() => {
+    if (pulseKey === prevPulseKey.current) return;
+    prevPulseKey.current = pulseKey;
+    setPulsing(true);
+    const t = setTimeout(() => setPulsing(false), 1500);
+    return () => clearTimeout(t);
+  }, [pulseKey]);
   const sorted = useMemo(() => [...availableYears].sort((a, b) => a - b), [availableYears]);
   const idx = sorted.indexOf(selectedYear);
   const prevYear = idx > 0 ? sorted[idx - 1] : null;
@@ -308,7 +329,7 @@ function ClassSwitcher({
       >‹</button>
       <button
         type="button"
-        className="sb-scope-year"
+        className={`sb-scope-year${pulsing ? " sb-scope-year--hintpulse" : ""}`}
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
         aria-haspopup="listbox"
@@ -360,6 +381,7 @@ export default function Scoreboard({
   onPinTeam,
   chipPulse,
   searchSlot,
+  yearPulseKey = 0,
 }: ScoreboardProps) {
   const stats = useMemo(
     () => computeScoreboardStats(players, selectedYear, classMaxPick),
@@ -472,6 +494,7 @@ export default function Scoreboard({
       onRestart={transport.onRestart}
       onSpeedChange={transport.onSpeedChange}
       restartPulseKey={transport.restartPulseKey}
+      playPulseKey={transport.playPulseKey}
       bottomTrailing={teamChip}
     />
   );
@@ -661,6 +684,7 @@ export default function Scoreboard({
           availableYears={availableYears}
           onYearChange={onYearChange}
           disabled={animating1to2}
+          pulseKey={yearPulseKey}
         />
         {searchSlot && <div className="sb-search-slot">{searchSlot}</div>}
       </div>

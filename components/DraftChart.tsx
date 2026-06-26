@@ -24,6 +24,7 @@ import {
 } from "@/lib/chartMath";
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import { selectClassState } from "@/lib/classMaturity";
+import { useFirstSessionHints } from "@/lib/useFirstSessionHints";
 import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
@@ -658,6 +659,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const [speed,  setSpeed]  = useState<number>(DEFAULT_SPEED);
   const [paused, setPaused] = useState(false);
   const [restartPulseKey, setRestartPulseKey] = useState(0);
+  // First-session navigation hints — incrementing tokens that breathe the PLAY button
+  // (advance-act nudge) and the year switcher (Act-3 explore nudge) ONCE per bump. Driven
+  // by useFirstSessionHints (below); the buttons stay dumb and react to the key.
+  const [playPulseKey, setPlayPulseKey] = useState(0);
+  const [yearPulseKey, setYearPulseKey] = useState(0);
   const speedRef        = useRef(speed);
   const pausedRef       = useRef(paused);
   const animTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -831,6 +837,21 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const touchStartTime = useRef(0);
   const cancelVBAnimRef = useRef<(() => void) | null>(null);
   const prefersReduced = useRef(false);
+
+  // ── First-session navigation hints (contingent pulse + Act-3 explore nudge) ──
+  // Desktop only (mobile mode is off; don't nudge on phones). `act` = the current beat;
+  // `engaged` = a hover card or player card is open (suppress the pulse while the user
+  // is interacting). The controller owns cadence/stop-on-use/reduced-motion; it only
+  // bumps the two pulse keys. recordInteraction feeds the analytics funnel from the real
+  // control handlers (handleTransportPlay / handleYearChange below).
+  const hints = useFirstSessionHints({
+    enabled: !isMobile && !loading && !error && players.length > 0,
+    act: chartMode === 'projection' ? 1 : chartMode === 'draft-results' ? 2 : 3,
+    isAnimating,
+    engaged: tooltip != null || openPlayer != null,
+    onPulsePlay: () => setPlayPulseKey(k => k + 1),
+    onPulseYear: () => setYearPulseKey(k => k + 1),
+  });
 
   // ── Derive view (column layout) from positionFilter ──────────────────────
   const DEF_POS = ['EDGE', 'DT', 'LB', 'CB', 'S'];
@@ -1381,11 +1402,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
+    hints.recordInteraction('year'); // funnel: class_switched (+ hint_clicked if nudged)
     setSelectedYear(newYear);
     setCurrentStepId('projection');
     setIsPlaying(false);
     router.replace(`/draft/${newYear}`, { scroll: false });
-  }, [router]);
+  }, [router, hints]);
 
   // ── Player search teleport (brief f, item 3) ────────────────────────────────
   // Resolve a pending teleport once the destination class's SCORED data is in (landing
@@ -1514,6 +1536,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   }, []);
 
   const handleTransportPlay = useCallback(() => {
+    hints.recordInteraction('play'); // funnel: hint_clicked if a play pulse was pending
     setPaused(false);
     // Act 1 → run the EXISTING projected→drafted (1→2) animation.
     if (currentStep?.mode === 'projection' && currentStepId === 'projection') {
@@ -1525,7 +1548,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (chartMode === 'draft-results') {
       setCurrentStepId('act3');
     }
-  }, [animateToStep, chartMode, currentStep, currentStepId]);
+  }, [animateToStep, chartMode, currentStep, currentStepId, hints]);
 
   const handleTransportPause = useCallback(() => {
     if (!isAnimatingRef.current) return;
@@ -1798,9 +1821,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onToggleTeam: handleToggleTeam,
             onPinTeam: handlePinTeam,
             chipPulse,
+            // First-session hints: year switcher breathes once per bump (Act-3 explore nudge).
+            yearPulseKey,
             transport: {
               speed,
               restartPulseKey,
+              // First-session hints: PLAY button breathes once per bump (advance-act nudge).
+              playPulseKey,
               onPlay: handleTransportPlay,
               onPause: handleTransportPause,
               onResume: handleTransportResume,

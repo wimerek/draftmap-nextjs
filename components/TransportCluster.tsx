@@ -61,6 +61,13 @@ export interface TransportClusterProps {
   restartPulseKey: number;
 
   /**
+   * (first-session hints) Incrementing token — when it changes, the PLAY button breathes
+   * ONCE (the contingent "advance to the next act" nudge). Driven by the hint controller
+   * in DraftChart; the button stays dumb (DO-NOT add logic here — just react to the key).
+   */
+  playPulseKey: number;
+
+  /**
    * (fix-pass-3 §3) Content seated to the RIGHT of the speed dropdown in the bottom row
    * — used to place ☆ MY TEAM beside speed (`1× ▾` | `☆ MY TEAM`). Optional; absent
    * leaves the speed dropdown alone on its row (unchanged geometry).
@@ -84,9 +91,13 @@ export default function TransportCluster({
   onRestart,
   onSpeedChange,
   restartPulseKey,
+  playPulseKey,
   bottomTrailing,
 }: TransportClusterProps) {
   const [pulsing, setPulsing] = useState(false);
+  // PLAY-button hint breath — one shot per key bump (first-session navigation hint).
+  const [playPulsing, setPlayPulsing] = useState(false);
+  const prevPlayPulseKey = useRef(playPulseKey);
   // Speed is settable at rest only when a chapter can play (Btn1 enabled or animating);
   // otherwise the dropdown stays present but disabled (holds geometry).
   const speedDisabled = playDisabled && !isAnimating;
@@ -120,6 +131,16 @@ export default function TransportCluster({
     return () => clearTimeout(t);
   }, [restartPulseKey]);
 
+  // PLAY-button one-shot hint breath (~1.5s) — same key-bump shape as the skip pulse;
+  // skip the initial mount value so it never breathes on first paint.
+  useEffect(() => {
+    if (playPulseKey === prevPlayPulseKey.current) return;
+    prevPlayPulseKey.current = playPulseKey;
+    setPlayPulsing(true);
+    const t = setTimeout(() => setPlayPulsing(false), 1500);
+    return () => clearTimeout(t);
+  }, [playPulseKey]);
+
   // ── Btn1 — three faces, icon+word always ─────────────────────────────────────
   let btn1Icon: string;
   let btn1Word: string;
@@ -140,7 +161,7 @@ export default function TransportCluster({
       {/* Btn1 — Play / Pause */}
       <button
         type="button"
-        className="sb-tc-btn sb-tc-btn--play"
+        className={`sb-tc-btn sb-tc-btn--play${playPulsing ? " sb-tc-btn--hintpulse" : ""}`}
         onClick={btn1OnClick}
         disabled={btn1Disabled}
         aria-label={isAnimating ? (paused ? "Resume" : "Pause") : (playLabel || "Play")}
