@@ -32,6 +32,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import posthog, { POSTHOG_KEY } from "@/lib/posthog";
+import { VERDICT_RESOLVED_THROUGH } from "@/lib/verdict";
 
 // ── Timings (ms) ────────────────────────────────────────────────────────────────
 const ORIENT_DELAY = 3500;     // see the chart before the first advance pulse
@@ -67,6 +68,8 @@ export interface FirstSessionHintsArgs {
   enabled: boolean;
   /** Current act: 1 THE BOARD · 2 DRAFT DAY · 3 4 YEARS LATER. */
   act: 1 | 2 | 3;
+  /** Current draft class year — threaded into the activation-funnel analytics. */
+  year: number;
   /** A transition is in flight — suppresses every pulse. */
   isAnimating: boolean;
   /** The user is actively interacting (dot hovered / card / tooltip open). Suppresses pulses. */
@@ -77,27 +80,36 @@ export interface FirstSessionHintsArgs {
   onPulseYear: () => void;
 }
 
+/** Year move detail for the `class_switched` event (from → to draft class). */
+export interface ClassSwitchDetail {
+  from: number;
+  to: number;
+}
+
 export interface FirstSessionHints {
   /**
    * The caller calls this from the real control handlers so the funnel can record that
    * the hinted action was taken. 'play' = advanced an act; 'year' = switched class.
+   * For 'year', pass the {from, to} class years so the move is legible in analytics.
    */
-  recordInteraction: (target: "play" | "year") => void;
+  recordInteraction: (target: "play" | "year", detail?: ClassSwitchDetail) => void;
 }
 
 export function useFirstSessionHints(args: FirstSessionHintsArgs): FirstSessionHints {
-  const { enabled, act, isAnimating, engaged, onPulsePlay, onPulseYear } = args;
+  const { enabled, act, year, isAnimating, engaged, onPulsePlay, onPulseYear } = args;
 
   // Mirror live inputs into refs so the interval + listeners read fresh values without
   // re-subscribing on every render (the loop is installed once on mount).
   const enabledRef = useRef(enabled);
   const actRef = useRef(act);
+  const yearRef = useRef(year);
   const animRef = useRef(isAnimating);
   const engagedRef = useRef(engaged);
   const pulsePlayRef = useRef(onPulsePlay);
   const pulseYearRef = useRef(onPulseYear);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
   useEffect(() => { actRef.current = act; }, [act]);
+  useEffect(() => { yearRef.current = year; }, [year]);
   useEffect(() => { animRef.current = isAnimating; }, [isAnimating]);
   useEffect(() => { engagedRef.current = engaged; }, [engaged]);
   useEffect(() => { pulsePlayRef.current = onPulsePlay; }, [onPulsePlay]);
@@ -128,7 +140,7 @@ export function useFirstSessionHints(args: FirstSessionHintsArgs): FirstSessionH
     lastYearHintAt: 0,
   });
 
-  const recordInteraction = useCallback((target: "play" | "year") => {
+  const recordInteraction = useCallback((target: "play" | "year", detail?: ClassSwitchDetail) => {
     const s = sess.current;
     const t = nowMs();
     if (target === "play") {
@@ -137,7 +149,7 @@ export function useFirstSessionHints(args: FirstSessionHintsArgs): FirstSessionH
       }
       s.lastPlayHintAt = 0;
     } else {
-      capture("class_switched", {});
+      capture("class_switched", detail ? { from: detail.from, to: detail.to } : {});
       if (s.lastYearHintAt && t - s.lastYearHintAt < HINT_CLICK_WINDOW) {
         capture("hint_clicked", { target: "year" });
       }
@@ -177,7 +189,13 @@ export function useFirstSessionHints(args: FirstSessionHintsArgs): FirstSessionH
       if (curAct > s.maxAct) {
         if (s.maxAct === 1) s.advancedFromAct1 = true;
         s.maxAct = curAct;
-        capture("act_reached", { act: curAct });
+        const curYear = yearRef.current;
+        capture("act_reached", {
+          act: curAct,
+          year: curYear,
+          // Single source of truth for verdict maturity (lib/verdict.ts).
+          resolved: curYear <= VERDICT_RESOLVED_THROUGH,
+        });
       }
       if (curAct !== prevAct) {
         prevAct = curAct;

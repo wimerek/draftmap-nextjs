@@ -859,6 +859,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const hints = useFirstSessionHints({
     enabled: !isMobile && !loading && !error && players.length > 0,
     act: chartMode === 'projection' ? 1 : chartMode === 'draft-results' ? 2 : 3,
+    year: selectedYear,
     isAnimating,
     engaged: tooltip != null || openPlayer != null,
     onPulsePlay: () => setPlayPulseKey(k => k + 1),
@@ -1486,13 +1487,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
-    hints.recordInteraction('year'); // funnel: class_switched (+ hint_clicked if nudged)
+    hints.recordInteraction('year', { from: selectedYear, to: newYear }); // funnel: class_switched (+ hint_clicked if nudged)
     cancelOneToTwo(); // a year switch fired mid-1→2 must not leave a zombie chapter
     setSelectedYear(newYear);
     setCurrentStepId('projection');
     setIsPlaying(false);
     router.replace(`/draft/${newYear}`, { scroll: false });
-  }, [router, hints, cancelOneToTwo]);
+  }, [router, hints, cancelOneToTwo, selectedYear]);
 
   // ── Player search teleport (brief f, item 3) ────────────────────────────────
   // Resolve a pending teleport once the destination class's SCORED data is in (landing
