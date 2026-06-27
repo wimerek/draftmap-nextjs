@@ -12,12 +12,17 @@ const nextConfig = {
         permanent: true, // 308 — structure is settled, helps Google consolidate signal
       },
       {
-        // Land on the current draft year. Edge-level redirect avoids the
-        // RSC-variant cache bug from calling redirect() in app/draft/page.tsx.
-        // NOTE: When CURRENT_DRAFT_YEAR flips (lib/sheets.ts), update this too.
+        // Land on the default landing year (DEFAULT_LANDING_YEAR in
+        // lib/draftYears.ts — a resolved class, NOT the pending one). Edge-level
+        // redirect avoids the RSC-variant cache bug from calling redirect() in
+        // app/draft/page.tsx.
+        // NOTE: This is a JS literal and can't import DEFAULT_LANDING_YEAR — when
+        // that constant flips, update this destination by hand to match.
+        // 307 (not 308): the default rotates each year, and a permanent redirect
+        // is cached hard by browsers/Google and would not propagate on rotation.
         source: '/draft',
-        destination: '/draft/2026',
-        permanent: true,
+        destination: '/draft/2022',
+        permanent: false,
       },
     ];
   },

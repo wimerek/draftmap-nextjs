@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player, SearchIndexEntry } from "@/lib/sheets";
-import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR } from "@/lib/draftYears";
+import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, DEFAULT_LANDING_YEAR } from "@/lib/draftYears";
 import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
@@ -1703,8 +1703,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // ── Reset (Brief 1, Piece 6) — one handler, two affordances (logo + footer house) ──
   // Instant snap (no animated rewind): clears every filter, the pinned-team identity
   // (handlePinTeam(null) also wipes localStorage so it doesn't rehydrate), the search
-  // field + glow-ring, and returns to Act 1 / THE BOARD ('projection'). If not already
-  // on the newest class, navigates there (which drops the query string).
+  // field + glow-ring, and returns to Act 1 / THE BOARD ('projection'). "Home" is
+  // the default landing class (DEFAULT_LANDING_YEAR — a resolved class), NOT the
+  // pending newest class: a first-timer who lands on the default and clicks the
+  // logo should stay on that resolved story. If not already there, navigates
+  // (which drops the query string).
   const handleResetView = useCallback(() => {
     setPositionFilter([]);
     setRoundFilter([]);
@@ -1716,9 +1719,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setSearchResetKey(k => k + 1);
     cancelOneToTwo(); // sanitize the 1→2 chapter before the reset snaps to Act 1
     setCurrentStepId('projection');
-    if (selectedYear !== CURRENT_DRAFT_YEAR) {
-      setSelectedYear(CURRENT_DRAFT_YEAR);
-      router.replace(`/draft/${CURRENT_DRAFT_YEAR}`, { scroll: false });
+    if (selectedYear !== DEFAULT_LANDING_YEAR) {
+      setSelectedYear(DEFAULT_LANDING_YEAR);
+      router.replace(`/draft/${DEFAULT_LANDING_YEAR}`, { scroll: false });
     } else {
       updateURL({ pos: null, round: null, team: null, school: null, step: null });
     }
