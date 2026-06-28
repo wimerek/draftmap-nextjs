@@ -453,13 +453,16 @@ export default function Scoreboard({
   let playDisabled = true;
   let canSkip = false;
   let canRestart = false;
-  let restartLabel = "Restart";
+  // Btn3 is "Reset" in every state it's enabled (quick-pass #3a, Derek choice (a)): it
+  // seats the dots back on the projected board PAUSED, never auto-plays. Replaces the
+  // prior dynamic "Restart" (mid-animation) / "Replay" (Act 2 rest) labels.
+  let restartLabel = "Reset";
   if (animating1to2) {
-    playDisabled = false; canSkip = true; canRestart = true; restartLabel = "Restart";
+    playDisabled = false; canSkip = true; canRestart = true;
   } else if (chartMode === "projection") {
     playLabel = "PLAY DRAFT DAY"; playDisabled = false;
   } else if (chartMode === "draft-results") {
-    playLabel = "PLAY NEXT 4 YRS"; playDisabled = false; canRestart = true; restartLabel = "Replay";
+    playLabel = "PLAY NEXT 4 YRS"; playDisabled = false; canRestart = true;
   } // verdict / pending / floor → all disabled in place (no Act 4 / no replayable chapter in d)
 
   // ☆ MY TEAM (fix-pass-3 §3) — now seated to the RIGHT of the speed dropdown (bottom

@@ -6,7 +6,7 @@
  * present, IDENTICAL geometry every state. A button with no job is DISABLED IN PLACE
  * (ESPN reserved-slot rule), never null/removed — no layout shift.
  *
- *   Btn1 Play/Pause · Btn2 Skip · Btn3 Restart/Replay · | · speed dropdown
+ *   Btn1 Play/Pause · Btn2 Skip · Btn3 Reset · | · speed dropdown
  *
  * Speed control (fix-pass §D): a compact DROPDOWN (reclaims the row width the inline
  * segmented control was bleeding over). It fixes BOTH original dropdown bugs — it opens
@@ -43,7 +43,7 @@ export interface TransportClusterProps {
   // ── Btn2 / Btn3 ─────────────────────────────────────────────────────────────
   canSkip: boolean;
   canRestart: boolean;
-  /** "Restart" mid-animation · "Replay" at Act 2 rest. */
+  /** "Reset" whenever Btn3 is enabled — seats the projected board paused (never auto-plays). */
   restartLabel: string;
 
   // ── Btn4 ────────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ export default function TransportCluster({
           <span className="sb-tc-word">Skip</span>
         </button>
 
-        {/* Restart / Replay (pulses once after a skip) */}
+        {/* Reset — seats projected board paused (pulses once after a skip) */}
         <button
           type="button"
           className={`sb-tc-btn${pulsing ? " sb-tc-btn--pulse" : ""}`}

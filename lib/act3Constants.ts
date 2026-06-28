@@ -356,8 +356,9 @@ export const REACH_BRACKET_AFTER64 = 9;   // picks > 64
 
 // ── Transport cluster (Part 3) ────────────────────────────────────────────────
 
-/** Speed presets — NO 4× (Skip serves the impatient). Multiply authored pacing. */
-export const SPEED_PRESETS = [0.5, 0.75, 1, 1.5, 2];
+/** Speed presets — NO 4× (Skip serves the impatient). Multiply authored pacing.
+ *  0.1 and 0.25 are opt-in slow crawls (no 0.15 — too close to 0.25 to perceive). */
+export const SPEED_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2];
 export const DEFAULT_SPEED = 1;
 
 /** Restart/Replay (Btn3) one-shot pulse after any skip (accidental-skip recovery). */

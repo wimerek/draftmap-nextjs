@@ -1618,14 +1618,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setPaused(false); // the rAF loop resumes advancing from the frozen elapsed value
   }, []);
 
-  const handleTransportRestart = useCallback(() => {
-    // Re-run / Replay the 1→2 chapter from the projected board. startOneToTwo seats the
-    // clock at 0 (every dot at projected) and runs it; setCurrentStepId('projection')
-    // first keeps the surrounding act state consistent during the replay.
+  const handleTransportReset = useCallback(() => {
+    // Reset (quick-pass #3a): seat the dots back on the projected board, PAUSED — do
+    // NOT auto-play. cancelOneToTwo kills any running 1→2 chapter and clears
+    // isAnimating/paused/clock; setCurrentStepId + setViewMode seat Act 1 at rest. The
+    // explicit setViewMode('projected') matters mid-animation: there chartMode is already
+    // 'projection', so the chartMode→viewMode sync effect won't fire and viewMode would
+    // otherwise linger at 'drafted' (set by startOneToTwo). The user presses Play to run.
+    // Because isAnimating goes false, the year/class switcher (disabled only while
+    // animating) re-enables on its own — no separate unlock needed.
     cancelOneToTwo();
     setCurrentStepId('projection');
-    startOneToTwo();
-  }, [cancelOneToTwo, startOneToTwo]);
+    setViewMode('projected');
+  }, [cancelOneToTwo]);
 
   const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
 
@@ -1887,7 +1892,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               onPause: handleTransportPause,
               onResume: handleTransportResume,
               onSkip: handleTransportSkip,
-              onRestart: handleTransportRestart,
+              onRestart: handleTransportReset,
               onSpeedChange: handleTransportSpeed,
             },
           }}
