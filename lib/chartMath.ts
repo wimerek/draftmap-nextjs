@@ -17,7 +17,13 @@
 
 import type { Player, UsageProfile } from './sheets';
 import { BAND_ASSIGNMENTS, POSITIONS, POSITION_ORDER, ROUND_EXPECTED_PCT, TIER_DEFS } from './chartConstants';
-import type { ContractTier, Verdict } from './verdict';
+import type { ContractTier, Verdict, MoneyBand } from './verdict';
+import {
+  ACT3_SVG_W, ACT3_SVG_H, ACT3_MAX_PICK, ACT3_MARGIN, ACT3_RIGHT_RAIL,
+  ACT3_UDFA_GAP, ACT3_UDFA_W, ACT3_UDFA_SPREAD_PX, ACT3_STRIP_H, ACT3_STRIP_JITTER_PX,
+  ACT3_HEADROOM_FRAC, ACT3_WALL_ORDER, ACT3_WALL_NODE_W, ACT3_WALL_GAP,
+  ACT3_THREAD_CP_FRAC, ACT3_BANDS, ACT3_TAB_MIN_PITCH,
+} from './act3FieldConstants';
 import {
   PAID_REGION_BOTTOM, PROVE_IT_STRIP_Y, NONE_STRIP_Y, STRIP_JITTER_PX,
   PROVE_IT_PLACEMENT, PROVE_IT_BAND_TOP, PROVE_IT_BAND_BOTTOM,
@@ -1439,5 +1445,255 @@ export function computeFloorLayout(players: Player[], draftYear: number): Jellyf
     stripTopY,
     floorY,
     scoreboardText: `FIRST SNAPS — SEPTEMBER ${draftYear}`,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ACT 3 — REFRAME FIELD (Phase Lambda, Brief 3): the NEW resting field
+//
+//  X = draft pick (linear, FIXED 1–262) + UDFA gutter · Y = window_usage percentile
+//  (top = 100) + too-few-snaps strip + corner · COLOR = six-band money ladder.
+//  Wall = six true-count nodes (TOP5→NEVER). Threads = two-register (money/ink).
+//
+//  ADDITIVE. Pure layout math only — payer dot color + award glyph are resolved in
+//  the Act3Field component (teamDotColors / triangle-wins glyph), keeping color logic
+//  in the render layer exactly as the jellyfish does. The jellyfish path is untouched.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** One plotted dot on the Act-3 reframe field. Geometry + band + thread only. */
+export interface Act3FieldDot {
+  player: Player;
+  /** Six-band membership (from the baked money_band). Null = pending-class player
+   *  with no signed second contract yet (plots with drafted colors, no thread). */
+  band: MoneyBand | null;
+  x: number;
+  y: number;
+  isUDFA: boolean;
+  /** Too-few-snaps strip member (window_usage null — passed, not recomputed). */
+  isStrip: boolean;
+  /** UDFA × too-few-snaps corner cell. */
+  isCorner: boolean;
+  /** Bezier path dot→wall node (choreography §2 single-cp @62%). Null = no thread. */
+  threadPath: string | null;
+}
+
+/** One wall node (six always). TRUE-COUNT height — no minimum floor. */
+export interface Act3WallNode {
+  band: MoneyBand;
+  x: number;      // left edge (= wallX)
+  y: number;      // top
+  h: number;      // ∝ count / fieldCount (true-count)
+  cy: number;     // node vertical center
+  count: number;
+  pct: number;    // share of the plotted field (0–100)
+  color: string;
+  /** Edge-tab label CENTER y — nudged out to keep ≥ pitch, node itself never moves. */
+  tabY: number;
+  /** True when a hairline connector should draw from tab back to node (tab was nudged). */
+  tabNudged: boolean;
+  /** Pending-class band-1 override: the node reads "NOT RE-SIGNED YET" (no threads). */
+  isPendingBand1: boolean;
+}
+
+export interface Act3FieldLayout {
+  version: 'new';
+  svgW: number;
+  svgH: number;
+  margin: { top: number; right: number; bottom: number; left: number };
+  /** Usage field vertical extent (usage 100 → fieldTop, usage 0 → fieldBottom). */
+  fieldTop: number;
+  fieldBottom: number;
+  /** Too-few-snaps strip. */
+  stripTop: number;
+  stripBottom: number;
+  /** Pick scale horizontal extent. */
+  pickLeft: number;
+  pickRight: number;
+  /** UDFA gutter band (dots + frame). */
+  udfaLeft: number;
+  udfaRight: number;
+  udfaCenterX: number;
+  /** Tier wall. */
+  wallX: number;
+  wallNodeW: number;
+  maxPick: number;
+  dots: Act3FieldDot[];
+  wallNodes: Act3WallNode[];
+  roundAnchors: JellyfishRoundAnchor[];
+  /** Plotted population (all dots that carry a band node — matches copy_numbers plotted_pop). */
+  fieldCount: number;
+  bandCounts: Record<MoneyBand, number>;
+  stripCount: number;
+  cornerCount: number;
+  udfaCount: number;
+  isPending: boolean;
+}
+
+/** Act-3 thread path — choreography spec §2: cubic bezier with a SINGLE mid-x control
+ *  point at 62% of the dot→wall x-distance (`M dot C mx,dotY mx,slotY wallX,slotY`),
+ *  identical curve family for every band. */
+function act3ThreadPath(x0: number, y0: number, x1: number, y1: number): string {
+  const mx = x0 + (x1 - x0) * ACT3_THREAD_CP_FRAC;
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} C ${mx.toFixed(1)} ${y0.toFixed(1)}, ${mx.toFixed(1)} ${y1.toFixed(1)}, ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+
+/**
+ * Build the Act-3 reframe field for one draft class.
+ *
+ * Population (banked X AXIS): drafted players + UDFAs who signed with a team. K/P/LS
+ * carry a blank money_band (ST positions out of the money market) and are EXCLUDED
+ * from the plotted field — matching copy_numbers `plotted_pop`.
+ *
+ * @param players   the class's player list, each with `.verdict` (money_band) + `.usage`
+ * @param isPending true for a mid-window class (some deals unsigned — band-1 relabel,
+ *                  unsigned dots carry no thread). Resolved classes = false.
+ */
+export function computeAct3FieldLayout(players: Player[], isPending: boolean): Act3FieldLayout {
+  const svgW = ACT3_SVG_W;
+  const svgH = ACT3_SVG_H;
+  const margin = { ...ACT3_MARGIN, right: ACT3_RIGHT_RAIL + ACT3_UDFA_W + ACT3_UDFA_GAP + 24 };
+
+  // ── Horizontal regions (L→R: pick scale · axis break · UDFA gutter · wall) ──
+  const wallX     = svgW - ACT3_RIGHT_RAIL;
+  const udfaRight = wallX - 14;                 // small gap before the wall
+  const udfaLeft  = udfaRight - ACT3_UDFA_W;
+  const udfaCenterX = (udfaLeft + udfaRight) / 2;
+  const pickLeft  = margin.left;
+  const pickRight = udfaLeft - ACT3_UDFA_GAP;   // the visible axis break
+  const maxPick   = ACT3_MAX_PICK;              // FIXED domain — no per-class stretch
+  const xScale = (pick: number): number =>
+    pickLeft + ((pick - 1) / (maxPick - 1)) * (pickRight - pickLeft);
+
+  // ── Vertical regions (usage field above, too-few-snaps strip below) ─────────
+  const fieldTop    = margin.top;
+  const stripBottom = svgH - margin.bottom;
+  const stripTop    = stripBottom - ACT3_STRIP_H;
+  const fieldBottom = stripTop;                 // usage 0 sits at the strip's top edge
+  const bandH       = fieldBottom - fieldTop;
+  const headroom    = ACT3_HEADROOM_FRAC * bandH;
+
+  /** window_usage percentile (0–100, top=100) → field Y (px). */
+  const usageY = (pctile: number): number =>
+    fieldTop + headroom + (1 - pctile / 100) * (bandH - headroom);
+
+  // ── Population: drafted + signed UDFAs; exclude K/P/LS (blank money_band) ────
+  const hasPlayed = (p: Player): boolean => (p.usage?.seasons?.length ?? 0) > 0;
+  const isSignedUDFA = (p: Player): boolean =>
+    !p.drafted && (p.verdict !== null || hasPlayed(p));
+  const dotsInput = players.filter(p => {
+    if (!(p.drafted || isSignedUDFA(p))) return false;
+    // K/P/LS: a contract row exists but money_band is blank (out of the money market)
+    // → not one of the six bands → excluded from the plotted field (plotted_pop).
+    if (p.verdict !== null && p.verdict.moneyBand === null) return false;
+    return true;
+  });
+
+  // ── Wall counts (true-count). A plotted dot's node = its money_band; a pending
+  //    unsigned dot (no band) falls under the band-1 (NEVER) node's running count. ──
+  const bandCounts: Record<MoneyBand, number> =
+    { NEVER: 0, ZERO: 0, MIN: 0, MIDDLE: 0, TOP10: 0, TOP5: 0 };
+  const nodeBandOf = (p: Player): MoneyBand => p.verdict?.moneyBand ?? 'NEVER';
+  for (const p of dotsInput) bandCounts[nodeBandOf(p)]++;
+  const fieldCount = dotsInput.length;
+
+  // ── Wall nodes (top→bottom, TOP5→NEVER; heights ∝ true count) ───────────────
+  const usableH = (stripBottom - fieldTop) - (ACT3_WALL_ORDER.length - 1) * ACT3_WALL_GAP;
+  const wallNodes: Act3WallNode[] = [];
+  let cursorY = fieldTop;
+  for (const band of ACT3_WALL_ORDER) {
+    const count = bandCounts[band];
+    const h = fieldCount > 0 ? (count / fieldCount) * usableH : 0;
+    wallNodes.push({
+      band,
+      x: wallX,
+      y: cursorY,
+      h,
+      cy: cursorY + h / 2,
+      count,
+      pct: fieldCount > 0 ? Math.round((count / fieldCount) * 100) : 0,
+      color: ACT3_BANDS[band].color,
+      tabY: cursorY + h / 2,      // provisional; nudged below
+      tabNudged: false,
+      isPendingBand1: isPending && band === 'NEVER',
+    });
+    cursorY += h + ACT3_WALL_GAP;
+  }
+  // Edge-tab collision: keep ≥ min pitch, LABEL nudges (node never moves). One forward
+  // pass pushing each tab down to clear the previous; a tiny node can't pin two tabs.
+  for (let i = 1; i < wallNodes.length; i++) {
+    const prev = wallNodes[i - 1].tabY;
+    if (wallNodes[i].tabY - prev < ACT3_TAB_MIN_PITCH) {
+      wallNodes[i].tabY = prev + ACT3_TAB_MIN_PITCH;
+      wallNodes[i].tabNudged = true;
+    }
+  }
+  const wallNodeByBand = new Map(wallNodes.map(n => [n.band, n]));
+
+  // ── Round-start X anchors (per-class real round data, fixed xScale) ─────────
+  const roundAnchors = jellyfishRoundAnchors(dotsInput, xScale);
+
+  // ── Dots (positions + band + strip/corner flags; threads filled after comb) ─
+  const building: Act3FieldDot[] = [];
+  let stripCount = 0, cornerCount = 0, udfaCount = 0;
+  for (const p of dotsInput) {
+    const band = p.verdict?.moneyBand ?? null;
+    const isUDFA = p.pick_drafted == null || p.pick_drafted <= 0;
+    const isStrip = (p.usage?.stripMember ?? true); // no usage row ⇒ strip
+    const isCorner = isUDFA && isStrip;
+    if (isUDFA) udfaCount++;
+    if (isStrip) stripCount++;
+    if (isCorner) cornerCount++;
+
+    // X — UDFA dots fan out deterministically in the gutter; else the pick scale.
+    const seed = (hashStr(p.player_id) % 1000) / 1000 - 0.5; // [-0.5, 0.5)
+    const x = isUDFA
+      ? udfaCenterX + seed * ACT3_UDFA_SPREAD_PX
+      : xScale(p.pick_drafted as number);
+
+    // Y — strip members jitter within the strip band; else the usage percentile.
+    let y: number;
+    if (isStrip) {
+      const seedY = (hashStr(p.player_id + '#y') % 1000) / 1000 - 0.5;
+      y = (stripTop + stripBottom) / 2 + seedY * ACT3_STRIP_JITTER_PX;
+    } else {
+      const pctile = p.usage?.windowUsagePercentile ?? 0;
+      y = usageY(pctile);
+    }
+
+    building.push({ player: p, band, x, y, isUDFA, isStrip, isCorner, threadPath: null });
+  }
+
+  // ── Threads — money + ink (resolved); pending unsigned + pending band-1 carry
+  //    NO thread. Slot-comb within each node: threaded dots sorted by field-y. ──
+  const threadedByBand = new Map<MoneyBand, Act3FieldDot[]>();
+  for (const d of building) {
+    // A dot threads iff it has a real band. Pending unsigned (band null) → no thread.
+    // Pending band-1 (NEVER) threads only exist after graduation → suppress when pending.
+    if (d.band === null) continue;
+    if (isPending && d.band === 'NEVER') continue;
+    const list = threadedByBand.get(d.band) ?? [];
+    list.push(d);
+    threadedByBand.set(d.band, list);
+  }
+  threadedByBand.forEach((list, band) => {
+    const node = wallNodeByBand.get(band);
+    if (!node) return;
+    const sorted = [...list].sort((a, b) => a.y - b.y);
+    sorted.forEach((d, i) => {
+      const targetY = node.y + ((i + 0.5) / sorted.length) * node.h;
+      d.threadPath = act3ThreadPath(d.x, d.y, node.x, targetY);
+    });
+  });
+
+  return {
+    version: 'new',
+    svgW, svgH, margin,
+    fieldTop, fieldBottom, stripTop, stripBottom,
+    pickLeft, pickRight,
+    udfaLeft, udfaRight, udfaCenterX,
+    wallX, wallNodeW: ACT3_WALL_NODE_W, maxPick,
+    dots: building, wallNodes, roundAnchors,
+    fieldCount, bandCounts, stripCount, cornerCount, udfaCount,
+    isPending,
   };
 }

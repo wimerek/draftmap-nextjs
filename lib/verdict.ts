@@ -25,6 +25,35 @@ export type ContractTier = 'NONE' | 'PROVE_IT' | 'BRIDGE' | 'SOLID' | 'PREMIUM';
 /** All paid tiers (carry a real dollar deal). NONE/PROVE_IT render on floor strips. */
 export const PAID_TIERS: ContractTier[] = ['BRIDGE', 'SOLID', 'PREMIUM'];
 
+// ── Money band (Phase Lambda — Act 3 reframe) ───────────────────────────────
+//
+// The SIX-band money ladder that supersedes the five-tier waterfall AS THE ACT-3
+// COLOR ENCODING (the tier above stays in the data + drives the legacy jellyfish;
+// it is not deleted — Lambda "new before delete"). BAKED in the Sheet as
+// second_contracts column L (`money_band`) — the render parses it, never derives it
+// (boundaries are a sniff-test reference only). Blank for the 39 K/P/LS rows (ST
+// positions excluded from the money market), which parse to `null`.
+//
+//   NEVER  — no second contract exists (apy ≤ 0)
+//   ZERO   — re-signed, $0 guaranteed
+//   MIN    — first guaranteed dollar → below the 1× vet-min floor line
+//   MIDDLE — above the min floor, below the position's top-10 guarantee line
+//   TOP10  — clears the position's top-10 (Nth-value) guarantee line
+//   TOP5   — clears the position's top-5 (Nth-value) guarantee line
+//
+// Order = lowest → highest money (the reverse of the wall's top→bottom stack).
+export type MoneyBand = 'NEVER' | 'ZERO' | 'MIN' | 'MIDDLE' | 'TOP10' | 'TOP5';
+
+/** Money family (the three bands that "pop" — a real guaranteed deal above the
+ *  vet-min floor). GOT PAID = these three (Lambda scoreboard definition). The
+ *  bottom three (NEVER/ZERO/MIN) are the ink family and recede. */
+export const MONEY_FAMILY_BANDS: MoneyBand[] = ['MIDDLE', 'TOP10', 'TOP5'];
+
+/** True when a band is in the money family (guaranteed deal above the floor). */
+export function isMoneyBand(band: MoneyBand | null): boolean {
+  return band !== null && MONEY_FAMILY_BANDS.includes(band);
+}
+
 // ── Verdict record (one resolved-or-signed player) ──────────────────────────
 
 export interface Verdict {
@@ -45,6 +74,13 @@ export interface Verdict {
    * i.e. the ST kicker/punter SOLIDs). PROVE_IT carries a value but renders on its floor strip.
    */
   verdictShare: number | null;
+  /**
+   * Phase Lambda six-band money ladder (second_contracts col L, BAKED). Null for
+   * the 39 K/P/LS rows (blank money_band — ST positions out of the money market).
+   * Parsed, never derived — the render reads this column; boundaries live only in
+   * the sniff-test reference CSV. The Act-3 field colors dots off this.
+   */
+  moneyBand: MoneyBand | null;
   notes: string | null;
 }
 

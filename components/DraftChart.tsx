@@ -15,6 +15,7 @@ import {
   computeJellyfishLayout,
   computePendingFieldLayout,
   computeFloorLayout,
+  computeAct3FieldLayout,
   scoreToProductionY,
   stSnapPctToGlobalPercentile,
   type ChartLayout,
@@ -28,6 +29,8 @@ import { useFirstSessionHints } from "@/lib/useFirstSessionHints";
 import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
+import Act3Field from "@/components/chart/Act3Field";
+import { ACT3_FIELD_VERSION } from "@/lib/act3FieldConstants";
 import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
@@ -954,6 +957,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (chartMode === 'floor')   return computeFloorLayout(players, selectedYear);
     return null;
   }, [chartMode, players, selectedYear]);
+
+  // Phase Lambda — the NEW Act-3 reframe field (six-band money / window_usage). Built
+  // additively alongside the jellyfish; ACT3_FIELD_VERSION selects which renders (the
+  // jellyfish stays reachable for A/B until the sniff test passes — Lambda "new before
+  // delete"). One layout fn covers all three field states via isPending (resolved =
+  // false; pending/floor = true → band-1 relabel + unsigned dots carry no thread).
+  const act3FieldLayout = useMemo(() => {
+    if (ACT3_FIELD_VERSION !== 'new' || !isFieldMode) return null;
+    return computeAct3FieldLayout(players, chartMode !== 'verdict');
+  }, [players, chartMode, isFieldMode]);
 
   // Per-dot production Y positions and opacities for the current journey step.
   // Recomputed whenever the step or chart mode changes.
@@ -1914,7 +1927,17 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onClick={isMobile && mobileView === "overview" ? handleMobileChartTap : undefined}
             onDoubleClick={handleTransportSkip}
           >
-            {isFieldMode && jellyfishLayout ? (
+            {isFieldMode && act3FieldLayout ? (
+              <Act3Field
+                layout={act3FieldLayout}
+                isMobile={isMobile}
+                onDotClick={handleDotClick}
+                onDotHover={handleDotHover}
+                onDotLeave={handleDotLeave}
+                litIds={litIds}
+                highlightedId={highlightedPlayerId}
+              />
+            ) : isFieldMode && jellyfishLayout ? (
               <JellyfishField
                 layout={jellyfishLayout}
                 isMobile={isMobile}

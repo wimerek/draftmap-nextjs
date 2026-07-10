@@ -1,0 +1,224 @@
+/**
+ * lib/act3FieldConstants.ts
+ *
+ * Phase Lambda — Act 3 REFRAME render knobs (the NEW resting field). ONE place for
+ * every tunable of the six-band money / window-usage chart. Additive: the legacy
+ * five-tier "jellyfish" constants stay in lib/act3Constants.ts and stay live until
+ * this field passes its sniff test (Lambda "new before delete"; deletion = Brief 6).
+ *
+ * Authority: draftmap-act3-chart-decisions-2026-07-01.md (X/Y AXIS · MONEY BANDS ·
+ * BAND RENDERING a–d · STRIPS & FIELD FURNITURE) + SPIKE RESOLUTIONS 2026-07-09.
+ * Every value below is the banked working default — tune ONLY on Derek's instruction
+ * at the real render (knobs doctrine: one place, not one moment).
+ */
+
+import type { MoneyBand } from './verdict';
+
+// ════════════════════════════════════════════════════════════════════════════
+//  BUILD FLAG — A/B switch (jellyfish stays reachable until sniff test passes)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Which Act-3 resting field renders. `'new'` = this six-band money/usage field
+ * (Phase Lambda). `'jellyfish'` = the legacy five-tier verdict-share field
+ * (lib/chartMath computeJellyfishLayout + JellyfishField). Default `'new'` so Derek
+ * sniff-tests the reframe on prod data; flip to `'jellyfish'` for a byte-identical
+ * A/B fallback. The jellyfish code path is NOT deleted in this brief (Brief 6 does
+ * that, only after §8 sniff test is green).
+ */
+export const ACT3_FIELD_VERSION: 'new' | 'jellyfish' = 'new';
+
+// ════════════════════════════════════════════════════════════════════════════
+//  1. FIELD GEOMETRY
+// ════════════════════════════════════════════════════════════════════════════
+
+/** SVG canvas — matches the jellyfish (register continuity for the 2→3 flip). */
+export const ACT3_SVG_W = 1600;
+export const ACT3_SVG_H = 960;
+
+/**
+ * FIXED pick domain across all classes (2022 max = 262). Geometry stays stable when
+ * the class scrubber flips years — NO axis stretch between classes (banked X AXIS).
+ */
+export const ACT3_MAX_PICK = 262;
+
+/**
+ * Field margins. `right` reserves the wall + right-rail edge tabs (~170–180px band,
+ * BAND RENDERING (c)). `left` holds the rotated USAGE Y-axis title. `top` near the
+ * very top (parchment field, no on-canvas title — Brief 2). `bottom` holds the round
+ * gridline labels below the axis.
+ */
+export const ACT3_MARGIN = { top: 28, right: 178, bottom: 58, left: 80 };
+
+/** Reserved right-rail width (px) for the six edge tabs (BAND RENDERING (c): ~170–180). */
+export const ACT3_RIGHT_RAIL = 172;
+
+/** UDFA gutter: a vertical band right of pick 262, separated by a visible axis break.
+ *  `GAP` = the gutter gap (the axis break), `W` = the UDFA dot column width. */
+export const ACT3_UDFA_GAP = 30;   // visible axis break — tune on render
+export const ACT3_UDFA_W   = 64;   // UDFA strip width (STRIPS: ≈60–70px @1320 ref)
+
+/** Deterministic UDFA-gutter horizontal spread (px), seeded by player_id (stable,
+ *  no reflow). Spread = hover legibility only, never a ranking. */
+export const ACT3_UDFA_SPREAD_PX = 40;
+
+/** Too-few-snaps strip height (px) — full-width band below the usage field.
+ *  STRIPS: "footnotes, not panels" target ≈45–55px @1320 ref; ⚠ real density
+ *  ~104/class puts the ≤8% footprint under pressure (spike render-watch) — dense
+ *  packing INSIDE the strip is the message, tune height on render for hoverability. */
+export const ACT3_STRIP_H = 62;
+
+/** Deterministic vertical jitter (px) inside the too-few-snaps strip so a flat row of
+ *  co-linear dots doesn't read as an artifact. Spread = hover legibility, NOT ranking. */
+export const ACT3_STRIP_JITTER_PX = 10;
+
+/** Empty headroom (fraction of the usage band) above P100 so the top dots don't pin to
+ *  the very top edge. Small — the field wants to fill the viewport (Brief 2 parity). */
+export const ACT3_HEADROOM_FRAC = 0.03;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  2. THE WALL + BAND COLORS  (BAND RENDERING a–c, banked 2026-07-03)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Wall node stack, TOP→BOTTOM = highest money at top (BAND RENDERING (a)).
+ * TRUE-COUNT node heights, NO minimum floor (the 26px-floor variant is REJECTED —
+ * node height ∝ real player count, always; lean-year TOP5 slivers ≈9–16px accepted).
+ */
+export const ACT3_WALL_ORDER: MoneyBand[] = ['TOP5', 'TOP10', 'MIDDLE', 'MIN', 'ZERO', 'NEVER'];
+
+/** Wall node geometry. NO min-node-height floor — see ACT3_WALL_ORDER note. */
+export const ACT3_WALL_NODE_W = 13;  // node width (px) — tune on render
+export const ACT3_WALL_GAP    = 5;   // vertical gap between nodes — tune on render
+
+/**
+ * Protection knob (BAND RENDERING (b)): the 1× vet-min floor shifted figure-ground to
+ * ink 62% / money 38% (designed at 78/22). The ONLY sanctioned lever is MIDDLE's sky
+ * opacity — drop 0.40 → 0.30 if the money side reads loud at render. NEVER move the
+ * MIN/MIDDLE boundary (spike-locked). Referenced by the MIDDLE band spec below.
+ */
+export const ACT3_MIDDLE_SKY_OPACITY = 0.40; // ⚠ knob: 0.40 → 0.30 if money-side loud
+
+/**
+ * Per-band render spec — SKY/NAVY/GOLD money trio over a fixed ink ramp (Variant 1,
+ * deutan-verified; reuses the 3c CVD-verified trio). Family split is doctrine: ink =
+ * bottom three recede, money = top three pop. Threads are a TWO-REGISTER structure
+ * (BAND RENDERING (d)): ink = 1.1px, opacity gradient 0.10→0.20 toward the wall;
+ * money = flat opacity, width as a second prominence channel (ink whispers, money
+ * speaks, gold nearly shouts). `labelPlaceholder` names are WORKING placeholders —
+ * final naming is locked at render on the live wall; surfaced here, NOT hardcoded as
+ * final (see ACT3_BAND_LABELS_ARE_PLACEHOLDERS).
+ */
+export interface Act3BandSpec {
+  band: MoneyBand;
+  color: string;
+  family: 'money' | 'ink';
+  /** Thread stroke width (px). */
+  threadW: number;
+  /** Thread opacity at the dot end (faint). */
+  threadOpacityDot: number;
+  /** Thread opacity at the wall end (firm). Equals dot-end for the flat money register. */
+  threadOpacityWall: number;
+  /** Working placeholder wall-tab name (Oswald small-caps). NOT final. */
+  labelPlaceholder: string;
+  /** 2–3 word plain-language descriptor subline (Inter). */
+  descriptor: string;
+}
+
+export const ACT3_BANDS: Record<MoneyBand, Act3BandSpec> = {
+  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top of market',       descriptor: 'top of the market' },
+  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top of position',     descriptor: 'top of the position' },
+  MIDDLE: { band: 'MIDDLE', color: '#6FA8D8', family: 'money', threadW: 1.5,  threadOpacityDot: ACT3_MIDDLE_SKY_OPACITY, threadOpacityWall: ACT3_MIDDLE_SKY_OPACITY, labelPlaceholder: 'Middle class', descriptor: 'a middle-class deal' },
+  MIN:    { band: 'MIN',    color: '#565E68', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Minimum',             descriptor: 'minimum-level money' },
+  ZERO:   { band: 'ZERO',   color: '#7A828D', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Signed, $0 guaranteed', descriptor: 'signed, nothing guaranteed' },
+  NEVER:  { band: 'NEVER',  color: '#99A1AA', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Never re-signed',     descriptor: 'no second contract' },
+};
+
+/**
+ * ⚠ Band display names above are PLACEHOLDERS (kickoff caution: final naming locked at
+ * render on real nodes). "Middle class" is the lead candidate for band 4. Do NOT treat
+ * the labelPlaceholder strings as final copy — this flag marks them for Derek's rename
+ * on the live wall (Open GAP #2).
+ */
+export const ACT3_BAND_LABELS_ARE_PLACEHOLDERS = true;
+
+/** Pending-class band-1 label variant. A mid-window class's band 1 is "NOT RE-SIGNED
+ *  YET" (dashed, running count, NO threads) — becomes NEVER's label + threads at
+ *  graduation (Lambda pending rules). Only band 1 renames for pending. */
+export const ACT3_PENDING_BAND1_LABEL = 'NOT RE-SIGNED YET';
+
+// ── Right-rail edge tabs (BAND RENDERING (c)) ─────────────────────────────────
+
+/** 3px bookmark bar in band color + Oswald small-caps name + Inter `n · %` line. */
+export const ACT3_TAB_BAR_W = 3;
+export const ACT3_TAB_DX    = 10;   // gap from node right edge to the tab bar
+/** Lean-year collision rule: tabs keep ≥ this vertical pitch; when node centers are
+ *  closer, the LABEL nudges outward with a hairline connector — the NODE never
+ *  distorts ("position approximate, membership exact"). */
+export const ACT3_TAB_MIN_PITCH = 32;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  3. DOTS + THREADS
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Dot radius + navy outline (choreography spec §3 rest values). Bumped 4.5 → 5.5
+ *  (render-tune 2026-07-10, Derek): larger dots read better; strip/corner pack tighter
+ *  (the message) but stay individually hoverable. */
+export const ACT3_DOT_R = 5.5;
+export const ACT3_DOT_STROKE_W = 1;
+export const ACT3_DOT_STROKE = '#0B2239'; // navy outline
+
+/** Thread cubic-bezier control points at 62% of the x-distance from dot toward the
+ *  wall — identical curve family for all bands (choreography spec §2). */
+export const ACT3_THREAD_CP_FRAC = 0.62;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  4. ROUND GRIDLINES + FIELD FURNITURE (STRIPS & FIELD FURNITURE, banked)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Vertical hairline at each round's first pick — furniture, not data (Bartram–Stone
+ *  floor). Straight verticals vs curved threads read as furniture. Per-class boundaries
+ *  (comp picks shift them) — never faked to fixed 32s. */
+export const ACT3_GRIDLINE_COLOR = 'rgba(11,34,57,0.10)';
+export const ACT3_GRIDLINE_W = 1;
+
+/** `R1`–`R7` labels below the axis, Inter ~11px @ ~0.5. Pick numbers off the axis
+ *  except 1 and 262 (hover carries the exact pick). */
+export const ACT3_RD_LABEL_COLOR = 'rgba(11,34,57,0.55)';
+export const ACT3_RD_LABEL_SIZE = 11;
+/** The two shown pick numbers (1 and 262) at the axis extremes. */
+export const ACT3_AXIS_PICK_COLOR = 'rgba(11,34,57,0.5)';
+
+/** Too-few-snaps strip fill — navy ~4.5% + dashed top hairline (the "couldn't stick"
+ *  trapdoor grammar). Corner (UDFA × strip) = both fills continue → ~9%. */
+export const ACT3_STRIP_FILL = 'rgba(11,34,57,0.045)';
+export const ACT3_STRIP_DASH_COLOR = 'rgba(11,34,57,0.45)';
+export const ACT3_STRIP_DASH = '4 3';
+/** Corner overlay: a SECOND ~4.5% navy fill painted over the strip fill in the
+ *  UDFA×strip cell so it renders ~9% ("both things true here" = sum of the parts). */
+export const ACT3_CORNER_FILL = 'rgba(11,34,57,0.045)';
+
+/** UDFA strip frame (dashed) + axis label `UNDRAFTED`. */
+export const ACT3_UDFA_FRAME_COLOR = 'rgba(11,34,57,0.35)';
+export const ACT3_UDFA_LABEL = 'UNDRAFTED';
+
+/** Left edge-tab on the too-few-snaps strip: `TOO FEW SNAPS · n`. */
+export const ACT3_STRIP_LABEL = 'TOO FEW SNAPS';
+
+// ── Y-axis title (rotated, left edge) ─────────────────────────────────────────
+/** Ports the resolved field's rotated left-axis treatment (Brief 2). */
+export const ACT3_Y_AXIS_TITLE = 'USAGE';
+export const ACT3_Y_AXIS_QUALIFIER = "share of position's snaps";
+
+// ── Brand anchors (locked — do not alter) ─────────────────────────────────────
+export const ACT3_FIELD_BG = '#F5F0E8'; // parchment (register continuity, Acts 1–2)
+export const ACT3_NAVY = '#0B2239';
+
+// ════════════════════════════════════════════════════════════════════════════
+//  5. LENS (ghost + re-light) — parallels the jellyfish lens contract
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Ghost floor for non-lit dots + threads under an active scope lens (mirrors the
+ *  Acts 1/2 + jellyfish ghost so the whole product ghosts at one weight). At rest
+ *  (no lens) NONE of this applies — the field renders byte-identical. */
+export const ACT3_LENS_GHOST_OPACITY = 0.12;

@@ -14,7 +14,7 @@ import { unstable_cache } from 'next/cache'
 import outcomeScores from '@/data/outcome-scores.json'
 import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution, percentileWithinPool } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
-import { Verdict, getVerdictMaturity } from './verdict'
+import { Verdict, getVerdictMaturity, MoneyBand } from './verdict'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -145,6 +145,31 @@ export interface UsageProfile {
   careerUsagePercentile: number | null;
   /** Total games played across all seasons — for the unqualified hover register. */
   games: number | null;
+
+  // ── Phase Lambda additions (Act 3 reframe: window_usage Y-axis) ────────────
+  /**
+   * Rookie-contract-window (draft_year … +3) pooled scrimmage snap rate, BAKED in
+   * player_seasons col AS (`window_usage`), raw 0–1, constant across a player's
+   * season rows — exactly parallel to `careerUsage`. Null ⇒ unqualified ⇒
+   * too-few-snaps strip member. Parsed, never re-derived (the qualification gate
+   * lives in the Sheet bake, not here). Distinct from careerUsage (career-to-date):
+   * the window is the audition that produced the second-contract verdict.
+   */
+  windowUsage: number | null;
+  /**
+   * Percentile (0–100) of `windowUsage` within this player's played_position pool,
+   * across ALL classes — the Act-3 Y-coordinate (top = 100). This is the Brief-3
+   * RENDER TRANSFORM of the raw baked value (same pattern as careerUsagePercentile),
+   * computed at fetch time, never stored. Null when windowUsage is null (strip
+   * member) or played_position is unknown.
+   */
+  windowUsagePercentile: number | null;
+  /**
+   * Too-few-snaps strip membership — derived ONCE here (`windowUsage === null`) and
+   * passed explicitly per the choreography data contract §0, so components never
+   * recompute qualification. True ⇒ the dot plots in the bottom strip, not the field.
+   */
+  stripMember: boolean;
 
   // ── Brief c additions (pending usage field) ──────────────────────────────
   /**
@@ -810,6 +835,8 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
     // already excluded upstream (project_usage_metric) — they never reach here.
     interface UsageAgg {
       careerUsage: number | null;
+      /** Phase Lambda: baked window_usage (col AS), constant across a player's rows. */
+      windowUsage: number | null;
       playedPosition: string | null;
       qualified: boolean;
       games: number;
@@ -820,6 +847,7 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
     const usageAgg = new Map<string, UsageAgg>();
     rawByPlayer.forEach((rowList, pid) => {
       let careerUsage: number | null = null;
+      let windowUsage: number | null = null;
       let qualified = false;
       let games = 0;
       let stCareerSnaps = 0;
@@ -830,6 +858,10 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
       for (const row of rowList) {
         const cu = toFloat(row.career_usage);
         if (cu !== null) careerUsage = cu;
+        // Phase Lambda: window_usage (col AS) is constant per player across rows —
+        // take the first non-null, exactly like career_usage above.
+        const wu = toFloat(row.window_usage);
+        if (wu !== null) windowUsage = wu;
         if ((row.usage_qualified ?? '').trim().toUpperCase() === 'TRUE') qualified = true;
         const pp = (row.played_position ?? '').trim();
         if (pp) posCounts.set(pp, (posCounts.get(pp) ?? 0) + 1);
@@ -869,7 +901,7 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
           stShare: count > 0 ? wpct / count : null,
         }));
       usageAgg.set(pid, {
-        careerUsage, playedPosition, qualified, games,
+        careerUsage, windowUsage, playedPosition, qualified, games,
         stCareerSnaps, scrimCareerSnaps, stSeasons,
       });
     });
@@ -895,6 +927,19 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
       usagePoolByPos.set(playedPosition, list);
     });
 
+    // Phase Lambda: parallel reference pool over window_usage (Act-3 Y-axis). Pool
+    // membership = a non-null baked window_usage + a known played_position; NOT gated
+    // on the careerUsage `qualified` flag — window_usage is already null exactly when
+    // the window-total games gate failed (that IS strip membership). Keyed by raw
+    // played_position, same as the careerUsage pool above (identical canonical keys).
+    const windowUsagePoolByPos = new Map<string, number[]>();
+    usageAgg.forEach(({ windowUsage, playedPosition }) => {
+      if (windowUsage === null || playedPosition === null) return;
+      const list = windowUsagePoolByPos.get(playedPosition) ?? [];
+      list.push(windowUsage);
+      windowUsagePoolByPos.set(playedPosition, list);
+    });
+
     // ST-primary flag + global ST-share pool (Part 1c). career ST snap SHARE =
     // ST / (ST + scrimmage). The pool is position-agnostic — every ST-primary
     // player, league-wide — because a gunner competes against gunners, not his
@@ -910,11 +955,18 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
 
     const usageByPlayer = new Map<string, UsageProfile>();
     usageAgg.forEach((agg, pid) => {
-      const { careerUsage, playedPosition, qualified, games, stCareerSnaps, scrimCareerSnaps, stSeasons } = agg;
+      const { careerUsage, windowUsage, playedPosition, qualified, games, stCareerSnaps, scrimCareerSnaps, stSeasons } = agg;
       let careerUsagePercentile: number | null = null;
       if (qualified && playedPosition !== null && careerUsage !== null) {
         careerUsagePercentile = percentileWithinPool(careerUsage, usagePoolByPos.get(playedPosition) ?? []);
       }
+      // Phase Lambda Act-3 Y-coordinate: percentile of window_usage within position.
+      // Null (strip member) when window_usage is null or position unknown.
+      let windowUsagePercentile: number | null = null;
+      if (windowUsage !== null && playedPosition !== null) {
+        windowUsagePercentile = percentileWithinPool(windowUsage, windowUsagePoolByPos.get(playedPosition) ?? []);
+      }
+      const stripMember = windowUsage === null;
       const stPrimary = stPrimaryOf(agg);
       const stPercentile = stPrimary ? percentileWithinPool(stShareOf(agg), stSharePool) : null;
       const seasons = Array.from((playerSeasonSnap.get(pid) ?? new Map<number, number>()).entries())
@@ -925,6 +977,9 @@ export async function computeOutcomeScoreEntries(): Promise<Array<[string, Playe
         playedPosition,
         qualified,
         careerUsagePercentile,
+        windowUsage,
+        windowUsagePercentile,
+        stripMember,
         games: games > 0 ? games : null,
         seasons,
         stCareerSnaps,
@@ -1040,6 +1095,26 @@ export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeDat
  * resolved classes (2018–2021); 2022 is partial. `verdict_share` is precomputed
  * (a2) and may be null (NONE rows; positions with no market line).
  */
+/**
+ * Validate + narrow the baked `money_band` cell (second_contracts col L) to the
+ * MoneyBand union. Blank (39 K/P/LS rows) → null. An unexpected non-empty value is
+ * a data bug: warn once and null it so a stray token never mis-colors a dot or
+ * inflates a wall node. NOT derived here — parsed only (boundaries are a sniff-test
+ * reference; the Sheet is the runtime source of truth).
+ */
+const MONEY_BAND_VALUES = ['NEVER', 'ZERO', 'MIN', 'MIDDLE', 'TOP10', 'TOP5'] as const;
+let moneyBandWarned = false;
+function parseMoneyBand(raw: string | undefined): MoneyBand | null {
+  const v = (raw ?? '').trim().toUpperCase();
+  if (!v) return null;
+  if ((MONEY_BAND_VALUES as readonly string[]).includes(v)) return v as MoneyBand;
+  if (!moneyBandWarned) {
+    console.warn(`[second_contracts] unexpected money_band value "${raw}" (expected one of ${MONEY_BAND_VALUES.join('/')} or blank) — treating as null`);
+    moneyBandWarned = true;
+  }
+  return null;
+}
+
 export async function fetchSecondContracts(): Promise<Map<string, Verdict>> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) return new Map();
@@ -1068,6 +1143,7 @@ export async function fetchSecondContracts(): Promise<Map<string, Verdict>> {
         signingYear:   toInt(row.signing_year),
         tagOption:     (row.tag_option ?? '').trim(),
         verdictShare:  toFloat(row.verdict_share),
+        moneyBand:     parseMoneyBand(row.money_band),
         notes:         toStr(row.notes),
       });
     }
