@@ -9,7 +9,11 @@ export function generateBaseSlug(name: string): string {
     .replace(/-+/g, '-');
 }
 
-export function buildSlugMap(players: Player[]): Map<string, string> {
+// Structural minimum buildSlugMap reads — lets callers pass either full Player
+// objects or the lean SearchIndexEntry (both carry these four fields).
+type SluggablePlayer = Pick<Player, 'player_id' | 'name' | 'pos' | 'school'>;
+
+export function buildSlugMap(players: SluggablePlayer[]): Map<string, string> {
   const playerById = new Map(players.map(p => [p.player_id, p]));
 
   // First pass: base slugs per player

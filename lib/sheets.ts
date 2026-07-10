@@ -11,6 +11,7 @@
  */
 
 import { unstable_cache } from 'next/cache'
+import outcomeScores from '@/data/outcome-scores.json'
 import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution, percentileWithinPool } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
 import { Verdict, getVerdictMaturity } from './verdict'
@@ -311,15 +312,8 @@ function mapRow(row: SheetsRawRow): Player {
 
 // ── Main fetch function ───────────────────────────────────────────────────────
 
-/**
- * Fetch all players for a given draft year from Google Sheets.
- *
- * Reads the 'players' tab of the publicly-readable DraftMap Data spreadsheet
- * via the CSV export URL — no API key required.
- *
- * Intended for use in server-side Route Handlers only.
- */
-export async function fetchPlayers(year: number = CURRENT_DRAFT_YEAR): Promise<Player[]> {
+/** Uncached compute: fetch the players CSV and parse to Player[] for one year. */
+async function computePlayers(year: number): Promise<Player[]> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
 
   if (!spreadsheetId) {
@@ -353,6 +347,28 @@ export async function fetchPlayers(year: number = CURRENT_DRAFT_YEAR): Promise<P
     })
     .map(mapRow)
     .filter((p) => p.name !== "(Unknown)" && p.name.length > 0);
+}
+
+// Cache the PARSED Player[] (not just the inner fetch), keyed by year. Without
+// this, parseCSV + mapRow re-run on every call — /sitemap, /players, and
+// getCachedPlayersAndSlugs each paid the full parse per cold render. The year
+// argument is folded into the cache key automatically by unstable_cache.
+const getCachedPlayers = unstable_cache(
+  (year: number) => computePlayers(year),
+  ['players-by-year-v1'],
+  { revalidate: 300 },
+);
+
+/**
+ * Fetch all players for a given draft year from Google Sheets.
+ *
+ * Reads the 'players' tab of the publicly-readable DraftMap Data spreadsheet
+ * via the CSV export URL — no API key required.
+ *
+ * Intended for use in server-side Route Handlers only.
+ */
+export async function fetchPlayers(year: number = CURRENT_DRAFT_YEAR): Promise<Player[]> {
+  return getCachedPlayers(year);
 }
 
 // ── Year-agnostic search index (brief f, item 3) ────────────────────────────────
@@ -676,7 +692,7 @@ function buildSeasonData(
  * entries (Maps don't JSON-serialize); fetchOutcomeScores() rehydrates the Map.
  * Failures throw inside the cached fn so an empty result is never cached.
  */
-async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcomeData]>> {
+export async function computeOutcomeScoreEntries(): Promise<Array<[string, PlayerOutcomeData]>> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) return [];
 
@@ -991,10 +1007,26 @@ const getCachedOutcomeScoreEntries = unstable_cache(
 );
 
 export async function fetchOutcomeScores(): Promise<Map<string, PlayerOutcomeData>> {
+  // Serve from the committed static snapshot (data/outcome-scores.json), generated
+  // offline by scripts/build-outcome-scores.ts. This removes ALL runtime scoring
+  // and the ~10k-row player_seasons fetch from every cold render — the fix for the
+  // Fluid Active CPU overage (see the Vercel optimization brief, 2026-07-09).
+  //
+  // computeOutcomeScoreEntries + getCachedOutcomeScoreEntries remain as the
+  // generator engine and a graceful fallback: if the snapshot is somehow missing
+  // or malformed, fall back to computing so a render never hard-breaks.
   try {
-    return new Map(await getCachedOutcomeScoreEntries());
+    const entries = outcomeScores as Array<[string, PlayerOutcomeData]>;
+    if (Array.isArray(entries) && entries.length > 0) {
+      return new Map(entries);
+    }
+    throw new Error('outcome-scores.json empty or malformed');
   } catch {
-    return new Map();
+    try {
+      return new Map(await getCachedOutcomeScoreEntries());
+    } catch {
+      return new Map();
+    }
   }
 }
 
