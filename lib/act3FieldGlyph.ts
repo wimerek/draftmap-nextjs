@@ -19,11 +19,9 @@ import type { Player } from './sheets';
 import { rookieAwardGlyph, type AwardGlyph } from './awardGlyph';
 
 export function act3FieldGlyph(player: Player): AwardGlyph {
-  // ST-primary role → triangle wins over any award (suppression rule).
+  // ST-primary role → triangle wins over any award (suppression rule). ST HONORS are
+  // deleted product-wide (Lambda spec-death #6): rookieAwardGlyph no longer emits a
+  // triangle for an ST honor, so the star/sparkle/chevron ladder passes through verbatim.
   if (player.usage?.stPrimary) return 'triangle';
-  // Otherwise the brief-e ladder, minus any ST-honor triangle (ST honors deleted):
-  // rookieAwardGlyph only returns 'triangle' here via the ST-honor branch (stPrimary
-  // is already false), so drop it to null; star/sparkle/chevron pass through verbatim.
-  const g = rookieAwardGlyph(player);
-  return g === 'triangle' ? null : g;
+  return rookieAwardGlyph(player);
 }

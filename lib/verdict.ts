@@ -5,8 +5,9 @@
  *
  * The verdict answers one question per drafted player: when his rookie deal
  * expired, what did the league pay him? That answer (the `contract_tier`) and
- * its magnitude (`verdict_share`, precomputed in build_second_contracts.py)
- * drive the resolved jellyfish field.
+ * its magnitude (`verdict_share`, precomputed in build_second_contracts.py) live
+ * in the data; the Act-3 render encodes money via the six-band `money_band` ladder
+ * (the legacy jellyfish field that rendered `contract_tier` was removed in Brief 6).
  *
  * This module is intentionally tiny and dependency-free so it can be imported
  * from both the server data layer (lib/sheets.ts) and pure chart math
@@ -27,9 +28,9 @@ export const PAID_TIERS: ContractTier[] = ['BRIDGE', 'SOLID', 'PREMIUM'];
 
 // ── Money band (Phase Lambda — Act 3 reframe) ───────────────────────────────
 //
-// The SIX-band money ladder that supersedes the five-tier waterfall AS THE ACT-3
-// COLOR ENCODING (the tier above stays in the data + drives the legacy jellyfish;
-// it is not deleted — Lambda "new before delete"). BAKED in the Sheet as
+// The SIX-band money ladder that superseded the five-tier waterfall AS THE ACT-3
+// COLOR ENCODING (the tier above stays in the data but no longer renders — the
+// jellyfish field that drove it was removed in Brief 6). BAKED in the Sheet as
 // second_contracts column L (`money_band`) — the render parses it, never derives it
 // (boundaries are a sniff-test reference only). Blank for the 39 K/P/LS rows (ST
 // positions excluded from the money market), which parse to `null`.

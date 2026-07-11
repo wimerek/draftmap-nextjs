@@ -375,19 +375,6 @@ function catSTpath(player: Player): string {
   return addFlair(fact, player.player_id, 'general');
 }
 
-// Cat ST-pb — ST Pro Bowl recognition
-function catSTpb(player: Player, group: Player[]): string {
-  const sd = player.seasonData;
-  if (!sd || sd.length === 0) return '';
-  if (!sd.some(r => r.stProBowl)) return '';
-
-  const draftYear = player.draft_year;
-  const N = group.filter(p => p.seasonData?.some(r => r.stProBowl)).length;
-  const firstName = player.name.split(' ')[0];
-  const fact = `${firstName} earned a Special Teams Pro Bowl selection — one of ${N} player${N !== 1 ? 's' : ''} from the ${draftYear} class to earn the honor.`;
-  return addFlair(fact, player.player_id, 'general');
-}
-
 // Cat 5 — Snap share resilience
 function cat5(player: Player): string {
   const sd = player.seasonData;
@@ -452,9 +439,6 @@ export function getFunFact(player: Player, classPeers: Player[]): string {
 
     const cSTpath = catSTpath(player);
     if (cSTpath) return cSTpath;
-
-    const cSTpb = catSTpb(player, group);
-    if (cSTpb) return cSTpb;
 
     const c3 = cat3(player, statKey);
     if (c3) return c3;

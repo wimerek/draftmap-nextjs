@@ -403,27 +403,8 @@ const wrSTpathPeers = [
     seasonData: [makeSeason(2021, { recYards: 700 }), makeSeason(2022, { recYards: 600 })] }),
 ];
 
-// Case 14: Player with stProBowl=true, no pathway story → Cat ST-pb
-// 2 seasons stSnapPct > 0.40 but snapPct never >= 0.45 → Cat ST-path won't fire.
-// 0 passDeflections, peers have more → rank = 3/3 → Cat 1 won't fire.
-const stPBPlayer = makePlayer({
-  player_id: 'st-pb-player-2021',
-  name: 'Matthew Slater',
-  pos: 'CB',
-  draft_year: 2021,
-  rd: 6, rd_drafted: 6, pick_drafted: 190,
-  drafted: true,
-  seasonData: [
-    makeSeason(2021, { stSnapPct: 0.65, snapPct: 0.15, stProBowl: true }),
-    makeSeason(2022, { stSnapPct: 0.60, snapPct: 0.12 }),
-  ],
-});
-const stPBPeers = [
-  makePlayer({ player_id: 'st-pb-peer-1-2021', pos: 'CB', draft_year: 2021,
-    seasonData: [makeSeason(2021, { defInts: 5, passDeflections: 10, soloTackles: 30, snapPct: 0.80 })] }),
-  makePlayer({ player_id: 'st-pb-peer-2-2021', pos: 'CB', draft_year: 2021,
-    seasonData: [makeSeason(2021, { defInts: 3, passDeflections: 8, soloTackles: 20, snapPct: 0.75 })] }),
-];
+// (Case 14 — the ST-Pro-Bowl "Cat ST-pb" fun-fact — was removed in Lambda Brief 6
+//  when ST honors were deleted product-wide; the catSTpb generator no longer exists.)
 
 // ── Run tests ─────────────────────────────────────────────────────────────────
 
@@ -448,7 +429,6 @@ const cases: TestCase[] = [
   { label: "Case 11 — Brief stint, 1 season 8 games",                    player: briefPlayer,      peers: briefPeers,          expectedCategory: "Cat 6 Variant A → cup of coffee phrase only" },
   { label: "Case 12 — Pre-draft, no measurables data",                   player: noMeasurables,    peers: noMeasurablesPeers,  expectedCategory: "NO FACT GENERATED" },
   { label: "Case 13 — WR 3 ST seasons then snapPct breakout",           player: wrSTpath,         peers: wrSTpathPeers,       expectedCategory: "Cat ST-path + general flair" },
-  { label: "Case 14 — ST Pro Bowl, no pathway story",                   player: stPBPlayer,       peers: stPBPeers,           expectedCategory: "Cat ST-pb + general flair" },
 ];
 
 console.log('\n=== getFunFact() simulation — with flair ===\n');

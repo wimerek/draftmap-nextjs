@@ -9,8 +9,9 @@
  *              the mvp column only NAMES the honor in the hover/card, never the mark.
  *   sparkle  = Pro Bowl (4-point — the "lesser star" below All-Pro).
  *   chevron  = All-Rookie (rookie-year honor; carries forward if nothing higher lands).
- *   triangle = special teams: ST PLACEMENT (stPrimary) OR an ST honor (ST All-Pro /
- *              ST Pro Bowl). Lowest rung, smallest mark. Descending points: 5 · 4 · 3 · 3.
+ *   triangle = special teams: ST PLACEMENT (stPrimary) — the ST-primary ROLE. Lowest
+ *              rung, smallest mark. (ST honors — ST All-Pro / ST Pro Bowl — are DELETED
+ *              product-wide, Lambda spec-death #6; the triangle points at role, not honor.)
  */
 import type { Player } from "./sheets";
 
@@ -27,6 +28,6 @@ export function rookieAwardGlyph(player: Player): AwardGlyph {
   if (win.some((s) => s.allPro || s.allPro2nd)) return "star";
   if (win.some((s) => s.proBowl)) return "sparkle";
   if (win.some((s) => s.allRookie)) return "chevron";
-  if (player.usage?.stPrimary || win.some((s) => s.stAllPro || s.stProBowl)) return "triangle";
+  if (player.usage?.stPrimary) return "triangle"; // ST-primary ROLE only (ST honors deleted)
   return null;
 }

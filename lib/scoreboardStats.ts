@@ -16,9 +16,8 @@
 
 import type { Player } from './sheets';
 import { MONEY_FAMILY_BANDS, getVerdictMaturity } from './verdict';
-import type { ContractTier, MoneyBand } from './verdict';
+import type { MoneyBand } from './verdict';
 import {
-  GOT_PAID_TIERS,
   STARTER_PERCENTILE,
   REACH_BRACKET_TOP10,
   REACH_BRACKET_THRU64,
@@ -75,7 +74,7 @@ export function classifyDraftMove(rank: number | null, pick: number | null): Dra
  * The field universe `N`: everyone DRAFTED from this class, PLUS undrafted players
  * who logged ≥1 NFL snap (usage.seasons) or carry a contract row (verdict). This is
  * exactly the a2 "drafted-unconditional + UDFAs with ≥1 snap" universe — the SAME
- * set the jellyfish plots:
+ * set the Act-3 field plots:
  *   - resolved field: `p.verdict !== null || p.drafted`
  *   - pending field:  `p.drafted || usage.seasons.length > 0`
  * Their union (used here) equals each for its own maturity, because a pending class
@@ -89,9 +88,9 @@ function inUniverse(p: Player): boolean {
 /**
  * The COULDN'T STICK strip predicate (pending field). A pending dot is routed to the
  * strip when the usage waterfall lands it there — i.e. it is NOT ST-primary AND NOT
- * (qualified with a real percentile). Reuses the EXACT predicate the pending field's
- * `pendingUsageYStrategy` uses to populate the strip, so the slot's COULDN'T STICK /
- * STILL-IN-LEAGUE counts can never disagree with the strip edge-tab (ruling 2 + #4).
+ * (qualified with a real percentile). Mirrors the too-few-snaps strip membership the
+ * Act-3 field applies, so the slot's COULDN'T STICK / STILL-IN-LEAGUE counts can never
+ * disagree with the strip edge-tab (ruling 2 + #4).
  */
 function isStripDot(p: Player): boolean {
   const u = p.usage;
@@ -105,21 +104,6 @@ function isStripDot(p: Player): boolean {
 export interface ScoreboardStats {
   /** N — the field universe (ONE definition above). */
   N: number;
-
-  // Act 3 — resolved
-  /** PREMIUM + SOLID + BRIDGE (ruling 3) — computed LIVE, never a literal. */
-  gotPaidCount: number;
-  /** PREMIUM only (supporting / export caption material). */
-  topOfMarketCount: number;
-  /**
-   * Per-tier verdict counts (PREMIUM / SOLID / BRIDGE / PROVE_IT / NONE). Feeds the
-   * Act-3 resolved tier strip (scoreboard-redesign brief §4). For a RESOLVED class
-   * these sum to N (every universe member carries a verdict row), so the strip fills
-   * the whole track and the bright paid-line lands exactly at gotPaidCount/N — the
-   * cumulative PREMIUM+SOLID+BRIDGE edge. gotPaidCount/topOfMarketCount are derived
-   * from these (one tally, one source of truth).
-   */
-  tierCounts: Record<ContractTier, number>;
 
   // Act 3 — resolved, SIX-BAND money ladder (Phase Lambda reframe). Population =
   // plotted_pop (the money-band field; the K/P/LS blank-band rows are excluded),
@@ -198,18 +182,6 @@ export function computeScoreboardStats(
 ): ScoreboardStats {
   const universe = players.filter(inUniverse);
   const N = universe.length;
-
-  // ── Act 3 resolved (tally all five tiers; got-paid + top-of-market derive) ──
-  const tierCounts: Record<ContractTier, number> = {
-    PREMIUM: 0, SOLID: 0, BRIDGE: 0, PROVE_IT: 0, NONE: 0,
-  };
-  for (const p of players) {
-    const t = p.verdict?.tier;
-    if (!t) continue;
-    tierCounts[t]++;
-  }
-  const gotPaidCount = GOT_PAID_TIERS.reduce((s, t) => s + tierCounts[t], 0);
-  const topOfMarketCount = tierCounts.PREMIUM;
 
   // ── Act 3 six-band money ladder (Phase Lambda reframe) ─────────────────────
   // Population MIRRORS computeAct3FieldLayout's dotsInput (lib/chartMath.ts): drafted
@@ -294,9 +266,6 @@ export function computeScoreboardStats(
 
   return {
     N,
-    gotPaidCount,
-    topOfMarketCount,
-    tierCounts,
     plottedPop,
     bandCounts,
     moneyFamilyCount,

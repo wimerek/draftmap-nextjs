@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
     const isLive = searchParams.get("live") === "1";
     const skipScores = searchParams.get("scores") === "0";
 
-    // Verdicts are always fetched (cheap, slug-keyed) — the resolved jellyfish
-    // (beat 3) needs verdict_share even on the scores=0 fast path.
+    // Verdicts are always fetched (cheap, slug-keyed) — the resolved Act-3 field
+    // (beat 3) needs the verdict payload even on the scores=0 fast path.
     const [players, outcomeScores, verdictMap] = await Promise.all([
       fetchPlayers(year),
       skipScores ? Promise.resolve(new Map()) : fetchOutcomeScores(),

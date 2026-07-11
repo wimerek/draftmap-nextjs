@@ -7,7 +7,7 @@ import {
  *  fill so the outline reads at small size. Highest rung only (rookieAwardGlyph).
  *  pointer-events off so the dot keeps its own hover/click.
  *
- *  Shared between the Act-3 field (JellyfishField) and the sidebar Act Key (ActKey)
+ *  Shared between the Act-3 field (Act3Field) and the sidebar Act Key (ActKey)
  *  so the legend's shapes are byte-identical to the chart's — import, never redraw. */
 export function AwardGlyphMark({
   glyph, cx, cy, r,

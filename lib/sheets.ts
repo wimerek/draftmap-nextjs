@@ -116,7 +116,8 @@ export interface Player {
    * Second-contract verdict (Act 3 resolved field). Authoritative when present.
    * Null = pending class (not yet resolved) OR — for a RESOLVED class — a slug
    * join failure (a2 guarantees explicit NONE rows, so absence is never a NONE).
-   * The resolved jellyfish renders a null-verdict dot in a muted "data-gap" state.
+   * A resolved-class join failure is surfaced as an unmatched id (see resolveVerdicts);
+   * the old jellyfish "data-gap" muted dot was removed with that field in Brief 6.
    */
   verdict: Verdict | null;
 
@@ -194,8 +195,9 @@ export interface UsageProfile {
   /**
    * Global percentile (0–100) of this player's career ST snap share within the
    * pool of ALL ST-primary players (position-agnostic). Null when not ST-primary.
-   * Derived at fetch time, never stored. The pending field rescales this into the
-   * ST_CEILING band; the hover shows the RAW value LABELED as an ST percentile.
+   * Derived at fetch time, never stored. The hover shows the RAW value LABELED as
+   * an ST percentile. (The old 0–45 rescale into the ST_CEILING band was removed in
+   * Brief 6 — ST-primaries now plot at true usage.)
    */
   stPercentile: number | null;
 }
@@ -1171,9 +1173,9 @@ export interface VerdictJoinResult {
  *   row absent  & class pending          → verdict stays null (belongs to pending view)
  *   row absent  & class resolved         → JOIN FAILURE: verdict null + unmatched id
  *
- * The resolved jellyfish renders null-verdict dots in a muted "data-gap" state
- * (layer 1); this returns the unmatched ids (layer 2) and console.warns them
- * (layer 3). Absence must NEVER silently mean NONE.
+ * A resolved-class join failure is caught here: this returns the unmatched ids
+ * and console.warns them. Absence must NEVER silently mean NONE. (The jellyfish
+ * "data-gap" muted dot that once rendered these was removed in Brief 6.)
  */
 export function resolveVerdicts(players: Player[], verdictMap: Map<string, Verdict>): VerdictJoinResult {
   const unmatched: string[] = [];

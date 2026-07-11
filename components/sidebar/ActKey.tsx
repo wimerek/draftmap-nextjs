@@ -71,8 +71,8 @@ const ACT3_SUBHEAD: Record<Act3State, string> = {
 };
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2
-// follow-up — the right-axis RESOLVED_TIER_DESCRIPTOR sublines carry the tier meaning
-// now. The state-aware subhead + "Roughly two-thirds…" line stay.)
+// follow-up — the right-axis six-band wall tabs carry the money meaning now. The
+// state-aware subhead + "Roughly two-thirds…" line stay.)
 
 const FADE_MS = 190; // body cross-fade per leg — see .sb-key-body transition
 

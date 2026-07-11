@@ -1,10 +1,9 @@
 /**
  * lib/act3FieldConstants.ts
  *
- * Phase Lambda — Act 3 REFRAME render knobs (the NEW resting field). ONE place for
- * every tunable of the six-band money / window-usage chart. Additive: the legacy
- * five-tier "jellyfish" constants stay in lib/act3Constants.ts and stay live until
- * this field passes its sniff test (Lambda "new before delete"; deletion = Brief 6).
+ * Phase Lambda — Act 3 REFRAME render knobs (the resting field). ONE place for every
+ * tunable of the six-band money / window-usage chart — the sole Act-3 render since the
+ * legacy five-tier "jellyfish" field was removed in Lambda Brief 6.
  *
  * Authority: draftmap-act3-chart-decisions-2026-07-01.md (X/Y AXIS · MONEY BANDS ·
  * BAND RENDERING a–d · STRIPS & FIELD FURNITURE) + SPIKE RESOLUTIONS 2026-07-09.
@@ -13,20 +12,6 @@
  */
 
 import type { MoneyBand } from './verdict';
-
-// ════════════════════════════════════════════════════════════════════════════
-//  BUILD FLAG — A/B switch (jellyfish stays reachable until sniff test passes)
-// ════════════════════════════════════════════════════════════════════════════
-
-/**
- * Which Act-3 resting field renders. `'new'` = this six-band money/usage field
- * (Phase Lambda). `'jellyfish'` = the legacy five-tier verdict-share field
- * (lib/chartMath computeJellyfishLayout + JellyfishField). Default `'new'` so Derek
- * sniff-tests the reframe on prod data; flip to `'jellyfish'` for a byte-identical
- * A/B fallback. The jellyfish code path is NOT deleted in this brief (Brief 6 does
- * that, only after §8 sniff test is green).
- */
-export const ACT3_FIELD_VERSION: 'new' | 'jellyfish' = 'new';
 
 // ════════════════════════════════════════════════════════════════════════════
 //  1. FIELD GEOMETRY

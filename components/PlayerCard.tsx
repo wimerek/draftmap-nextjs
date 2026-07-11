@@ -727,9 +727,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                   </div>
                   <div className="dm-usage-legend">
                     ★ All&#8209;Pro &nbsp;&middot;&nbsp; † Pro Bowl
-                    {player.seasonData?.some(r => r.stProBowl) && (
-                      <> &nbsp;&middot;&nbsp; <span style={{ color: '#D4A017' }}>⬡ ST Pro Bowl</span></>
-                    )}
                   </div>
                   <div className="dm-usage-row">
                     <span className="dm-usage-num">{activeUsage != null ? Math.round(activeUsage) : '—'}</span>
@@ -868,11 +865,12 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
             if (!player.seasonData) return null;
             const sd = player.seasonData;
 
+            // ST honors (ST Pro Bowl / ST All-Pro) are deleted product-wide (Lambda
+            // spec-death #6) — the section is driven purely by ST usage / return stats.
             const hasSTStory = sd.some(row =>
               (row.stSnapPct !== null && row.stSnapPct > 0.30) ||
               (row.puntReturnYards !== null && row.puntReturnYards > 0) ||
-              (row.kickoffReturnYards !== null && row.kickoffReturnYards > 0) ||
-              row.stProBowl === true
+              (row.kickoffReturnYards !== null && row.kickoffReturnYards > 0)
             );
             if (!hasSTStory) return null;
 
@@ -880,7 +878,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
             const hasKRYards = sd.some(r => r.kickoffReturnYards !== null && r.kickoffReturnYards > 0);
             const hasReturnYards = hasPRYards || hasKRYards;
             const hasSTTds = sd.some(r => r.specialTeamsTds !== null && r.specialTeamsTds > 0);
-            const stProBowlYears = sd.filter(r => r.stProBowl).map(r => `'${String(r.season).slice(-2)}`);
 
             const fmtVal = (v: number | null) => v != null ? String(v) : '—';
             const sumST = (key: keyof typeof sd[0]) =>
@@ -890,12 +887,6 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
               <>
                 <div className="dm-band">Special Teams</div>
                 <div className="pcm-section-block">
-                  {stProBowlYears.length > 0 && (
-                    <div style={{ color: '#D4A017', fontSize: '0.75rem', marginBottom: '6px' }}>
-                      ⬡ ST Pro Bowl: {stProBowlYears.join(', ')}
-                    </div>
-                  )}
-
                   <table className="dm-stats">
                       <thead>
                         <tr>

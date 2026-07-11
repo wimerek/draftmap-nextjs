@@ -5,7 +5,7 @@
  *
  * One definition, three consumers, no drift:
  *   - Acts 1/2 — PlayerDots ghosts non-matching dots (opacity 0.12).
- *   - Act 3   — JellyfishField ghosts non-lit dots/threads + re-lights the lit ones
+ *   - Act 3   — Act3Field ghosts non-lit dots/threads + re-lights the lit ones
  *               (the lit-id set is derived from THIS predicate in DraftChart).
  *   - Scoreboard — the SAME lit set feeds computeScoreboardStats, so the slot can
  *               never contradict the chart beside it (7.0 lens contract).

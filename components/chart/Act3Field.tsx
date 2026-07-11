@@ -12,9 +12,9 @@
  *   Threads (one per banded dot) → six true-count wall nodes at the far right.
  *   "Most players never reach real money" reads as the dense grey ink weave.
  *
- * ADDITIVE — the legacy JellyfishField is untouched and still reachable via
- * ACT3_FIELD_VERSION. At rest (litIds null) this renders byte-identical every time;
- * it is the exact skip-state target frame for the Brief-4 2→3 animation.
+ * This is the sole Act-3 field (the legacy JellyfishField render path was removed in
+ * Brief 6). At rest (litIds null) this renders byte-identical every time; it is the
+ * exact skip-state target frame for the Brief-4 2→3 animation.
  */
 
 import type { Player } from "@/lib/sheets";

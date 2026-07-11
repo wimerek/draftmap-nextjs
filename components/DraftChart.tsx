@@ -13,9 +13,6 @@ import { isPlayerFiltered } from "@/lib/lensFilter";
 import {
   computeChartLayout,
   computeAllDotPositions,
-  computeJellyfishLayout,
-  computePendingFieldLayout,
-  computeFloorLayout,
   computeAct3FieldLayout,
   scoreToProductionY,
   stSnapPctToGlobalPercentile,
@@ -29,11 +26,9 @@ import { selectClassState } from "@/lib/classMaturity";
 import { useFirstSessionHints } from "@/lib/useFirstSessionHints";
 import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
-import JellyfishField from "@/components/chart/JellyfishField";
 import Act3Field from "@/components/chart/Act3Field";
 import Act3Choreography from "@/components/chart/Act3Choreography";
 import { computeAct3Choreography, computeSweep } from "@/lib/choreography";
-import { ACT3_FIELD_VERSION } from "@/lib/act3FieldConstants";
 import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
@@ -750,10 +745,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // (recomputed whenever `players` changes) self-corrects after a year's fetch
   // lands, so a beat-3 click fired mid-fetch can't stick 'floor' across a year
   // scrub. The three field modes are no longer distinct step ids — they fan out
-  // from this one selector:
-  //   resolved → the verdict jellyfish (brief b)
-  //   pending  → the usage field (brief c)
-  //   floor    → the 2026 capital-floor state (brief c)
+  // from this one selector (all three rendered by the six-band Act3Field since
+  // Brief 6 — the jellyfish that once drew the resolved state is gone):
+  //   resolved → the second-contract money field
+  //   pending  → the usage field
+  //   floor    → the 2026 capital-floor state
   const act3Mode: ChartMode = useMemo(() => {
     const state = selectClassState(players, selectedYear);
     return state === 'resolved' ? 'verdict' : state === 'pending' ? 'pending' : 'floor';
@@ -959,7 +955,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   // ── Lens (brief f) — ONE membership pass, three reads ──────────────────────
   // The shared scope predicate (lib/lensFilter) decides "who's in scope" ONCE here;
-  // the lit set then fans out to (1) the Act 3 chart (JellyfishField ghosts the rest,
+  // the lit set then fans out to (1) the Act 3 chart (Act3Field ghosts the rest,
   // re-lights the lit weave), (2) the wall lit sub-counts, and (3) the scoreboard
   // recompute — so the slot can never contradict the chart. Geometry never changes;
   // this is opacity/stroke + a scoped count only. Pure SCOPE (pos/round/team/school) —
@@ -972,7 +968,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     [players, positionFilter, roundFilter, teamFilter, schoolFilter, currentStepId, chartMode,
      consensusFilter, classMaxPick],
   );
-  // null when no lens is active → JellyfishField renders the resting field byte-identical.
+  // null when no lens is active → Act3Field renders the resting field byte-identical.
   const litIds = useMemo(
     () => (hasActiveFilters ? new Set(litPlayers.map(p => p.player_id)) : null),
     [hasActiveFilters, litPlayers],
@@ -1013,22 +1009,11 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     [players, layout, pickValueCurve],
   );
 
-  // Beat-3 field layout — built per field mode (resolved jellyfish / pending usage
-  // field / 2026 capital floor). Null in the non-field journey steps.
-  const jellyfishLayout = useMemo(() => {
-    if (chartMode === 'verdict') return computeJellyfishLayout(players);
-    if (chartMode === 'pending') return computePendingFieldLayout(players);
-    if (chartMode === 'floor')   return computeFloorLayout(players, selectedYear);
-    return null;
-  }, [chartMode, players, selectedYear]);
-
-  // Phase Lambda — the NEW Act-3 reframe field (six-band money / window_usage). Built
-  // additively alongside the jellyfish; ACT3_FIELD_VERSION selects which renders (the
-  // jellyfish stays reachable for A/B until the sniff test passes — Lambda "new before
-  // delete"). One layout fn covers all three field states via isPending (resolved =
-  // false; pending/floor = true → band-1 relabel + unsigned dots carry no thread).
+  // Phase Lambda — the Act-3 reframe field (six-band money / window_usage). One layout
+  // fn covers all three field states via isPending (resolved = false; pending/floor =
+  // true → band-1 relabel + unsigned dots carry no thread).
   const act3FieldLayout = useMemo(() => {
-    if (ACT3_FIELD_VERSION !== 'new' || !isFieldMode) return null;
+    if (!isFieldMode) return null;
     return computeAct3FieldLayout(players, chartMode !== 'verdict');
   }, [players, chartMode, isFieldMode]);
 
@@ -1044,7 +1029,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // equals act3FieldLayout's rest field (both from computeAct3FieldLayout). isPending =
   // any non-resolved field (pending/floor) — band-1 relabel + unsigned dots carry no thread.
   const act3Choreo = useMemo(() => {
-    if (ACT3_FIELD_VERSION !== 'new' || players.length === 0) return null;
+    if (players.length === 0) return null;
     return computeAct3Choreography(players, act3Mode !== 'verdict');
   }, [players, act3Mode]);
 
@@ -1613,7 +1598,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setCurrentStepId('act3');
 
     // No new field build / reduced motion → HARD CUT to the rest frame (no movements).
-    if (!act3Choreo || ACT3_FIELD_VERSION !== 'new' || prefersReduced.current) {
+    if (!act3Choreo || prefersReduced.current) {
       cancelTwoToThree();
       return;
     }
@@ -1774,7 +1759,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       return;
     }
     // Act 2 → the 2→3 CHOREOGRAPHY (Brief 4). startTwoToThree runs Movements I–III (or
-    // hard-cuts to the rest field under reduced motion / the legacy jellyfish flag).
+    // hard-cuts to the rest field under reduced motion).
     if (chartMode === 'draft-results') {
       cancelOneToTwo(); // sanitize before leaving the act (no zombie rides into Act 3)
       startTwoToThree();
@@ -1804,7 +1789,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // Brief 4: in an Act-3 field state (mid-2→3 OR at rest) Btn3 is ↺ Restart/Replay —
     // it re-runs the 2→3 from Movement I (spec §1 replay: reset to Act-2 geometry +
     // drafted colors + no threads + dark wall, then play; no reverse animation).
-    if (isFieldMode && ACT3_FIELD_VERSION === 'new' && act3Choreo && !prefersReduced.current) {
+    if (isFieldMode && act3Choreo && !prefersReduced.current) {
       startTwoToThree();
       return;
     }
@@ -2057,7 +2042,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             // resolved hero's live climb + capped attention. sweep is null off-resolved.
             twoToThreeElapsedMs,
             sweep: act3Sweep,
-            canReplay: ACT3_FIELD_VERSION === 'new' && isFieldMode && !!act3Choreo && !prefersReduced.current,
+            canReplay: isFieldMode && !!act3Choreo && !prefersReduced.current,
             animDurationMs,
             unmatched,
             // Class-pinned imputation anchor (one value, also fed to the Act 2 hover).
@@ -2128,16 +2113,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 highlightedId={highlightedPlayerId}
                 focusedBand={focusedBand}
                 onBandFocus={setFocusedBand}
-              />
-            ) : isFieldMode && jellyfishLayout ? (
-              <JellyfishField
-                layout={jellyfishLayout}
-                isMobile={isMobile}
-                onDotClick={handleDotClick}
-                onDotHover={handleDotHover}
-                onDotLeave={handleDotLeave}
-                litIds={litIds}
-                highlightedId={highlightedPlayerId}
               />
             ) : (
             <svg
@@ -2258,7 +2233,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       {/* ── Desktop floating tooltip ── */}
       {!isMobile && tooltip && (
         chartMode === 'verdict'
-          ? <VerdictHoverCard {...tooltip} neverCount={act3FieldLayout?.bandCounts.NEVER ?? jellyfishLayout?.noneCount ?? 0} />
+          ? <VerdictHoverCard {...tooltip} neverCount={act3FieldLayout?.bandCounts.NEVER ?? 0} />
           : (chartMode === 'pending' || chartMode === 'floor')
             ? <PendingHoverCard {...tooltip} chartMode={chartMode} />
             : chartMode === 'projection'

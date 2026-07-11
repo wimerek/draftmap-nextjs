@@ -2412,7 +2412,7 @@ a { color: inherit; text-decoration: none; }
 .dm-search-meta { color: rgba(245, 240, 232, 0.5); font-size: 11px; white-space: nowrap; }
 .dm-search-empty { padding: 10px 11px; color: rgba(245, 240, 232, 0.5); font-size: 12px; font-style: italic; }
 
-/* Glow-ring spotlight — shared by Acts 1/2 (PlayerDots) and Act 3 (JellyfishField).
+/* Glow-ring spotlight — shared by Acts 1/2 (PlayerDots) and Act 3 (Act3Field).
    Animated so it reads as a TRANSIENT spotlight, not a static tier signal. */
 .dm-glow-ring {
   stroke: #D4A017;
