@@ -1622,9 +1622,16 @@ export function computeAct3FieldLayout(players: Player[], isPending: boolean): A
   // pass pushing each tab down to clear the previous; a tiny node can't pin two tabs.
   for (let i = 1; i < wallNodes.length; i++) {
     const prev = wallNodes[i - 1].tabY;
-    if (wallNodes[i].tabY - prev < ACT3_TAB_MIN_PITCH) {
-      wallNodes[i].tabY = prev + ACT3_TAB_MIN_PITCH;
-      wallNodes[i].tabNudged = true;
+    const n = wallNodes[i];
+    if (n.tabY - prev < ACT3_TAB_MIN_PITCH) {
+      n.tabY = prev + ACT3_TAB_MIN_PITCH;
+      // A connector only earns its ink when the label was pushed CLEAR of its own
+      // node. A small nudge (e.g. 2022 TOP-OF-POSITION: a 7px shove off the gold
+      // tab) leaves the tab still overlapping its node — no leader is needed, and
+      // the lone band-color diagonal reads as a stray thread near the wall. Draw
+      // it only once the tab center clears the node's bottom edge. (Distinct from
+      // the count===0 empty-node suppression below, which still applies.)
+      n.tabNudged = n.tabY > n.y + n.h;
     }
   }
   const wallNodeByBand = new Map(wallNodes.map(n => [n.band, n]));

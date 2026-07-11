@@ -30,6 +30,8 @@ import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constant
 import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
 import Act3Field from "@/components/chart/Act3Field";
+import Act3Choreography from "@/components/chart/Act3Choreography";
+import { computeAct3Choreography } from "@/lib/choreography";
 import { ACT3_FIELD_VERSION } from "@/lib/act3FieldConstants";
 import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
@@ -687,6 +689,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const elapsedRef       = useRef<number>(0);
   const totalDurationRef = useRef<number>(0);
 
+  // ── Act 2→3 choreography master clock (Brief 4) ──────────────────────────────
+  // A SECOND rAF clock, same shape as the 1→2 one (single `progress` timeline, pause/
+  // resume freezes anywhere, speed multiplies the per-frame advance). `twoToThreeElapsedMs`
+  // is null when not in the 2→3 chapter, a number (0…total) while running/paused;
+  // Act3Choreography samples every dot/thread/beat/counter from it. On reaching total (or
+  // Skip) DraftChart hands off to Act3Field — the pixel-identical rest frame (gate §8.4).
+  const [twoToThreeElapsedMs, setTwoToThreeElapsedMs] = useState<number | null>(null);
+  const t23RafRef     = useRef<number | null>(null);
+  const t23LastTsRef  = useRef<number>(0);
+  const t23ElapsedRef = useRef<number>(0);
+  const t23TotalRef   = useRef<number>(0);
+  const t23RunningRef = useRef<boolean>(false);
+
   // ── Beat-3 ('act3') field — DERIVED at render time, not captured at click ──
   // selectClassState on an empty players array returns 'floor'; deriving here
   // (recomputed whenever `players` changes) self-corrects after a year's fetch
@@ -967,6 +982,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (ACT3_FIELD_VERSION !== 'new' || !isFieldMode) return null;
     return computeAct3FieldLayout(players, chartMode !== 'verdict');
   }, [players, chartMode, isFieldMode]);
+
+  // Phase Lambda Brief 4 — the full 2→3 choreography schedule for the current class.
+  // Built off `act3Mode` (not chartMode) so it is READY while still in Act 2 (chartMode
+  // 'draft-results'): pressing Play must launch Movement I instantly. Its terminal frame
+  // equals act3FieldLayout's rest field (both from computeAct3FieldLayout). isPending =
+  // any non-resolved field (pending/floor) — band-1 relabel + unsigned dots carry no thread.
+  const act3Choreo = useMemo(() => {
+    if (ACT3_FIELD_VERSION !== 'new' || players.length === 0) return null;
+    return computeAct3Choreography(players, act3Mode !== 'verdict');
+  }, [players, act3Mode]);
 
   // Per-dot production Y positions and opacities for the current journey step.
   // Recomputed whenever the step or chart mode changes.
@@ -1496,17 +1521,81 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // Tear down the rAF clock if the component unmounts mid-chapter.
   useEffect(() => () => {
     if (oneToTwoRafRef.current != null) cancelAnimationFrame(oneToTwoRafRef.current);
+    if (t23RafRef.current != null) cancelAnimationFrame(t23RafRef.current);
   }, []);
+
+  // ── Transport: 2→3 choreography clock (Brief 4) ──────────────────────────────
+  // Same clock shape as 1→2 (single timeline, pause/resume freeze anywhere, speed
+  // multiplies the advance so authored rhythm survives). cancel = sanitize (kill rAF +
+  // clear chapter flags). commit = sanitize then land on Act-3 rest (Act3Field renders,
+  // pixel-identical to the last animated frame). start = run 0→total from Movement I.
+  const cancelTwoToThree = useCallback(() => {
+    if (t23RafRef.current != null) { cancelAnimationFrame(t23RafRef.current); t23RafRef.current = null; }
+    t23RunningRef.current = false;
+    t23ElapsedRef.current = 0;
+    setTwoToThreeElapsedMs(null);
+    setIsAnimating(false);
+    setPaused(false);
+  }, []);
+
+  const commitTwoToThree = useCallback(() => {
+    cancelTwoToThree();
+    setCurrentStepId('act3'); // land on the Act-3 rest field (already there mid-chapter)
+  }, [cancelTwoToThree]);
+
+  const startTwoToThree = useCallback(() => {
+    // Enter the Act-3 field mode up front (isFieldMode true); the choreography renders
+    // Movement-I frame 0 = the class in Act-2 geometry, so there is no Act3Field flash.
+    setCurrentStepId('act3');
+
+    // No new field build / reduced motion → HARD CUT to the rest frame (no movements).
+    if (!act3Choreo || ACT3_FIELD_VERSION !== 'new' || prefersReduced.current) {
+      cancelTwoToThree();
+      return;
+    }
+
+    if (t23RafRef.current != null) { cancelAnimationFrame(t23RafRef.current); t23RafRef.current = null; }
+    t23TotalRef.current   = act3Choreo.timeline.total;
+    t23ElapsedRef.current = 0;
+    t23LastTsRef.current  = 0; // sentinel — seeded on the first frame
+    t23RunningRef.current = true;
+    setIsAnimating(true);
+    setPaused(false);
+    setTwoToThreeElapsedMs(0);
+
+    const frame = (ts: number) => {
+      if (t23LastTsRef.current === 0) t23LastTsRef.current = ts;
+      if (pausedRef.current) {                 // freeze the clock; dots hold in place
+        t23LastTsRef.current = ts;
+        t23RafRef.current = requestAnimationFrame(frame);
+        return;
+      }
+      const delta = ts - t23LastTsRef.current;
+      t23LastTsRef.current = ts;
+      t23ElapsedRef.current = Math.min(
+        t23ElapsedRef.current + delta * speedRef.current,
+        t23TotalRef.current,
+      );
+      if (t23ElapsedRef.current >= t23TotalRef.current) {
+        commitTwoToThree();                    // hand off to Act3Field (frame-identical)
+        return;
+      }
+      setTwoToThreeElapsedMs(t23ElapsedRef.current);
+      t23RafRef.current = requestAnimationFrame(frame);
+    };
+    t23RafRef.current = requestAnimationFrame(frame);
+  }, [act3Choreo, cancelTwoToThree, commitTwoToThree]);
 
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
     hints.recordInteraction('year', { from: selectedYear, to: newYear }); // funnel: class_switched (+ hint_clicked if nudged)
     cancelOneToTwo(); // a year switch fired mid-1→2 must not leave a zombie chapter
+    cancelTwoToThree(); // ...nor mid-2→3
     setSelectedYear(newYear);
     setCurrentStepId('projection');
     setIsPlaying(false);
     router.replace(`/draft/${newYear}`, { scroll: false });
-  }, [router, hints, cancelOneToTwo, selectedYear]);
+  }, [router, hints, cancelOneToTwo, cancelTwoToThree, selectedYear]);
 
   // ── Player search teleport (brief f, item 3) ────────────────────────────────
   // Resolve a pending teleport once the destination class's SCORED data is in (landing
@@ -1522,11 +1611,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     const classHasPicks = players.some(p => p.drafted);
     const landingStep = state === 'floor' ? (classHasPicks ? 'draft' : 'projection') : 'act3';
     cancelOneToTwo(); // a search teleport fired mid-1→2 must not leave a zombie chapter
+    cancelTwoToThree(); // ...nor mid-2→3
     setCurrentStepId(landingStep);
     setOpenPlayer(player);
     setHighlightedPlayerId(player.player_id);
     pendingTeleportRef.current = null;
-  }, [players, selectedYear, scoredReady, cancelOneToTwo]);
+  }, [players, selectedYear, scoredReady, cancelOneToTwo, cancelTwoToThree]);
 
   const handleSearchSelect = useCallback((entry: SearchIndexEntry) => {
     pendingTeleportRef.current = { playerId: entry.player_id, year: entry.draft_year };
@@ -1600,10 +1690,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // The cluster owns NO animation logic — these live here. Epsilon 5 swaps the 2→3
   // jump-cut below for its staged pivot+sweep behind the SAME onPlay, untouched cluster.
   const handleTransportSkip = useCallback(() => {
+    // 2→3 in flight → jump to the Act-3 rest state (instant, no intermediate frames).
+    if (t23RunningRef.current) {
+      commitTwoToThree();
+      setRestartPulseKey(k => k + 1);
+      return;
+    }
     if (!isAnimatingRef.current) return; // skip only finalizes an in-flight animation
     commitOneToTwo();                    // jump clock to end + land on draft
     setRestartPulseKey(k => k + 1);      // Btn3 pulses once (accidental-skip recovery)
-  }, [commitOneToTwo]);
+  }, [commitOneToTwo, commitTwoToThree]);
 
   const handleTransportPlay = useCallback(() => {
     hints.recordInteraction('play'); // funnel: hint_clicked if a play pulse was pending
@@ -1613,13 +1709,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       animateToStep('draft');
       return;
     }
-    // Act 2 → INSTANT JUMP-CUT to Act 3 rest for the selected class (ruling 1; the
-    // locked reduced-motion fallback). NOT an animation — Epsilon 5 builds the sweep.
+    // Act 2 → the 2→3 CHOREOGRAPHY (Brief 4). startTwoToThree runs Movements I–III (or
+    // hard-cuts to the rest field under reduced motion / the legacy jellyfish flag).
     if (chartMode === 'draft-results') {
       cancelOneToTwo(); // sanitize before leaving the act (no zombie rides into Act 3)
-      setCurrentStepId('act3');
+      startTwoToThree();
     }
-  }, [animateToStep, cancelOneToTwo, chartMode, currentStep, currentStepId, hints]);
+  }, [animateToStep, cancelOneToTwo, chartMode, currentStep, currentStepId, hints, startTwoToThree]);
 
   const handleTransportPause = useCallback(() => {
     if (!isAnimatingRef.current) return;
@@ -1640,10 +1736,18 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // otherwise linger at 'drafted' (set by startOneToTwo). The user presses Play to run.
     // Because isAnimating goes false, the year/class switcher (disabled only while
     // animating) re-enables on its own — no separate unlock needed.
+    //
+    // Brief 4: in an Act-3 field state (mid-2→3 OR at rest) Btn3 is ↺ Restart/Replay —
+    // it re-runs the 2→3 from Movement I (spec §1 replay: reset to Act-2 geometry +
+    // drafted colors + no threads + dark wall, then play; no reverse animation).
+    if (isFieldMode && ACT3_FIELD_VERSION === 'new' && act3Choreo && !prefersReduced.current) {
+      startTwoToThree();
+      return;
+    }
     cancelOneToTwo();
     setCurrentStepId('projection');
     setViewMode('projected');
-  }, [cancelOneToTwo]);
+  }, [cancelOneToTwo, isFieldMode, act3Choreo, startTwoToThree]);
 
   const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
 
@@ -1692,8 +1796,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // year's fetch is still in flight self-corrects once the data lands (all
     // instant; the 2→3 pivot animation is Epsilon 5 and does not exist yet).
     cancelOneToTwo(); // sanitize before leaving for Act 3 (no zombie chapter state)
+    cancelTwoToThree();
     setCurrentStepId('act3');
-  }, [animateToStep, handleTransportSkip, cancelOneToTwo]);
+  }, [animateToStep, handleTransportSkip, cancelOneToTwo, cancelTwoToThree]);
 
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
@@ -1736,6 +1841,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setHighlightedPlayerId(null);
     setSearchResetKey(k => k + 1);
     cancelOneToTwo(); // sanitize the 1→2 chapter before the reset snaps to Act 1
+    cancelTwoToThree();
     setCurrentStepId('projection');
     if (selectedYear !== DEFAULT_LANDING_YEAR) {
       setSelectedYear(DEFAULT_LANDING_YEAR);
@@ -1743,7 +1849,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     } else {
       updateURL({ pos: null, round: null, team: null, school: null, step: null });
     }
-  }, [handlePinTeam, selectedYear, router, updateURL, cancelOneToTwo]);
+  }, [handlePinTeam, selectedYear, router, updateURL, cancelOneToTwo, cancelTwoToThree]);
 
   // ── Desktop drag-to-scroll ────────────────────────────────────────────────
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -1880,6 +1986,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             chartMode,
             isAnimating,
             paused,
+            // Brief 4 — the 2→3 choreography is running (drives Pause/Skip/Restart + speed
+            // availability during the animation). canReplay lights Btn3 at Act-3 rest.
+            phase2to3: twoToThreeElapsedMs != null,
+            canReplay: ACT3_FIELD_VERSION === 'new' && isFieldMode && !!act3Choreo && !prefersReduced.current,
             animDurationMs,
             unmatched,
             // Class-pinned imputation anchor (one value, also fed to the Act 2 hover).
@@ -1927,7 +2037,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             onClick={isMobile && mobileView === "overview" ? handleMobileChartTap : undefined}
             onDoubleClick={handleTransportSkip}
           >
-            {isFieldMode && act3FieldLayout ? (
+            {isFieldMode && twoToThreeElapsedMs != null && act3Choreo ? (
+              /* 2→3 choreography in flight (Brief 4) — the pivot/audition/payday. On
+                 completion or Skip DraftChart swaps to Act3Field below (frame-identical). */
+              <Act3Choreography
+                choreo={act3Choreo}
+                elapsedMs={twoToThreeElapsedMs}
+                isMobile={isMobile}
+                onDotClick={handleDotClick}
+                onDotHover={handleDotHover}
+                onDotLeave={handleDotLeave}
+                litIds={litIds}
+              />
+            ) : isFieldMode && act3FieldLayout ? (
               <Act3Field
                 layout={act3FieldLayout}
                 isMobile={isMobile}

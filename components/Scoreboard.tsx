@@ -74,6 +74,17 @@ export interface ScoreboardProps {
   chartMode: ChartMode;
   isAnimating: boolean;
   paused: boolean;
+  /**
+   * (Brief 4) The 2→3 choreography is in flight. While true the transport shows the
+   * ❚❚/▶ toggle + enabled Skip/Restart + settable speed (same as the 1→2 chapter), and
+   * the class switcher is disabled. The per-pick ticker + count-up are NOT driven by it.
+   */
+  phase2to3?: boolean;
+  /**
+   * (Brief 4) An Act-3 field state can replay the 2→3 from Movement I via Btn3 (↺ Replay).
+   * False under reduced motion / the legacy jellyfish flag / a class with no field.
+   */
+  canReplay?: boolean;
   /** Effective 1→2 duration (ms, already speed-adjusted) — paces the per-pick ticker. */
   animDurationMs: number;
   /** Resolved-class join failures (rider 2) — drives the ⚠ utility line when > 0. */
@@ -370,6 +381,8 @@ export default function Scoreboard({
   chartMode,
   isAnimating,
   paused,
+  phase2to3 = false,
+  canReplay = false,
   animDurationMs,
   unmatched,
   transport,
@@ -457,13 +470,18 @@ export default function Scoreboard({
   // seats the dots back on the projected board PAUSED, never auto-plays. Replaces the
   // prior dynamic "Restart" (mid-animation) / "Replay" (Act 2 rest) labels.
   let restartLabel = "Reset";
-  if (animating1to2) {
+  if (animating1to2 || phase2to3) {
+    // In-flight chapter (1→2 or the Brief-4 2→3): ❚❚/▶ toggle + Skip + Restart.
     playDisabled = false; canSkip = true; canRestart = true;
+    if (phase2to3) restartLabel = "Restart";
   } else if (chartMode === "projection") {
     playLabel = "PLAY DRAFT DAY"; playDisabled = false;
   } else if (chartMode === "draft-results") {
     playLabel = "PLAY NEXT 4 YRS"; playDisabled = false; canRestart = true;
-  } // verdict / pending / floor → all disabled in place (no Act 4 / no replayable chapter in d)
+  } else if (canReplay) {
+    // Act-3 rest — Btn3 replays the 2→3 (Play stays disabled: no Act 4).
+    canRestart = true; restartLabel = "Replay";
+  } // else verdict / pending / floor with no replayable field → disabled in place
 
   // ☆ MY TEAM (fix-pass-3 §3) — now seated to the RIGHT of the speed dropdown (bottom
   // row = `1× ▾` | `☆ MY TEAM`), passed into the cluster as its speed-row trailing slot.
@@ -484,7 +502,7 @@ export default function Scoreboard({
     <TransportCluster
       playLabel={playLabel}
       playDisabled={playDisabled}
-      isAnimating={animating1to2}
+      isAnimating={animating1to2 || phase2to3}
       paused={paused}
       canSkip={canSkip}
       canRestart={canRestart}
@@ -686,7 +704,7 @@ export default function Scoreboard({
           selectedYear={selectedYear}
           availableYears={availableYears}
           onYearChange={onYearChange}
-          disabled={animating1to2}
+          disabled={animating1to2 || phase2to3}
           pulseKey={yearPulseKey}
         />
         {searchSlot && <div className="sb-search-slot">{searchSlot}</div>}
