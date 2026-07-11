@@ -18,6 +18,7 @@
  */
 
 import type { Player } from "@/lib/sheets";
+import type { MoneyBand } from "@/lib/verdict";
 import type { Act3FieldLayout, Act3FieldDot, Act3WallNode } from "@/lib/chartMath";
 import { teamDotColors } from "@/lib/chartConstants";
 import { act3FieldGlyph } from "@/lib/act3FieldGlyph";
@@ -30,6 +31,7 @@ import {
   ACT3_AXIS_PICK_COLOR, ACT3_STRIP_FILL, ACT3_STRIP_DASH_COLOR, ACT3_STRIP_DASH,
   ACT3_CORNER_FILL, ACT3_UDFA_FRAME_COLOR, ACT3_UDFA_LABEL, ACT3_STRIP_LABEL,
   ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_LENS_GHOST_OPACITY,
+  ACT3_FOCUS_DIM_OPACITY,
 } from "@/lib/act3FieldConstants";
 
 interface Act3FieldProps {
@@ -42,12 +44,15 @@ interface Act3FieldProps {
   litIds?: Set<string> | null;
   /** Player search spotlight (independent of the lens; rings the located dot). */
   highlightedId?: string | null;
+  /** Band focus (iterative-fixes #6): the isolated money band, or null for none. Pure
+   *  visual emphasis — NOT the scope lens; never touches counts. */
+  focusedBand?: MoneyBand | null;
+  /** Toggle band focus (click a wall node / thread; null clears via empty-space click). */
+  onBandFocus?: (band: MoneyBand | null) => void;
 }
 
-const GREY = "#6B7280";
-
 export default function Act3Field(props: Act3FieldProps) {
-  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId } = props;
+  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId, focusedBand, onBandFocus } = props;
   const {
     svgW, svgH, fieldTop, fieldBottom, stripTop, stripBottom,
     pickLeft, pickRight, udfaLeft, udfaRight, udfaCenterX,
@@ -57,6 +62,18 @@ export default function Act3Field(props: Act3FieldProps) {
   // Lens: null litIds → no lens → isLit() true for all → resting render.
   const lensed = !!litIds;
   const isLit = (pid: string) => !litIds || litIds.has(pid);
+
+  // Band focus (iterative-fixes #6): pure visual emphasis, COMPOSED under the lens. A
+  // dot/thread dims when a band is focused and it isn't that band; already-ghosted
+  // (out-of-scope) marks keep the lens ghost (lens wins). Counts are untouched.
+  const focused = focusedBand != null;
+  const focusToggle = (b: MoneyBand) => onBandFocus?.(focusedBand === b ? null : b);
+  /** Effective opacity for a dot/thread of `band` belonging to `pid` (undefined = full). */
+  const markOpacity = (band: MoneyBand | null, pid: string): number | undefined => {
+    if (lensed && !isLit(pid)) return ACT3_LENS_GHOST_OPACITY; // lens ghost wins
+    if (focused && band !== focusedBand) return ACT3_FOCUS_DIM_OPACITY; // focus dim
+    return undefined;
+  };
 
   // Payer-color rest state (dot-color doctrine): banded dots wear the PAYING team;
   // signingTeam is null exactly for NEVER + unsigned, so those fall back to drafted
@@ -68,8 +85,11 @@ export default function Act3Field(props: Act3FieldProps) {
     const p = d.player;
     const c = dotColors(p);
     const glyph = act3FieldGlyph(p);
+    // Focus dim (#6): a dot of a non-focused band recedes; the lens ghost is handled
+    // separately (ghostDot), so renderDot only ever needs the focus dim.
+    const dimFocus = focused && d.band !== focusedBand;
     return (
-      <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }}>
+      <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }} opacity={dimFocus ? ACT3_FOCUS_DIM_OPACITY : undefined}>
         <circle
           cx={d.x} cy={d.y} r={ACT3_DOT_R}
           fill={c.fill}
@@ -122,11 +142,16 @@ export default function Act3Field(props: Act3FieldProps) {
         })}
       </defs>
 
-      {/* Background — parchment (register continuity with Acts 1–2). */}
-      <rect x={0} y={0} width={svgW} height={svgH} fill={ACT3_FIELD_BG} />
+      {/* Background — parchment (register continuity with Acts 1–2). Clicking empty
+          space clears band focus (#6 toggle-off path: "click outside the nodes+threads");
+          the furniture above is pointer-inert so empty clicks fall through to here. */}
+      <rect
+        x={0} y={0} width={svgW} height={svgH} fill={ACT3_FIELD_BG}
+        onClick={focused && onBandFocus ? () => onBandFocus(null) : undefined}
+      />
 
       {/* ── Field furniture (behind data) ─────────────────────────────────── */}
-      <g aria-hidden="true">
+      <g aria-hidden="true" style={{ pointerEvents: "none" }}>
         {/* Round gridlines — vertical hairlines at each round's first pick (per-class). */}
         {roundAnchors.map((a) => (
           <line
@@ -165,15 +190,17 @@ export default function Act3Field(props: Act3FieldProps) {
           {ACT3_UDFA_LABEL}
         </text>
 
-        {/* Rotated left Y-axis title — USAGE · share of position's snaps. */}
+        {/* Rotated left Y-axis title — USAGE · share of position's snaps. LABEL
+            READABILITY PASS (§3g): size 11→12.5, qualifier weight 400→500 and a firmer
+            grey so the axis reads without competing with the data. ⚠ tune on live wall. */}
         <text
           transform={`rotate(-90 ${yTitleX} ${yAxisCy})`}
           x={yTitleX} y={yAxisCy}
           textAnchor="middle" dominantBaseline="middle"
-          fontSize={11} letterSpacing={1}
+          fontSize={12.5} letterSpacing={1}
         >
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
-          <tspan fontWeight={400} fill={GREY}> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
+          <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
         </text>
       </g>
 
@@ -182,23 +209,35 @@ export default function Act3Field(props: Act3FieldProps) {
         {dots.map((d) => {
           if (!(d.threadPath && d.band)) return null;
           const spec = ACT3_BANDS[d.band];
-          const lit = isLit(d.player.player_id);
+          const band = d.band;
           return (
             <path
               key={`th-${d.player.player_id}`}
               d={d.threadPath}
-              stroke={`url(#a3-thread-${d.band})`}
+              stroke={`url(#a3-thread-${band})`}
               strokeWidth={spec.threadW}
-              opacity={lensed && !lit ? ACT3_LENS_GHOST_OPACITY : undefined}
+              opacity={markOpacity(band, d.player.player_id)}
+              // Clicking a thread toggles focus on its band (#6 toggle path).
+              style={onBandFocus ? { cursor: "pointer" } : undefined}
+              onClick={onBandFocus ? () => focusToggle(band) : undefined}
             />
           );
         })}
       </g>
 
       {/* ── The wall — six true-count nodes + right-rail edge tabs ─────────── */}
+      {/* Clicking a node isolates its band (#6). The node keeps full weight when it is
+          the focused band (or nothing is focused); non-focused nodes dim. */}
       <g>
         {wallNodes.map((n) => (
-          <Act3WallTab key={`wall-${n.band}`} node={n} wallNodeW={wallNodeW} isPending={isPending} />
+          <Act3WallTab
+            key={`wall-${n.band}`}
+            node={n}
+            wallNodeW={wallNodeW}
+            isPending={isPending}
+            dimFocus={focused && focusedBand !== n.band}
+            onFocus={onBandFocus ? () => focusToggle(n.band) : undefined}
+          />
         ))}
       </g>
 
@@ -231,7 +270,13 @@ export default function Act3Field(props: Act3FieldProps) {
 
 /** One wall node + its right-rail edge tab (3px bookmark bar + Oswald name + Inter n·%).
  *  TRUE-COUNT node height (no floor); pending band-1 renders dashed + relabeled. */
-function Act3WallTab({ node, wallNodeW, isPending }: { node: Act3WallNode; wallNodeW: number; isPending: boolean }) {
+function Act3WallTab({ node, wallNodeW, isPending, dimFocus = false, onFocus }: {
+  node: Act3WallNode; wallNodeW: number; isPending: boolean;
+  /** #6: dim this node because another band is focused. */
+  dimFocus?: boolean;
+  /** #6: toggle band focus on click (node + tab). */
+  onFocus?: () => void;
+}) {
   const spec = ACT3_BANDS[node.band];
   const pendingBand1 = isPending && node.band === "NEVER";
   const name = pendingBand1 ? ACT3_PENDING_BAND1_LABEL : spec.labelPlaceholder;
@@ -239,7 +284,11 @@ function Act3WallTab({ node, wallNodeW, isPending }: { node: Act3WallNode; wallN
   const textX = barX + ACT3_TAB_BAR_W + 6;
   const tabH = 26;
   return (
-    <g>
+    <g
+      opacity={dimFocus ? ACT3_FOCUS_DIM_OPACITY : undefined}
+      style={onFocus ? { cursor: "pointer" } : undefined}
+      onClick={onFocus}
+    >
       {/* Node — solid fill (resolved) or dashed outline (pending band-1, no threads). */}
       {pendingBand1 ? (
         <rect
@@ -265,17 +314,21 @@ function Act3WallTab({ node, wallNodeW, isPending }: { node: Act3WallNode; wallN
       {/* 3px bookmark bar in band color. */}
       <rect x={barX} y={node.tabY - tabH / 2} width={ACT3_TAB_BAR_W} height={tabH} fill={spec.color} rx={1} />
 
-      {/* Oswald small-caps name. */}
+      {/* Oswald small-caps name (banked spec: the site's Oswald header face, weight 600,
+          font-variant small-caps — the mixed-case labelPlaceholder strings render as small
+          caps). The §3g pass had drifted to weight 700 + textTransform uppercase; reverted
+          to spec 2026-07-10 (Derek). Size stays 11.5 (the §3g legibility bump). ⚠ tune on
+          live wall (names still placeholders). */}
       <text
         x={textX} y={node.tabY - 3}
-        fontSize={11} fontWeight={600} fill={ACT3_NAVY}
+        fontSize={11.5} fontWeight={600} fill={ACT3_NAVY}
         fontFamily="var(--font-oswald, 'Oswald', sans-serif)"
-        style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}
+        style={{ fontVariant: "small-caps", letterSpacing: "0.04em" }}
       >
         {name}
       </text>
-      {/* Inter n · % line. */}
-      <text x={textX} y={node.tabY + 11} fontSize={9.5} fill={GREY}>
+      {/* Inter n · % line — size 9.5→10.5, firmer grey (#4B5563) for legibility (§3g). */}
+      <text x={textX} y={node.tabY + 11.5} fontSize={10.5} fill="#4B5563">
         {node.count} · {node.pct}%
       </text>
     </g>

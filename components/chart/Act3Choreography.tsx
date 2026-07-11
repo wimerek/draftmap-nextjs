@@ -27,7 +27,7 @@ import { act3FieldGlyph } from "@/lib/act3FieldGlyph";
 import { AwardGlyphMark } from "@/components/chart/AwardGlyphMark";
 import {
   type Act3Choreography as Choreo,
-  sampleDot, sampleCounter, fadeIn, fadeOut, clamp01, easeOutQuad,
+  sampleDot, fadeIn, fadeOut, clamp01, easeOutQuad,
   CH_PIVOT_COL_FADE_MS, CH_PIVOT_FURNITURE_IN, CH_PIVOT_WALL_IN,
   CH_THREAD_FLIGHT_MS, CH_COLOR_CROSSFADE_MS, CH_FLARE_MS, CH_TAB_LIGHT_MS,
 } from "@/lib/choreography";
@@ -41,8 +41,6 @@ import {
   ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_LENS_GHOST_OPACITY,
   ACT3_WALL_NODE_W,
 } from "@/lib/act3FieldConstants";
-
-const GREY = "#6B7280";
 
 interface Props {
   choreo: Choreo;
@@ -93,12 +91,9 @@ export default function Act3Choreography(props: Props) {
   // ── Beat lookup (per band: when its tab lights / node fills) ──────────────────
   const beatOf = new Map(choreo.beats.map(b => [b.band, b]));
 
-  // ── Counter (in-SVG; climbs during money beats, STALLS on ink, fades at handoff) ──
-  const counterN = sampleCounter(choreo, t);
-  const counterVisible = t >= choreo.timeline.paydayStart;
-  const counterOpacity = counterVisible
-    ? fadeOut(t, choreo.timeline.handoffStart, choreo.timeline.total)
-    : 0;
+  // The GOT PAID counter is NO LONGER on-field (spec §6, revised): the scoreboard hero
+  // is the live money counter now. Nothing draws it here — the chart terminal frame is
+  // Act3Field with zero counter residue in any state (§8.4).
 
   return (
     <svg
@@ -154,10 +149,12 @@ export default function Act3Choreography(props: Props) {
         <line x1={udfaLeft} y1={fieldTop} x2={udfaLeft} y2={stripBottom} stroke={ACT3_UDFA_FRAME_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
         <line x1={udfaRight} y1={fieldTop} x2={udfaRight} y2={stripBottom} stroke={ACT3_UDFA_FRAME_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
         <text x={udfaCenterX} y={rdLabelY} fontSize={ACT3_RD_LABEL_SIZE} fill={ACT3_RD_LABEL_COLOR} textAnchor="middle" letterSpacing={0.5}>{ACT3_UDFA_LABEL}</text>
+        {/* LABEL READABILITY PASS (§3g) — mirror Act3Field exactly so the terminal
+            frame stays pixel-identical to the rest field (Brief-4 skip-frame gate). */}
         <text transform={`rotate(-90 ${yTitleX} ${yAxisCy})`} x={yTitleX} y={yAxisCy}
-          textAnchor="middle" dominantBaseline="middle" fontSize={11} letterSpacing={1}>
+          textAnchor="middle" dominantBaseline="middle" fontSize={12.5} letterSpacing={1}>
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
-          <tspan fontWeight={400} fill={GREY}> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
+          <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
         </text>
       </g>
 
@@ -258,17 +255,6 @@ export default function Act3Choreography(props: Props) {
         })}
       </g>
 
-      {/* ── In-SVG GOT PAID counter (payday only; fades out at terminal handoff) ── */}
-      {counterOpacity > 0 && (
-        <g opacity={counterOpacity} aria-hidden="true">
-          <text x={wallX - 8} y={fieldTop + 4} textAnchor="end"
-            fontFamily="var(--font-oswald, 'Oswald', sans-serif)"
-            fontSize={22} fontWeight={700} fill={ACT3_NAVY}
-            style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            GOT PAID: {counterN} of {choreo.counterDenominator}
-          </text>
-        </g>
-      )}
     </svg>
   );
 }
@@ -332,10 +318,12 @@ function ChoreoWallTab({
               stroke={spec.color} strokeWidth={0.75} opacity={0.6} />
           )}
           <rect x={barX} y={node.tabY - tabH / 2} width={ACT3_TAB_BAR_W} height={tabH} fill={spec.color} rx={1} />
-          <text x={textX} y={node.tabY - 3} fontSize={11} fontWeight={600} fill={ACT3_NAVY}
+          {/* Oswald small-caps name (banked spec: weight 600, font-variant small-caps).
+              MUST mirror Act3Field's Act3WallTab exactly (frame-identity gate §8.4). */}
+          <text x={textX} y={node.tabY - 3} fontSize={11.5} fontWeight={600} fill={ACT3_NAVY}
             fontFamily="var(--font-oswald, 'Oswald', sans-serif)"
-            style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>{name}</text>
-          <text x={textX} y={node.tabY + 11} fontSize={9.5} fill={GREY}>{node.count} · {node.pct}%</text>
+            style={{ fontVariant: "small-caps", letterSpacing: "0.04em" }}>{name}</text>
+          <text x={textX} y={node.tabY + 11.5} fontSize={10.5} fill="#4B5563">{node.count} · {node.pct}%</text>
         </g>
       )}
     </g>

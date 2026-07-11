@@ -15,7 +15,8 @@
  */
 
 import type { Player } from './sheets';
-import type { ContractTier } from './verdict';
+import { MONEY_FAMILY_BANDS, getVerdictMaturity } from './verdict';
+import type { ContractTier, MoneyBand } from './verdict';
 import {
   GOT_PAID_TIERS,
   STARTER_PERCENTILE,
@@ -120,8 +121,26 @@ export interface ScoreboardStats {
    */
   tierCounts: Record<ContractTier, number>;
 
+  // Act 3 — resolved, SIX-BAND money ladder (Phase Lambda reframe). Population =
+  // plotted_pop (the money-band field; the K/P/LS blank-band rows are excluded),
+  // MIRRORING computeAct3FieldLayout's dotsInput so the slot can never contradict the
+  // chart's wall/counter (the denominator-sweep rule: every count from live data).
+  /** plotted_pop — every dot that carries a money band (== act3_copy_numbers plotted_pop). */
+  plottedPop: number;
+  /** Per-band counts over the plotted population (NEVER…TOP5). */
+  bandCounts: Record<MoneyBand, number>;
+  /** GOT PAID = money family (MIDDLE+TOP10+TOP5) — the Lambda scoreboard definition. */
+  moneyFamilyCount: number;
+  /** NEVER band = never re-signed (the hover never-re-signed base-rate denominator). */
+  neverResignedCount: number;
+
   // Act 3 — both resolved + pending
-  /** careerUsagePercentile >= STARTER_PERCENTILE (ruling 4). Coheres with STARTER tab. */
+  /**
+   * Became starters — P65 of the SAME usage measure the field plots for this maturity
+   * (Lambda §2 re-point): window_usage (first four seasons) for a RESOLVED class,
+   * career_usage for a PENDING one (its window isn't closed, so window_usage is null
+   * and career keeps the stat honest). Coheres with the STARTER tab.
+   */
   becameStartersCount: number;
 
   // Act 3 — pending
@@ -174,7 +193,7 @@ export interface ScoreboardStats {
  */
 export function computeScoreboardStats(
   players: Player[],
-  _year: number,
+  year: number,
   classMaxPick?: number,
 ): ScoreboardStats {
   const universe = players.filter(inUniverse);
@@ -192,10 +211,35 @@ export function computeScoreboardStats(
   const gotPaidCount = GOT_PAID_TIERS.reduce((s, t) => s + tierCounts[t], 0);
   const topOfMarketCount = tierCounts.PREMIUM;
 
-  // ── Became starters (resolved + pending; coheres with the STARTER edge-tab) ─
-  const becameStartersCount = players.filter(
-    (p) => p.usage?.careerUsagePercentile != null && p.usage.careerUsagePercentile >= STARTER_PERCENTILE,
-  ).length;
+  // ── Act 3 six-band money ladder (Phase Lambda reframe) ─────────────────────
+  // Population MIRRORS computeAct3FieldLayout's dotsInput (lib/chartMath.ts): drafted
+  // OR signed-UDFA, MINUS the K/P/LS rows (a verdict row with a BLANK money_band → out
+  // of the money market). Same `players` in ⇒ identical plotted_pop out, so GOT PAID
+  // here equals the field wall / choreography counter — keep this predicate in sync
+  // with computeAct3FieldLayout if that population rule ever changes.
+  const hasPlayed = (p: Player): boolean => (p.usage?.seasons?.length ?? 0) > 0;
+  const isSignedUDFA = (p: Player): boolean => !p.drafted && (p.verdict !== null || hasPlayed(p));
+  const bandCounts: Record<MoneyBand, number> = { NEVER: 0, ZERO: 0, MIN: 0, MIDDLE: 0, TOP10: 0, TOP5: 0 };
+  let plottedPop = 0;
+  for (const p of players) {
+    if (!(p.drafted || isSignedUDFA(p))) continue;
+    if (p.verdict !== null && p.verdict.moneyBand === null) continue; // blank-band K/P/LS out
+    bandCounts[p.verdict?.moneyBand ?? 'NEVER']++;
+    plottedPop++;
+  }
+  const moneyFamilyCount = MONEY_FAMILY_BANDS.reduce((s, b) => s + bandCounts[b], 0);
+  const neverResignedCount = bandCounts.NEVER;
+
+  // ── Became starters — P65 of the measure the field plots for THIS maturity (§2) ─
+  // Resolved Act-3 plots window_usage (first four seasons); pending still plots
+  // career_usage (the four-season window isn't closed, so window_usage is null and a
+  // window-based count would read 0). Pick the matching field per class so the slot
+  // and the chart's STARTER read agree.
+  const resolvedClass = getVerdictMaturity(year) === 'resolved';
+  const becameStartersCount = players.filter((p) => {
+    const pct = resolvedClass ? p.usage?.windowUsagePercentile : p.usage?.careerUsagePercentile;
+    return pct != null && pct >= STARTER_PERCENTILE;
+  }).length;
 
   // ── Act 3 pending (strip COMPLEMENT keeps slot=chart coherence) ────────────
   // ⚠ KNOWN LIMITATION (accepted + flagged 2026-06-13): drafted K/P/LS have no snap
@@ -253,6 +297,10 @@ export function computeScoreboardStats(
     gotPaidCount,
     topOfMarketCount,
     tierCounts,
+    plottedPop,
+    bandCounts,
+    moneyFamilyCount,
+    neverResignedCount,
     becameStartersCount,
     couldntStickCount,
     stillInLeagueCount,

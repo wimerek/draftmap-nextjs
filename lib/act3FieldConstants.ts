@@ -182,12 +182,14 @@ export const ACT3_THREAD_CP_FRAC = 0.62;
 export const ACT3_GRIDLINE_COLOR = 'rgba(11,34,57,0.10)';
 export const ACT3_GRIDLINE_W = 1;
 
-/** `R1`–`R7` labels below the axis, Inter ~11px @ ~0.5. Pick numbers off the axis
- *  except 1 and 262 (hover carries the exact pick). */
-export const ACT3_RD_LABEL_COLOR = 'rgba(11,34,57,0.55)';
-export const ACT3_RD_LABEL_SIZE = 11;
+/** `R1`–`R7` labels below the axis, Inter. Pick numbers off the axis except 1 and 262
+ *  (hover carries the exact pick). LABEL READABILITY PASS (§3g, 2026-07-10): stepped up
+ *  one register — size 11→11.5, contrast 0.55→0.68 — still furniture (Bartram–Stone
+ *  unobtrusive), just legible. ⚠ tune on the live wall before final. */
+export const ACT3_RD_LABEL_COLOR = 'rgba(11,34,57,0.68)';
+export const ACT3_RD_LABEL_SIZE = 11.5;
 /** The two shown pick numbers (1 and 262) at the axis extremes. */
-export const ACT3_AXIS_PICK_COLOR = 'rgba(11,34,57,0.5)';
+export const ACT3_AXIS_PICK_COLOR = 'rgba(11,34,57,0.62)';
 
 /** Too-few-snaps strip fill — navy ~4.5% + dashed top hairline (the "couldn't stick"
  *  trapdoor grammar). Corner (UDFA × strip) = both fills continue → ~9%. */
@@ -222,3 +224,20 @@ export const ACT3_NAVY = '#0B2239';
  *  Acts 1/2 + jellyfish ghost so the whole product ghosts at one weight). At rest
  *  (no lens) NONE of this applies — the field renders byte-identical. */
 export const ACT3_LENS_GHOST_OPACITY = 0.12;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  6. BAND FOCUS — click a wall node to isolate one band (iterative-fixes #6)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Tentacle-isolate (iterative-fixes cluster #6, reconciled to the six-band field):
+ * clicking a wall node EMPHASIZES that band's dots + threads and dims the rest. This is
+ * a pure VISUAL-EMPHASIS state — it is deliberately NOT the scope lens (`lensFilter`),
+ * so it NEVER changes scoreboard counts or sidebar filters (the #6 architecture finding:
+ * the lens's lit set feeds the scoreboard, so display emphasis must stay out of it). It
+ * COMPOSES with the lens: scope decides what is lit/ghosted; band-focus emphasizes within
+ * that. Non-focused, in-scope dots/threads dim to this floor; already-ghosted (out-of-
+ * scope) marks stay ghosted (the lens wins). Sits a touch above the lens ghost so a
+ * focused band reads as the subject without the rest disappearing.
+ */
+export const ACT3_FOCUS_DIM_OPACITY = 0.16;

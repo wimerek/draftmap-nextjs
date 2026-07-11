@@ -62,8 +62,12 @@ const ACT3_SUBHEAD: Record<Act3State, string> = {
     "Every pick starts at the draft-day floor. Vertical position rises as they take the field and earn snaps.",
   pending:
     "Vertical position shows usage: a player's share of the snaps at their position. It reflects how much their team played them compared to others at the same position.",
+  // RE-POINTED (Lambda §3d-bis): the resolved field now shows usage on the Y-axis and the
+  // second contract in COLOR — the old money-on-the-Y explanation is dead. Banked user
+  // sentences (Y = usage over the first four seasons; color = guaranteed money vs the
+  // best-paid at the position).
   resolved:
-    "Vertical position shows the second contract: guaranteed money relative to the top of their position. It's the league's own measure of value: what teams paid to keep them once they reached the open market.",
+    "Vertical position shows how often he was on the field across his first four seasons, measured against others at his position. Color shows the second contract — how much guaranteed money he received, measured against the best-paid at his position.",
 };
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2
@@ -201,8 +205,14 @@ function Act3Body({ state }: { state: Act3State }) {
         Roughly two-thirds of a draft class never earn a second contract with substantial
         guarantees.
       </p>
+      {/* Dot-color doctrine (§1): Act-3 color follows the story step. On the RESOLVED
+          field the dot wears the team that PAID the second contract; before that (floor /
+          pending) it still wears the drafting team. */}
       <KeyRow sample={<span className="sb-key-swatch sb-key-swatch--dot" />}>
-        <span className="sb-key-term">Color</span>: the team that drafted them.
+        <span className="sb-key-term">Color</span>:{" "}
+        {state === "resolved"
+          ? "the team that paid the player's second contract."
+          : "the team that drafted them."}
       </KeyRow>
       {/* Top honor — ranked; only the single highest a player reached is shown. Each
           honor listed individually with its REAL glyph (imported from the field). */}
@@ -216,15 +226,16 @@ function Act3Body({ state }: { state: Act3State }) {
       <KeyRow sample={<GlyphSample glyph="chevron" />}>
         <span className="sb-key-term">All-Rookie</span>
       </KeyRow>
-      {/* ST role marker — the triangle, SEPARATE from the honors hierarchy (not an honor). */}
+      {/* ST role marker — the triangle, SEPARATE from the honors hierarchy (not an honor).
+          §3e verbatim sentence. */}
       <KeyRow sample={<GlyphSample glyph="triangle" />}>
-        Played more special-teams snaps than offense/defense.
+        A triangle marks players who earned their snaps mostly on special teams.
       </KeyRow>
-      {/* Threads — panel-only grouping (NOT a chart lens). The "why" link is now
-          always-visible directly under the row (no hover reveal). */}
+      {/* Threads — each dot's line runs to the money band its second contract reached
+          (the wall at the right groups the bands). */}
       <KeyRow sample={<ThreadSample />}>
-        <span className="sb-key-term">Threads</span>: group players by the second-contract
-        tier they reached.
+        <span className="sb-key-term">Threads</span>: connect each player to the
+        second-contract money band he reached.
       </KeyRow>
       <p className="sb-key-threadlink">
         <Link href="/about" className="sb-key-explainer-link">

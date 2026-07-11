@@ -4,10 +4,11 @@ import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback, typ
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Player, SearchIndexEntry } from "@/lib/sheets";
 import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, DEFAULT_LANDING_YEAR } from "@/lib/draftYears";
-import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam } from "@/lib/chartConstants";
+import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
-import { classifyDraftMove, type DraftMove } from "@/lib/scoreboardStats";
+import { classifyDraftMove, teamCodeFromFullName, type DraftMove } from "@/lib/scoreboardStats";
+import type { MoneyBand } from "@/lib/verdict";
 import { isPlayerFiltered } from "@/lib/lensFilter";
 import {
   computeChartLayout,
@@ -31,7 +32,7 @@ import { fmtHeight } from "@/lib/utils";
 import JellyfishField from "@/components/chart/JellyfishField";
 import Act3Field from "@/components/chart/Act3Field";
 import Act3Choreography from "@/components/chart/Act3Choreography";
-import { computeAct3Choreography } from "@/lib/choreography";
+import { computeAct3Choreography, computeSweep } from "@/lib/choreography";
 import { ACT3_FIELD_VERSION } from "@/lib/act3FieldConstants";
 import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
@@ -105,71 +106,110 @@ function ordinal(n: number): string {
   return `${n}${s[n % 10] ?? "th"}`;
 }
 
-/** Tier hero + raw-deal line. Block label is "THE SECOND CONTRACT", never "verdict". */
+/**
+ * SIX-BAND money hero + deal line + tag/option note (Phase Lambda reframe — the old
+ * five-tier heroes are dead). Block label is "THE SECOND CONTRACT", never "verdict".
+ * Heroes are FACTUAL (voice = data-tells-the-story, no editorial adjectives) and use
+ * the same money vocabulary as the chart's wall. The never-re-signed base-rate reads
+ * LIVE off the class NEVER count (denominator sweep — no hand-carried literal).
+ */
 function verdictBlock2(
   v: NonNullable<Player["verdict"]>,
-  noneCount: number,
-): { hero: string; gold: boolean; sub: string | null; deal: string | null } {
+  neverCount: number,
+): { hero: string; gold: boolean; sub: string | null; deal: string | null; tagLine: string | null } {
   const gtd = fmtMoney(v.gtdDollars);
-  switch (v.tier) {
-    case "PREMIUM":
-      return { hero: "TOP-OF-MARKET GUARANTEES", gold: true, sub: null,
-        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
-    case "SOLID":
-      return { hero: "MULTI-YEAR GUARANTEES", gold: false, sub: null,
-        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
-    case "BRIDGE": {
-      let deal: string;
-      if (v.tagOption === "5th_year_option") deal = `5th-year option exercised · ${v.signingTeam ?? "—"}`;
-      else if (v.tagOption === "franchise_tag") deal = "franchise tag"; // forward-compat (unused today)
-      else deal = `1 yr · ${gtd} guaranteed`;
-      return { hero: "ONE YEAR, TOP RATE", gold: false, sub: null, deal };
-    }
-    case "PROVE_IT":
-      return { hero: "LITTLE TO NO GUARANTEES", gold: false, sub: null,
-        deal: `${v.contractYears ?? "—"} yr · ${gtd} guaranteed` };
-    case "NONE":
+  const yrs = v.contractYears ?? "—";
+  const dealGtd = `${yrs} yr · ${gtd} guaranteed`;
+
+  // Tag / option note (SPIKE RESOLUTION #4) — hover-only, no glyph, no band shift. Reads
+  // the tag_option column; the line keeps the ladder from understating a franchise tag
+  // (which reads MIDDLE by construction) or a fifth-year option (a rookie-deal mechanism).
+  let tagLine: string | null = null;
+  if (v.tagOption === "franchise_tag") tagLine = "Franchise tagged — one year at top-5-level pay";
+  else if (v.tagOption === "5th_year_option") tagLine = "Fifth-year option exercised.";
+
+  switch (v.moneyBand) {
+    case "TOP5":
+      return { hero: "TOP-OF-MARKET MONEY", gold: true, sub: null, deal: dealGtd, tagLine };
+    case "TOP10":
+      return { hero: "TOP-OF-POSITION MONEY", gold: false, sub: null, deal: dealGtd, tagLine };
+    case "MIDDLE":
+      return { hero: "MIDDLE-OF-MARKET MONEY", gold: false, sub: null, deal: dealGtd, tagLine };
+    case "MIN":
+      return { hero: "MINIMUM-LEVEL MONEY", gold: false, sub: null, deal: dealGtd, tagLine };
+    case "ZERO":
+      return { hero: "SIGNED, $0 GUARANTEED", gold: false, sub: null,
+        deal: `${yrs} yr · $0 guaranteed`, tagLine };
+    case "NEVER":
+      return { hero: "NEVER RE-SIGNED", gold: false,
+        sub: `one of ${neverCount} never re-signed`, deal: null, tagLine };
     default:
-      return { hero: "NO NEW CONTRACT", gold: false,
-        sub: `never signed again · one of ${noneCount}`, deal: null };
+      // money_band null = K/P/LS (out of the money market) — not plotted on the field,
+      // so not normally hovered. Minimal honest fallback if one is ever reached.
+      return { hero: "SECOND CONTRACT", gold: false, sub: null,
+        deal: v.gtdDollars != null ? dealGtd : null, tagLine };
   }
 }
 
-function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCount: number }) {
+function VerdictHoverCard({ player, x, y, neverCount }: TooltipState & { neverCount: number }) {
   const v = player.verdict;
-  // Dot-fill treatment (no luminance flip) so the strip matches the chart dot — see
-  // Act2HoverCard. Aligned with the shipped card in this commit for coherence.
-  const strip = teamDotColors(player.team_drafted).fill;
+  // Dot-fill treatment (no luminance flip). Dot-color doctrine (§1): the Act-3 dot wears
+  // the PAYING team, so the strip follows signingTeam (falling back to drafted for a
+  // never-re-signed / unsigned player, where signingTeam is null).
+  const strip = teamDotColors(v?.signingTeam ?? player.team_drafted).fill;
   const ivory = "#F5F0E8";
 
+  // Team codes for the compact both-teams identity line.
+  const codeOf = (t: string | null | undefined): string =>
+    t ? teamCodeFromFullName(resolveTeamName(t)) : "—";
+
   const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
-  const pickStr = player.pick_drafted ? `Pick ${player.pick_drafted}` : "UDFA";
-  const identity = [player.pos, player.team_drafted ?? "—", pickStr, hw]
-    .filter(Boolean)
-    .join(" · ");
+  const isUDFA = !(player.pick_drafted && player.pick_drafted > 0);
+  const payTeam = v?.signingTeam ?? null;
+  // Guardrail (§3f): a UDFA (synthetic "round 8" pick internally) NEVER surfaces a pick
+  // number — the hover says "Undrafted", full stop.
+  const originStr = isUDFA
+    ? "Undrafted"
+    : `Drafted ${codeOf(player.team_drafted)} · Pick ${player.pick_drafted}`;
+  // Both-teams identity (§3b): show the payer only when it differs from the drafting
+  // team; when equal, the origin line already carries it (one team, once).
+  const differs = payTeam && !sameTeam(payTeam, player.team_drafted ?? "");
+  const paidStr = differs ? ` · Paid by ${codeOf(payTeam)}` : "";
+  const identity = [player.pos, `${originStr}${paidStr}`, hw].filter(Boolean).join(" · ");
 
-  const b2 = v ? verdictBlock2(v, noneCount) : null;
+  const b2 = v ? verdictBlock2(v, neverCount) : null;
 
-  // Block 3 — usage
+  // Block 3 — usage. The Act-3 dot is placed by window_usage (first four seasons), NOT
+  // career usage (the Player Card figure). Name the window so the dot and the card can
+  // never appear to disagree (§3a). Strip members (window_usage null) mirror the field's
+  // too-few-snaps strip.
   const usage = player.usage;
   let block3: ReactNode = <span style={{ color: "rgba(245,240,232,0.5)" }}>—</span>;
   if (usage) {
-    if (usage.qualified && usage.careerUsagePercentile != null) {
-      const tier = usageTierLabel(usage.careerUsagePercentile) ?? "—";
+    if (usage.stPrimary && usage.stripMember) {
+      // ST-in-strip case (§3e verbatim): an ST-primary player whose scrimmage snaps
+      // fall below the ranking threshold sits in the too-few-snaps strip.
+      block3 = (
+        <span style={{ color: "rgba(245,240,232,0.7)" }}>
+          special-teams primary; scrimmage snaps below threshold
+        </span>
+      );
+    } else if (!usage.stripMember && usage.windowUsagePercentile != null) {
+      const tier = usageTierLabel(usage.windowUsagePercentile) ?? "—";
       block3 = (
         <>
           <strong style={{ color: ivory }}>{tier}</strong>
           <span style={{ color: "rgba(245,240,232,0.7)" }}>
-            {" "}· {ordinal(usage.careerUsagePercentile)} pct usage
+            {" "}· {ordinal(usage.windowUsagePercentile)} pct usage · first four seasons
           </span>
         </>
       );
     } else {
-      // Unqualified — raw snap share + games, NEVER a fabricated rank.
-      const sharePct = usage.careerUsage != null ? `${Math.round(usage.careerUsage * 100)}% snaps` : "—";
+      // Strip member — too few snaps to rank across the window; raw window share if any.
+      const sharePct = usage.windowUsage != null ? `${Math.round(usage.windowUsage * 100)}% snaps` : "—";
       block3 = (
         <span style={{ color: "rgba(245,240,232,0.7)" }}>
-          {sharePct}{usage.games != null ? ` · ${usage.games} g` : ""} · too few snaps to rank
+          {sharePct} · too few snaps to rank · first four seasons
         </span>
       );
     }
@@ -192,6 +232,7 @@ function VerdictHoverCard({ player, x, y, noneCount }: TooltipState & { noneCoun
             </div>
             {b2.sub && <div style={{ fontSize: 11, color: "rgba(245,240,232,0.7)", marginTop: 1 }}>{b2.sub}</div>}
             {b2.deal && <div style={{ fontSize: 11, color: "rgba(245,240,232,0.7)", marginTop: 1 }}>{b2.deal}</div>}
+            {b2.tagLine && <div style={{ fontSize: 11, color: "rgba(245,240,232,0.55)", marginTop: 2, fontStyle: "italic" }}>{b2.tagLine}</div>}
           </div>
         )}
 
@@ -266,8 +307,9 @@ function PendingHoverCard({ player, x, y, chartMode }: TooltipState & { chartMod
   // Block 1 — identity (same shape as resolved).
   const hw = `${fmtHeight(player.height)}${player.weight ? `, ${player.weight} lb` : ""}`;
   const isUDFA = !(player.pick_drafted && player.pick_drafted > 0);
-  const pickStr = isUDFA ? "UDFA" : `Pick ${player.pick_drafted}`;
-  const identity = [player.pos, player.team_drafted ?? "—", pickStr, hw].filter(Boolean).join(" · ");
+  // Guardrail (§3f): UDFA hover says "Undrafted", never a (synthetic) pick number.
+  const pickStr = isUDFA ? "Undrafted" : `Pick ${player.pick_drafted}`;
+  const identity = [player.pos, isUDFA ? pickStr : `${player.team_drafted ?? "—"} · ${pickStr}`, hw].filter(Boolean).join(" · ");
 
   // Block 2 — STILL ON ROOKIE DEAL. Deterministic from draft year + round (NOT
   // contract data): base CBA = 4 years; R1 appends the 5th-year team option (as an
@@ -702,6 +744,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const t23TotalRef   = useRef<number>(0);
   const t23RunningRef = useRef<boolean>(false);
 
+
   // ── Beat-3 ('act3') field — DERIVED at render time, not captured at click ──
   // selectClassState on an empty players array returns 'floor'; deriving here
   // (recomputed whenever `players` changes) self-corrects after a year's fetch
@@ -790,6 +833,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   const [openPlayer, setOpenPlayer] = useState<Player | null>(null);
   const [tooltip,    setTooltip]    = useState<TooltipState | null>(null);
+
+  // Band focus (iterative-fixes #6) — a clicked wall node isolates that money band on the
+  // Act-3 field. PURE VISUAL EMPHASIS: it never enters litIds / lensFilter / the scoreboard
+  // scope (the #6 finding: display emphasis must stay out of the lit set). Cleared on any
+  // class/act change so it can't linger onto a field it doesn't describe.
+  const [focusedBand, setFocusedBand] = useState<MoneyBand | null>(null);
 
   // ── Player search (brief f, item 3) ─────────────────────────────────────────
   // The glow-ring highlight is a SEPARATE state — SEARCH HIGHLIGHTS, NEVER SCOPES:
@@ -983,6 +1032,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return computeAct3FieldLayout(players, chartMode !== 'verdict');
   }, [players, chartMode, isFieldMode]);
 
+  // #6: band focus is transient — clear it on ANY class or act change so it can never
+  // linger onto a field it doesn't describe (setting null when already null no-ops).
+  useEffect(() => {
+    setFocusedBand(null);
+  }, [selectedYear, chartMode, isFieldMode]);
+
   // Phase Lambda Brief 4 — the full 2→3 choreography schedule for the current class.
   // Built off `act3Mode` (not chartMode) so it is READY while still in Act 2 (chartMode
   // 'draft-results'): pressing Play must launch Movement I instantly. Its terminal frame
@@ -992,6 +1047,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (ACT3_FIELD_VERSION !== 'new' || players.length === 0) return null;
     return computeAct3Choreography(players, act3Mode !== 'verdict');
   }, [players, act3Mode]);
+
+  // Movement-III scoreboard sweep (spec §6) — the money-beat schedule that drives the
+  // resolved hero's LIVE climb + capped attention (invitation pulse / value change-fade /
+  // cumulative strip). RESOLVED classes only: pending/floor show State-6/7 (no GOT PAID
+  // hero, no six-band strip), so there is nothing to sweep. Null otherwise.
+  const act3Sweep = useMemo(
+    () => (act3Choreo && act3Mode === 'verdict' ? computeSweep(act3Choreo) : null),
+    [act3Choreo, act3Mode],
+  );
 
   // Per-dot production Y positions and opacities for the current journey step.
   // Recomputed whenever the step or chart mode changes.
@@ -1989,6 +2053,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             // Brief 4 — the 2→3 choreography is running (drives Pause/Skip/Restart + speed
             // availability during the animation). canReplay lights Btn3 at Act-3 rest.
             phase2to3: twoToThreeElapsedMs != null,
+            // Movement-III sweep (spec §6): live elapsed + money-beat schedule drive the
+            // resolved hero's live climb + capped attention. sweep is null off-resolved.
+            twoToThreeElapsedMs,
+            sweep: act3Sweep,
             canReplay: ACT3_FIELD_VERSION === 'new' && isFieldMode && !!act3Choreo && !prefersReduced.current,
             animDurationMs,
             unmatched,
@@ -2058,6 +2126,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 onDotLeave={handleDotLeave}
                 litIds={litIds}
                 highlightedId={highlightedPlayerId}
+                focusedBand={focusedBand}
+                onBandFocus={setFocusedBand}
               />
             ) : isFieldMode && jellyfishLayout ? (
               <JellyfishField
@@ -2188,7 +2258,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       {/* ── Desktop floating tooltip ── */}
       {!isMobile && tooltip && (
         chartMode === 'verdict'
-          ? <VerdictHoverCard {...tooltip} noneCount={jellyfishLayout?.noneCount ?? 0} />
+          ? <VerdictHoverCard {...tooltip} neverCount={act3FieldLayout?.bandCounts.NEVER ?? jellyfishLayout?.noneCount ?? 0} />
           : (chartMode === 'pending' || chartMode === 'floor')
             ? <PendingHoverCard {...tooltip} chartMode={chartMode} />
             : chartMode === 'projection'

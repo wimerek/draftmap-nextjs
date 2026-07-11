@@ -159,6 +159,12 @@ export interface ChBeat {
   family: 'money' | 'ink';
   tabLightStart: number; // absolute ms
   nodeFillStart: number; // absolute ms (== tabLightStart)
+  /** Money beats only: absolute ms the first thread of this beat BEGINS drawing (thread
+   *  offset, not the tab-light moment). Drives the scoreboard invitation pulse (§6/1). */
+  firstThreadOnset?: number;
+  /** Money beats only: absolute ms the LAST thread of this beat ARRIVES at its dot.
+   *  Drives the per-band value change-fade + cumulative strip fill (§6/2, §6/3). */
+  lastArrival?: number;
 }
 
 export interface Act3Choreography {
@@ -302,7 +308,8 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
   for (const band of CH_MONEY_BEAT_ORDER) {
     const list = byBand.get(band) ?? [];
     if (list.length === 0) continue; // empty band → NO beat (spec §7.8)
-    beats.push({ band, family: 'money', tabLightStart: beatCursor, nodeFillStart: beatCursor });
+    const beat: ChBeat = { band, family: 'money', tabLightStart: beatCursor, nodeFillStart: beatCursor };
+    beats.push(beat);
     const threadBegin = beatCursor + CH_THREAD_LEAD_MS;
     let lastArrival = threadBegin;
     list.forEach((d, i) => {
@@ -317,6 +324,10 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
       s.colorStart = arrival;
       counterArrivals.push(arrival);
     });
+    // Expose the beat's thread window for the scoreboard sweep (§6): first onset (pulse),
+    // last arrival (change-fade + strip segment reveal).
+    beat.firstThreadOnset = threadBegin;
+    beat.lastArrival = lastArrival;
     beatCursor = lastArrival + CH_BEAT_BREATH_MS;
   }
 
@@ -354,6 +365,45 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
     counterTotal,
     timeline: { moveIEnd: CH_MOVE_I_END, auditionStart, auditionEnd, paydayStart, inkStart, inkEnd, handoffStart, total },
     isPending,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SCOREBOARD SWEEP (spec §6) — the money climb + beat marks the Scoreboard reads
+// ════════════════════════════════════════════════════════════════════════════
+
+/** One money band's completion mark (its last thread arrival). */
+export interface Act3SweepMark { band: MoneyBand; lastArrival: number; }
+
+/**
+ * Compact, plain-data schedule the resolved Scoreboard uses to drive the LIVE hero
+ * money-climb + the capped attention treatments during Movement III (spec §6). The
+ * on-field GOT PAID counter was RETIRED — the scoreboard hero IS the counter now.
+ */
+export interface Act3Sweep {
+  /** Money-thread arrival times (sorted, absolute ms) — the hero increments on each,
+   *  and STALLS through the ink mass (no arrivals scheduled there). */
+  arrivals: number[];
+  /** Final money-family count the climb lands on (== the resting hero value). */
+  total: number;
+  /** Absolute ms the FIRST payday thread begins drawing → invitation pulse (§6/1).
+   *  null when no money band has a beat (e.g. a fully-unsigned pending class). */
+  firstThreadOnset: number | null;
+  /** Present money bands (with beats), beat order — value change-fade + strip fill. */
+  bandMarks: Act3SweepMark[];
+  /** Absolute ms the ink mass finishes → the three ink strip segments appear (§6/3). */
+  inkComplete: number;
+}
+
+/** Derive the Scoreboard sweep from a full choreography (resolved classes only). */
+export function computeSweep(choreo: Act3Choreography): Act3Sweep {
+  const moneyBeats = choreo.beats.filter((b) => b.family === 'money');
+  return {
+    arrivals: choreo.counterArrivals,
+    total: choreo.counterTotal,
+    firstThreadOnset: moneyBeats.length ? (moneyBeats[0].firstThreadOnset ?? null) : null,
+    bandMarks: moneyBeats.map((b) => ({ band: b.band, lastArrival: b.lastArrival ?? b.tabLightStart })),
+    inkComplete: choreo.timeline.inkEnd,
   };
 }
 

@@ -383,6 +383,13 @@ export default function Sidebar(props: SidebarProps) {
                 value={teamSearch}
                 onChange={e => setTeamSearch(e.target.value)}
               />
+              {/* Lens help (Lambda §1, Derek-approved verbatim): the team filter is
+                  drafted-by in every act — drafted players + the team's post-draft UDFA
+                  signings. The Act-3-only "color = paying team" clause lives in the
+                  act-aware Reads & Keys, so it isn't asserted in Act 1/2 context. */}
+              <p className="sb-fd-help" style={{ fontSize: 11, lineHeight: 1.4, color: "#6B7280", padding: "0 6px 6px" }}>
+                The team filter shows the players a team drafted, plus the undrafted players it signed after the draft.
+              </p>
               <div className="sb-fd-list">
                 {/* ☆ MY TEAM — shortcut row pinned to the TOP (brief f, item 2).
                     Unpinned = quiet invite (focuses search — the team list IS the

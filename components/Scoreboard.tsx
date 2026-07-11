@@ -40,11 +40,19 @@ import {
   STRIP_BOUNDARY_TICK_W,
 } from "@/lib/scoreboardStrip";
 import { WALL_TIER_ORDER } from "@/lib/act3Constants";
+import { ACT3_FIELD_VERSION, ACT3_BANDS } from "@/lib/act3FieldConstants";
+import type { MoneyBand } from "@/lib/verdict";
+import type { Act3Sweep } from "@/lib/choreography";
 import TransportCluster from "@/components/TransportCluster";
 import TeamChip from "@/components/TeamChip";
 
 const DENOM_TOOLTIP =
   "= everyone drafted from this class, plus undrafted players who logged an NFL snap.";
+// Phase Lambda: the six-band money field plots a slightly different population — every
+// player at a position with a second-contract market (kickers/punters/long-snappers,
+// who have no money market, are set aside). Its denominator gets its own explainer.
+const MONEY_DENOM_TOOLTIP =
+  "= everyone drafted or signed from this class at a position with a second-contract market.";
 
 /** Transport bits owned by DraftChart (handlers + live flags), forwarded to the cluster. */
 export interface ScoreboardTransport {
@@ -85,6 +93,17 @@ export interface ScoreboardProps {
    * False under reduced motion / the legacy jellyfish flag / a class with no field.
    */
   canReplay?: boolean;
+  /**
+   * (spec §6) Live 2→3 elapsed ms (null outside the chapter). In a RESOLVED class this
+   * drives the hero's live money climb + the beat-timed attention treatments. The
+   * on-field GOT PAID counter was retired — the scoreboard hero IS the counter now.
+   */
+  twoToThreeElapsedMs?: number | null;
+  /**
+   * (spec §6) The resolved class's money-beat schedule (arrivals + per-band marks); null
+   * outside a resolved 2→3. Empty money bands contribute no mark → no pulse/segment.
+   */
+  sweep?: Act3Sweep | null;
   /** Effective 1→2 duration (ms, already speed-adjusted) — paces the per-pick ticker. */
   animDurationMs: number;
   /** Resolved-class join failures (rider 2) — drives the ⚠ utility line when > 0. */
@@ -120,6 +139,13 @@ export interface ScoreboardProps {
    */
   yearPulseKey?: number;
 }
+
+/** Six-band strip order (Derek, Lambda §2): money family first, left→right descending,
+ *  the paid-line falling at the MIDDLE|MIN boundary. A horizontal miniature of the wall. */
+const SIX_BAND_STRIP_ORDER: MoneyBand[] = ["TOP5", "TOP10", "MIDDLE", "MIN", "ZERO", "NEVER"];
+/** The new six-band field is live → the resolved slot speaks money bands, not the
+ *  legacy five-tier waterfall. Flip with ACT3_FIELD_VERSION (jellyfish A/B fallback). */
+const IS_NEW_FIELD = ACT3_FIELD_VERSION === "new";
 
 function ordinal(n: number): string {
   const v = n % 100;
@@ -176,13 +202,13 @@ function CountUp({ n, animate }: { n: number; animate: boolean }) {
 }
 
 // ── Denominator figure with hover/focus explainer (Part 4a) ────────────────────
-function DenomFigure({ n }: { n: number }) {
+function DenomFigure({ n, tip = DENOM_TOOLTIP }: { n: number; tip?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <span
       className="sb-denom"
       tabIndex={0}
-      title={`${n} ${DENOM_TOOLTIP}`}
+      title={`${n} ${tip}`}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
       onFocus={() => setOpen(true)}
@@ -191,7 +217,7 @@ function DenomFigure({ n }: { n: number }) {
       of <span className="sb-num">{n}</span>
       {open && (
         <span className="sb-denom-tip" role="tooltip">
-          <strong>{n}</strong> {DENOM_TOOLTIP}
+          <strong>{n}</strong> {tip}
         </span>
       )}
     </span>
@@ -383,6 +409,8 @@ export default function Scoreboard({
   paused,
   phase2to3 = false,
   canReplay = false,
+  twoToThreeElapsedMs = null,
+  sweep = null,
   animDurationMs,
   unmatched,
   transport,
@@ -435,6 +463,66 @@ export default function Scoreboard({
   const actChanged = prevActKeyRef.current !== actKey;
   useEffect(() => { prevActKeyRef.current = actKey; }, [actKey]);
   const animateCount = actChanged && !reducedMotion;
+
+  // ── Movement-III sweep: live hero climb + capped attention (spec §6) ───────────
+  // In a RESOLVED 2→3 the hero IS the money counter now (the on-field one was retired):
+  // its value climbs on each money-thread arrival and STALLS through the ink mass. Three
+  // capped treatments ride the beats — an invitation pulse at the first payday thread, a
+  // value change-fade at each money band's last arrival, and the six-band strip filling
+  // cumulatively. `sweeping` is false at rest / under reduced motion (elapsed stays null
+  // there — startTwoToThree hard-cuts), and off resolved (sweep is null).
+  const heroRef    = useRef<HTMLSpanElement>(null);
+  const heroFigRef = useRef<HTMLDivElement>(null);
+  const sweeping = twoToThreeElapsedMs != null && sweep != null
+    && IS_NEW_FIELD && chartMode === "verdict";
+  // Live money count = arrivals ≤ elapsed (stalls automatically once the ink mass begins,
+  // where no arrivals are scheduled). Lands on sweep.total == the resting hero value.
+  const sweepValue = sweeping && sweep
+    ? (() => { let n = 0; for (const a of sweep.arrivals) { if (a <= twoToThreeElapsedMs!) n++; else break; } return n; })()
+    : null;
+  // Cumulative strip reveal (spec §6/3): each money band's segment appears at its last
+  // arrival; the three ink bands appear together when the ink mass completes.
+  const inkRevealed = !sweeping || (sweep != null && twoToThreeElapsedMs! >= sweep.inkComplete);
+  const revealBand = (b: MoneyBand): boolean => {
+    if (!sweeping || !sweep) return true;              // rest / reduced-motion → full strip
+    const mark = sweep.bandMarks.find((m) => m.band === b);
+    return mark ? twoToThreeElapsedMs! >= mark.lastArrival : inkRevealed;
+  };
+
+  // One-shot beat triggers: invitation pulse (first thread onset) + per-band value
+  // change-fade (each band's last arrival). Crossing-detected against monotonically
+  // advancing elapsed, so 1×/2× and pause/resume all land on the beat boundary; a skip
+  // (elapsed → null) or reduced motion fires NOTHING and resets for the next run.
+  const sweepFiredRef = useRef<{ invite: boolean; bands: Set<string> }>({ invite: false, bands: new Set() });
+  useEffect(() => {
+    const e = twoToThreeElapsedMs;
+    if (e == null) { sweepFiredRef.current = { invite: false, bands: new Set() }; return; }
+    if (!sweep || reducedMotion || chartMode !== "verdict" || !IS_NEW_FIELD) return;
+    const fired = sweepFiredRef.current;
+    // (1) Invitation pulse — once, on the first payday thread beginning to draw.
+    if (!fired.invite && sweep.firstThreadOnset != null && e >= sweep.firstThreadOnset) {
+      fired.invite = true;
+      heroFigRef.current?.animate(
+        [
+          { transform: "scale(1)",    boxShadow: "0 0 0 0 rgba(200,146,10,0)",       offset: 0 },
+          { transform: "scale(1.03)", boxShadow: "0 0 6px 2px rgba(200,146,10,0.35)", offset: 0.3 },
+          { transform: "scale(1)",    boxShadow: "0 0 0 0 rgba(200,146,10,0)",       offset: 1 },
+        ],
+        { duration: 600, easing: "ease-out" },
+      );
+    }
+    // (2) Value change-fade — at each money band's last arrival (once per band). The value
+    // is already gold, so brighten → parchment → decay is the visible change.
+    for (const m of sweep.bandMarks) {
+      if (!fired.bands.has(m.band) && e >= m.lastArrival) {
+        fired.bands.add(m.band);
+        heroRef.current?.animate(
+          [{ color: "#D4A017" }, { color: "#F5F0E8", offset: 0.35 }, { color: "#D4A017" }],
+          { duration: 400, easing: "ease-out" },
+        );
+      }
+    }
+  }, [twoToThreeElapsedMs, sweep, reducedMotion, chartMode]);
 
   // ── Per-pick ticker (RAF; pause-aware via ref so a pause toggle never restarts it) ─
   const [tickIdx, setTickIdx] = useState(0);
@@ -549,6 +637,33 @@ export default function Scoreboard({
       }))}
     />
   );
+  // Act 3 resolved — SIX-BAND money strip (Phase Lambda reframe; renders when the new
+  // field is live). A horizontal miniature of the wall: money family first, left→right
+  // descending (TOP5 · TOP10 · MIDDLE | MIN · ZERO · NEVER), the bright paid-line at the
+  // family boundary so it keeps the bar's "paid-on-the-left" reading. Colors ARE the
+  // banked band hexes (ACT3_BANDS), so a viewer who learned the ladder from the payday
+  // animation reads the scoreboard for free. Counts source from live data (the sweep).
+  // During the sweep the strip fills cumulatively with the beats (spec §6/3): a band's
+  // segment appears at its last arrival, ink appears together at ink-mass completion. The
+  // paid-line + full "paid · didn't" sublabel hold until ink is in (before that only money
+  // is on the strip, so the boundary line has nothing to divide). At rest → the full strip.
+  const sixBandStrip = (
+    <ProportionStrip
+      total={stats.plottedPop}
+      subLabel={
+        !sweeping || inkRevealed
+          ? `${stats.moneyFamilyCount} paid · ${stats.plottedPop - stats.moneyFamilyCount} didn't`
+          : `${sweepValue ?? 0} paid`
+      }
+      paidFraction={inkRevealed && stats.plottedPop > 0 ? stats.moneyFamilyCount / stats.plottedPop : undefined}
+      segments={SIX_BAND_STRIP_ORDER.map((b) => ({
+        key: b,
+        label: ACT3_BANDS[b].descriptor,
+        count: revealBand(b) ? stats.bandCounts[b] : 0,
+        color: ACT3_BANDS[b].color,
+      }))}
+    />
+  );
   // Act 3 pending: two-part [ still in league · couldn't stick ] — verdicts aren't
   // resolved yet, so NOT the tier strip (build-pass clarification B). Wording matches
   // the pending hero ("STILL IN THE LEAGUE: X of N"); window-still-open language.
@@ -647,16 +762,39 @@ export default function Scoreboard({
     );
   } else if (chartMode === "verdict") {
     // ── State 5: Act 3 rest — RESOLVED ──────────────────────────────────────────
+    // GOT PAID = money family (MIDDLE+TOP10+TOP5) over plotted_pop when the six-band
+    // field is live; the legacy five-tier waterfall (gotPaidCount / N) rides the
+    // jellyfish A/B fallback. Every number is live-data-derived (denominator sweep).
     caption = (
       <>
         <div className="sb-statelabel sb-x-fade">SUBSTANTIAL GUARANTEES</div>
-        <div className="sb-herofig sb-x-fade"><span className="sb-num"><CountUp n={stats.gotPaidCount} animate={animateCount} /></span> <DenomFigure n={stats.N} /></div>
-        <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters</div>
-        <div className="sb-util">second contracts resolved</div>
-        {unmatched.length > 0 && (
-          <div className="sb-util sb-util--warn">⚠ {unmatched.length} unmatched</div>
+        {IS_NEW_FIELD ? (
+          <>
+            {/* The hero IS the money counter now (spec §6): during a resolved 2→3 it climbs
+                live on each money-thread arrival (sweepValue) and stalls through the ink
+                mass; at rest / reduced-motion / skip it shows the final moneyFamilyCount.
+                heroFigRef takes the once-per-run invitation pulse (scale + gold ring);
+                heroRef (#sb-got-paid-hero) takes the per-band value change-fade. transform-
+                origin left keeps the pulse anchored to the reading edge (no sideways drift). */}
+            <div ref={heroFigRef} className="sb-herofig sb-x-fade" style={{ transformOrigin: "left center" }}><span id="sb-got-paid-hero" ref={heroRef} className="sb-num">{sweeping ? sweepValue : <CountUp n={stats.moneyFamilyCount} animate={animateCount} />}</span> <DenomFigure n={stats.plottedPop} tip={MONEY_DENOM_TOOLTIP} /></div>
+            <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters</div>
+            <div className="sb-util">second contracts resolved</div>
+            {unmatched.length > 0 && (
+              <div className="sb-util sb-util--warn">⚠ {unmatched.length} unmatched</div>
+            )}
+            {sixBandStrip}
+          </>
+        ) : (
+          <>
+            <div className="sb-herofig sb-x-fade"><span className="sb-num"><CountUp n={stats.gotPaidCount} animate={animateCount} /></span> <DenomFigure n={stats.N} /></div>
+            <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters</div>
+            <div className="sb-util">second contracts resolved</div>
+            {unmatched.length > 0 && (
+              <div className="sb-util sb-util--warn">⚠ {unmatched.length} unmatched</div>
+            )}
+            {verdictStrip}
+          </>
         )}
-        {verdictStrip}
       </>
     );
   } else if (chartMode === "pending") {
@@ -684,6 +822,11 @@ export default function Scoreboard({
     // Defensive fallback (production/career are not reachable via the 3-beat bar).
     caption = <div className="sb-def">&nbsp;</div>;
   }
+
+  // ARIA (spec §6): during the live money climb the hero updates every frame — keep the
+  // live region OFF so screen readers aren't spammed. At handoff/rest sweeping goes false
+  // → "polite" announces the settled final value once.
+  if (sweeping) live = "off";
 
   // THREE-COLUMN layout (fix-pass-2 §2) — IDENTITY | STORY | CONTROLS, left→right: the
   // when/who → what → do reading order, now literal. Regions stay INVISIBLE (no labels;
