@@ -14,6 +14,7 @@ import {
   slugToPosition,
   positionToSlug,
   isSupportedTwinYear,
+  isMaturedTwinYear,
   APEX,
 } from '@/lib/twinConfig';
 import { getClassMaturity } from '@/lib/classMaturity';
@@ -24,7 +25,7 @@ import { buildFaqJsonLd, buildDatasetJsonLd, buildBreadcrumbJsonLd } from '@/lib
 import spendBaseline from '@/data/position_spend_baseline.json';
 
 // ISR — see the Vercel build-timeout lesson (2026-06-02, /players/[slug]).
-// generateStaticParams returns 2026 × 11 only; pages render/refresh via ISR.
+// generateStaticParams returns every SUPPORTED_TWIN_YEAR × 11; pages render/refresh via ISR.
 export const revalidate = 3600;
 
 interface Props {
@@ -49,7 +50,10 @@ async function loadTwin(yearStr: string, positionSlug: string) {
 
   const players = await fetchPlayers(year);
   const prep = prepPositionClass(players, position);
-  const maturity = getClassMaturity(year);
+  // Clamp to draft-day unless the year has been activated for outcome content
+  // (August). Prevents unbuilt Usage/Zone/Verdict columns + premature Dataset
+  // citation on historical pages that ship now only for indexing age.
+  const maturity = isMaturedTwinYear(year) ? getClassMaturity(year) : 'draft-day';
   const baseline = BASELINE[position];
 
   const capsules = computeCapsules({ prep, position, year, baseline, maturity });
