@@ -252,12 +252,25 @@ export default async function AboutPage() {
                 dollars. Real cap space. Front office jobs on the line.
               </p>
               <p>
+                DraftMap measures that value as the guaranteed money in a
+                player&rsquo;s second contract. Not the reported total: the money a
+                team truly commits. It weighs each figure against the top of the
+                player&rsquo;s own position, and against the salary cap that climbs
+                each year. A guarantee that&rsquo;s mid-tier money for a quarterback
+                would sit near the top for a running back.
+              </p>
+              <p>
                 Neither measure is perfect. But together they&rsquo;re the closest the
                 sport has to an objective measure of a player&rsquo;s value.
               </p>
               <p>
                 DraftMap normalizes both by position so they&rsquo;re comparable, and
                 that&rsquo;s it.
+              </p>
+              <p>
+                The projections aren&rsquo;t mine. Act 1 is a consensus ranking from
+                public draft sources. Act 2 is the pick and Act 3 is the second
+                contract, both the league&rsquo;s own doing.
               </p>
               <p>
                 I&rsquo;m not asking you to trust my opinion, because I don&rsquo;t
@@ -283,13 +296,14 @@ export default async function AboutPage() {
               </p>
               <p>
                 Researchers led by Jason Merrick of Virginia Commonwealth University,
-                with Wharton&rsquo;s Cade Massey among them, had landed on the same
-                measure of true draft value: a player&rsquo;s second contract as a share
-                of the cap. An NFL team had handed them twelve years of its private
-                scouting data to work from. Their study is far more comprehensive than
-                anything I could do, and Massey himself co-wrote &ldquo;The Loser&rsquo;s
-                Curse,&rdquo; the foundational study of how teams overvalue their top
-                draft picks.
+                with Wharton&rsquo;s Cade Massey among them, had reached the same core
+                insight: that a player&rsquo;s second contract, what the market pays him,
+                is the truest read on draft value. They measure it as a share of the
+                salary cap; DraftMap sorts it against the top of each position. An NFL
+                team had handed them twelve years of its private scouting data to work
+                from. Their study is far more comprehensive than anything I could do,
+                and Massey himself co-wrote &ldquo;The Loser&rsquo;s Curse,&rdquo; the
+                foundational study of how teams overvalue their top draft picks.
               </p>
             </div>
           </EditorialRow>
