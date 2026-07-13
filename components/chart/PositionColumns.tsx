@@ -95,10 +95,11 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
         const firstOffPos = visiblePositions.find(p => (POSITIONS.offense as readonly string[]).includes(p));
         return firstOffPos ? (
           <text
-            x={colXMap[firstOffPos] + 6}
-            y={margin.top - 8}
-            fontSize={8} fontWeight={700}
-            fill="#F5F0E8" opacity={0.45}
+            x={colXMap[firstOffPos] + colWidths[firstOffPos] / 2}
+            y={margin.top * 0.5 - 16}
+            textAnchor="middle"
+            fontSize={10} fontWeight={700}
+            fill="#F5F0E8" opacity={0.60}
             letterSpacing={2.2}
             fontFamily="Oswald, sans-serif"
           >
@@ -111,10 +112,11 @@ export default function PositionColumns({ layout, isZoomedMobile = false, onHowT
         const firstDefPos = visiblePositions.find(p => (POSITIONS.defense as readonly string[]).includes(p));
         return firstDefPos ? (
           <text
-            x={colXMap[firstDefPos] + 6}
-            y={margin.top - 8}
-            fontSize={8} fontWeight={700}
-            fill="#F5F0E8" opacity={0.45}
+            x={colXMap[firstDefPos] + colWidths[firstDefPos] / 2}
+            y={margin.top * 0.5 - 16}
+            textAnchor="middle"
+            fontSize={10} fontWeight={700}
+            fill="#F5F0E8" opacity={0.60}
             letterSpacing={2.2}
             fontFamily="Oswald, sans-serif"
           >

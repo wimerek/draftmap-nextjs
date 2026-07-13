@@ -462,7 +462,7 @@ const _TEAMS: Array<[string[], string, string]> = [
   [['Buffalo Bills',           'BUF', 'Buffalo'],                                      '#00338D', '#C60C30'],
   [['Miami Dolphins',          'MIA', 'Miami'],                                         '#008E97', '#FC4C02'],
   [['New England Patriots',    'NWE', 'NE', 'NEP', 'New England'],                     '#C60C30', '#002244'],
-  [['New York Jets',           'NYJ'],                                                  '#125740', '#000000'],
+  [['New York Jets',           'NYJ', 'NY Jets'],                                       '#125740', '#000000'],
   // AFC North
   [['Baltimore Ravens',        'BAL', 'Baltimore'],                                     '#241773', '#9E7C0C'],
   [['Cincinnati Bengals',      'CIN', 'Cincinnati'],                                    '#FB4F14', '#000000'],
@@ -480,7 +480,7 @@ const _TEAMS: Array<[string[], string, string]> = [
   [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6', '#FFC20E'],
   // NFC East
   [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594', '#869397'],
-  [['New York Giants',         'NYG'],                                                  '#0B2265', '#A71930'],
+  [['New York Giants',         'NYG', 'NY Giants'],                                     '#0B2265', '#A71930'],
   [['Philadelphia Eagles',     'PHI', 'Philadelphia'],                                  '#004C54', '#A5ACAF'],
   [['Washington Commanders',   'WAS', 'WSH', 'WFT', 'Washington'],                     '#5A1414', '#FFB612'],
   // NFC North

@@ -28,15 +28,18 @@ export const ACT3_SVG_H = 960;
 export const ACT3_MAX_PICK = 262;
 
 /**
- * Field margins. `right` reserves the wall + right-rail edge tabs (~170–180px band,
- * BAND RENDERING (c)). `left` holds the rotated USAGE Y-axis title. `top` near the
+ * Field margins. `right` reserves the wall + right-rail edge tabs (~220px band, sized
+ * for the locked 13px-uppercase tab names — wall-label lock 2026-07-11). `left` holds
+ * the rotated USAGE Y-axis title. `top` near the
  * very top (parchment field, no on-canvas title — Brief 2). `bottom` holds the round
  * gridline labels below the axis.
  */
 export const ACT3_MARGIN = { top: 28, right: 178, bottom: 58, left: 80 };
 
-/** Reserved right-rail width (px) for the six edge tabs (BAND RENDERING (c): ~170–180). */
-export const ACT3_RIGHT_RAIL = 172;
+/** Reserved right-rail width (px) for the six edge tabs. Sized for the locked 13px-
+ *  uppercase tab names (wall-label lock 2026-07-11) — the old ~170–180px band was cut
+ *  for 11.5px small-caps and clipped the longest tab (SIGNED, $0 GUARANTEED). */
+export const ACT3_RIGHT_RAIL = 220;
 
 /** UDFA gutter: a vertical band right of pick 262, separated by a visible axis break.
  *  `GAP` = the gutter gap (the axis break), `W` = the UDFA dot column width. */
@@ -104,15 +107,15 @@ export interface Act3BandSpec {
   threadOpacityDot: number;
   /** Thread opacity at the wall end (firm). Equals dot-end for the flat money register. */
   threadOpacityWall: number;
-  /** Working placeholder wall-tab name (Oswald small-caps). NOT final. */
+  /** FINAL wall-tab name — locked 2026-07-11 (wall-label session). Rendered uppercase. */
   labelPlaceholder: string;
   /** 2–3 word plain-language descriptor subline (Inter). */
   descriptor: string;
 }
 
 export const ACT3_BANDS: Record<MoneyBand, Act3BandSpec> = {
-  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top of market',       descriptor: 'top of the market' },
-  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top of position',     descriptor: 'top of the position' },
+  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top 5 at position',   descriptor: 'top-5 money at his position' },
+  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top 10 at position',  descriptor: 'top-10 money at his position' },
   MIDDLE: { band: 'MIDDLE', color: '#6FA8D8', family: 'money', threadW: 1.5,  threadOpacityDot: ACT3_MIDDLE_SKY_OPACITY, threadOpacityWall: ACT3_MIDDLE_SKY_OPACITY, labelPlaceholder: 'Middle class', descriptor: 'a middle-class deal' },
   MIN:    { band: 'MIN',    color: '#565E68', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Minimum',             descriptor: 'minimum-level money' },
   ZERO:   { band: 'ZERO',   color: '#7A828D', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Signed, $0 guaranteed', descriptor: 'signed, nothing guaranteed' },
@@ -120,10 +123,10 @@ export const ACT3_BANDS: Record<MoneyBand, Act3BandSpec> = {
 };
 
 /**
- * ⚠ Band display names above are PLACEHOLDERS (kickoff caution: final naming locked at
- * render on real nodes). "Middle class" is the lead candidate for band 4. Do NOT treat
- * the labelPlaceholder strings as final copy — this flag marks them for Derek's rename
- * on the live wall (Open GAP #2).
+ * Band names are FINAL (wall-label session 2026-07-11): top pair renamed to
+ * self-ordering numeric forms (top-5/top-10 guarantee lines at position =
+ * franchise/transition-tag logic); bottom four graduated as-is. Do not rename without a
+ * new session lock.
  */
 export const ACT3_BAND_LABELS_ARE_PLACEHOLDERS = true;
 
@@ -172,9 +175,9 @@ export const ACT3_GRIDLINE_W = 1;
  *  one register — size 11→11.5, contrast 0.55→0.68 — still furniture (Bartram–Stone
  *  unobtrusive), just legible. ⚠ tune on the live wall before final. */
 export const ACT3_RD_LABEL_COLOR = 'rgba(11,34,57,0.68)';
-export const ACT3_RD_LABEL_SIZE = 11.5;
+export const ACT3_RD_LABEL_SIZE = 12.5;
 /** The two shown pick numbers (1 and 262) at the axis extremes. */
-export const ACT3_AXIS_PICK_COLOR = 'rgba(11,34,57,0.62)';
+export const ACT3_AXIS_PICK_COLOR = 'rgba(11,34,57,0.68)';
 
 /** Too-few-snaps strip fill — navy ~4.5% + dashed top hairline (the "couldn't stick"
  *  trapdoor grammar). Corner (UDFA × strip) = both fills continue → ~9%. */

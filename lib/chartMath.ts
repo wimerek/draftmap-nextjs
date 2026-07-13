@@ -874,7 +874,7 @@ export function computeAct3FieldLayout(players: Player[], isPending: boolean): A
     if (n.tabY - prev < ACT3_TAB_MIN_PITCH) {
       n.tabY = prev + ACT3_TAB_MIN_PITCH;
       // A connector only earns its ink when the label was pushed CLEAR of its own
-      // node. A small nudge (e.g. 2022 TOP-OF-POSITION: a 7px shove off the gold
+      // node. A small nudge (e.g. 2022 TOP-10-AT-POSITION: a 7px shove off the gold
       // tab) leaves the tab still overlapping its node — no leader is needed, and
       // the lone band-color diagonal reads as a stray thread near the wall. Draw
       // it only once the tab center clears the node's bottom edge. (Distinct from

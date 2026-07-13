@@ -38,10 +38,10 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
         <text
           x={cx}
           y={udfaZoneY + udfaZoneH / 2 + 4}
-          fontSize={10}
+          fontSize={12.5}
           fontWeight={700}
           fontFamily="Oswald, sans-serif"
-          fill="#64748b"
+          fill="rgba(11,34,57,0.68)"
           letterSpacing={1.5}
           textAnchor="middle"
         >
@@ -82,8 +82,8 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
       {/* Zone label */}
       <text
         x={labelX} y={labelY}
-        fontSize={10} fontWeight={700}
-        fill={isProductionMode ? '#334155' : '#8A7F74'}
+        fontSize={isProductionMode ? 10 : 12.5} fontWeight={700}
+        fill={isProductionMode ? '#334155' : 'rgba(11,34,57,0.68)'}
         letterSpacing={1.5}
         textAnchor="start"
       >

@@ -179,7 +179,7 @@ export default function Act3Field(props: Act3FieldProps) {
         <rect x={udfaLeft} y={stripTop} width={udfaRight - udfaLeft} height={stripBottom - stripTop} fill={ACT3_CORNER_FILL} />
         <line x1={pickLeft} y1={stripTop} x2={udfaRight} y2={stripTop} stroke={ACT3_STRIP_DASH_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
         {/* Strip left edge-tab: TOO FEW SNAPS · n */}
-        <text x={pickLeft + 2} y={stripTop + 15} fontSize={10} fontWeight={700} fill={ACT3_NAVY} letterSpacing={0.5}>
+        <text x={pickLeft + 2} y={stripTop + 15} fontSize={11.5} fontWeight={700} fill={ACT3_NAVY} letterSpacing={0.5}>
           {ACT3_STRIP_LABEL} · {layout.stripCount}
         </text>
 
@@ -197,7 +197,7 @@ export default function Act3Field(props: Act3FieldProps) {
           transform={`rotate(-90 ${yTitleX} ${yAxisCy})`}
           x={yTitleX} y={yAxisCy}
           textAnchor="middle" dominantBaseline="middle"
-          fontSize={12.5} letterSpacing={1}
+          fontSize={13.5} letterSpacing={1}
         >
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
           <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
@@ -314,21 +314,19 @@ function Act3WallTab({ node, wallNodeW, isPending, dimFocus = false, onFocus }: 
       {/* 3px bookmark bar in band color. */}
       <rect x={barX} y={node.tabY - tabH / 2} width={ACT3_TAB_BAR_W} height={tabH} fill={spec.color} rx={1} />
 
-      {/* Oswald small-caps name (banked spec: the site's Oswald header face, weight 600,
-          font-variant small-caps — the mixed-case labelPlaceholder strings render as small
-          caps). The §3g pass had drifted to weight 700 + textTransform uppercase; reverted
-          to spec 2026-07-10 (Derek). Size stays 11.5 (the §3g legibility bump). ⚠ tune on
-          live wall (names still placeholders). */}
+      {/* Oswald uppercase 600 (wall-label lock 2026-07-11): Oswald has no true small-cap
+          glyphs, so font-variant synthesized them — replaced per Butterick/Datawrapper caps
+          doctrine (uppercase + tracking, weight unchanged). */}
       <text
-        x={textX} y={node.tabY - 3}
-        fontSize={11.5} fontWeight={600} fill={ACT3_NAVY}
+        x={textX} y={node.tabY - 4}
+        fontSize={13} fontWeight={600} fill={ACT3_NAVY}
         fontFamily="var(--font-oswald, 'Oswald', sans-serif)"
-        style={{ fontVariant: "small-caps", letterSpacing: "0.04em" }}
+        style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}
       >
         {name}
       </text>
       {/* Inter n · % line — size 9.5→10.5, firmer grey (#4B5563) for legibility (§3g). */}
-      <text x={textX} y={node.tabY + 11.5} fontSize={10.5} fill="#4B5563">
+      <text x={textX} y={node.tabY + 13} fontSize={11.5} fill="#4B5563">
         {node.count} · {node.pct}%
       </text>
     </g>

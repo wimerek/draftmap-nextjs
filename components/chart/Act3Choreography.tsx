@@ -152,7 +152,7 @@ export default function Act3Choreography(props: Props) {
         {/* LABEL READABILITY PASS (§3g) — mirror Act3Field exactly so the terminal
             frame stays pixel-identical to the rest field (Brief-4 skip-frame gate). */}
         <text transform={`rotate(-90 ${yTitleX} ${yAxisCy})`} x={yTitleX} y={yAxisCy}
-          textAnchor="middle" dominantBaseline="middle" fontSize={12.5} letterSpacing={1}>
+          textAnchor="middle" dominantBaseline="middle" fontSize={13.5} letterSpacing={1}>
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
           <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
         </text>
@@ -163,7 +163,7 @@ export default function Act3Choreography(props: Props) {
         <rect x={pickLeft} y={stripTop} width={udfaRight - pickLeft} height={stripBottom - stripTop} fill={ACT3_STRIP_FILL} />
         <rect x={udfaLeft} y={stripTop} width={udfaRight - udfaLeft} height={stripBottom - stripTop} fill={ACT3_CORNER_FILL} />
         <line x1={pickLeft} y1={stripTop} x2={udfaRight} y2={stripTop} stroke={ACT3_STRIP_DASH_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
-        <text x={pickLeft + 2} y={stripTop + 15} fontSize={10} fontWeight={700} fill={ACT3_NAVY} letterSpacing={0.5}>
+        <text x={pickLeft + 2} y={stripTop + 15} fontSize={11.5} fontWeight={700} fill={ACT3_NAVY} letterSpacing={0.5}>
           {ACT3_STRIP_LABEL} · {L.stripCount}
         </text>
       </g>
@@ -318,12 +318,14 @@ function ChoreoWallTab({
               stroke={spec.color} strokeWidth={0.75} opacity={0.6} />
           )}
           <rect x={barX} y={node.tabY - tabH / 2} width={ACT3_TAB_BAR_W} height={tabH} fill={spec.color} rx={1} />
-          {/* Oswald small-caps name (banked spec: weight 600, font-variant small-caps).
+          {/* Oswald uppercase 600 (wall-label lock 2026-07-11): Oswald has no true small-cap
+              glyphs, so font-variant synthesized them — replaced per Butterick/Datawrapper caps
+              doctrine (uppercase + tracking, weight unchanged).
               MUST mirror Act3Field's Act3WallTab exactly (frame-identity gate §8.4). */}
-          <text x={textX} y={node.tabY - 3} fontSize={11.5} fontWeight={600} fill={ACT3_NAVY}
+          <text x={textX} y={node.tabY - 4} fontSize={13} fontWeight={600} fill={ACT3_NAVY}
             fontFamily="var(--font-oswald, 'Oswald', sans-serif)"
-            style={{ fontVariant: "small-caps", letterSpacing: "0.04em" }}>{name}</text>
-          <text x={textX} y={node.tabY + 11.5} fontSize={10.5} fill="#4B5563">{node.count} · {node.pct}%</text>
+            style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>{name}</text>
+          <text x={textX} y={node.tabY + 13} fontSize={11.5} fill="#4B5563">{node.count} · {node.pct}%</text>
         </g>
       )}
     </g>
