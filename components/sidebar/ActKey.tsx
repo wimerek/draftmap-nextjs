@@ -72,7 +72,7 @@ const ACT3_SUBHEAD: Record<Act3State, string> = {
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2
 // follow-up — the right-axis six-band wall tabs carry the money meaning now. The
-// state-aware subhead + "Roughly two-thirds…" line stay.)
+// state-aware subhead + "More than half…" line stay.)
 
 const FADE_MS = 190; // body cross-fade per leg — see .sb-key-body transition
 
@@ -199,10 +199,10 @@ function Act3Body({ state }: { state: Act3State }) {
   return (
     <>
       {/* State subhead (Brief 2 Item 1) — factual, moved off the canvas; sits ABOVE the
-          resolved-framing "Roughly two-thirds…" line. */}
+          resolved-framing "More than half…" line. */}
       <p className="sb-key-lead">{ACT3_SUBHEAD[state]}</p>
       <p className="sb-key-lead">
-        Roughly two-thirds of a draft class never earn a second contract with substantial
+        More than half of a draft class never earn a second contract with substantial
         guarantees.
       </p>
       {/* Dot-color doctrine (§1): Act-3 color follows the story step. On the RESOLVED

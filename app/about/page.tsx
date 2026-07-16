@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About DraftMap",
     description:
-      "Outside the first round, only about a third of drafted players ever get a real second contract: the league's own signal that a pick paid off.",
+      "Outside the first round, only about 40% of drafted players ever receive substantial guaranteed money on a second contract: the league's own signal that a pick paid off.",
   },
   twitter: {
     card: "summary_large_image",
@@ -150,7 +150,7 @@ export default async function AboutPage() {
             The NFL Draft
           </p>
           <p className="text-dm-text leading-[1.18] text-[24px] sm:text-[28px]" style={heading}>
-            Outside the first round, only about a third of drafted players ever
+            Outside the first round, only about 40% of drafted players ever
             receive substantial guaranteed money on a second contract: the
             league&rsquo;s own signal that a pick paid off.
           </p>

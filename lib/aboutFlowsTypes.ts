@@ -6,13 +6,16 @@
  * (lib/sheets.ts → fs); a client component must not transitively pull that in.
  * The RoundTierSankey client component imports from HERE; the server aggregation
  * in aboutFlows.ts re-uses these same types.
+ *
+ * Six-band rebuild (2026-07-13): the five-tier ContractTier taxonomy was replaced by
+ * the shipped six-band MoneyBand ladder. Flow matrices are keyed by money_band now.
  */
 
-import type { ContractTier } from './verdict';
+import type { MoneyBand } from './verdict';
 
-export type Tier = ContractTier; // 'NONE'|'PROVE_IT'|'BRIDGE'|'SOLID'|'PREMIUM'
+export type { MoneyBand } from './verdict'; // 'NEVER'|'ZERO'|'MIN'|'MIDDLE'|'TOP10'|'TOP5'
 export type Round = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-export type RoundRow = Record<Tier, number>;
+export type RoundRow = Record<MoneyBand, number>;
 export type FlowMatrix = Record<Round, RoundRow>;
 
 export interface AboutFlows {

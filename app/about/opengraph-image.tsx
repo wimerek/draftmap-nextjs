@@ -9,7 +9,7 @@ export const contentType = 'image/png'
 const NAVY = '#0B2239'
 const GOLD = '#D4A017'
 const PARCHMENT = '#F5F0E8'
-const TIER_COLORS = ['#C8920A', '#1D3E63', '#6FA8D8', '#7A828D', '#99A1AA'] // Premium→None
+const TIER_COLORS = ['#C8920A', '#1D3E63', '#6FA8D8', '#565E68', '#7A828D', '#99A1AA'] // TOP5→NEVER
 
 export default async function Image() {
   return new ImageResponse(
@@ -83,8 +83,8 @@ export default async function Image() {
               maxWidth: '1000px',
             }}
           >
-            Outside the first round, only about a third of drafted players ever get
-            a real second contract.
+            Outside the first round, only about 40% of drafted players ever receive
+            substantial guaranteed money on a second contract.
           </div>
         </div>
 

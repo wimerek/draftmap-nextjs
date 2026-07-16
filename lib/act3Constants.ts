@@ -10,7 +10,8 @@
  * rescale, resolved/pending Y-axis labels, five-tier descriptors, lens knobs) went with
  * them. What remains is the small set still consumed by live code: usage-tier vocabulary
  * (hover + starter stat), the Act-2 reach/steal brackets, the transport cluster presets,
- * the K/P/LS strip copy, the award-glyph ink, and TIER_THREAD_COLOR (About-page Sankey).
+ * the K/P/LS strip copy, the award-glyph ink, and TIER_THREAD_COLOR (legacy five-tier
+ * palette; no live consumer).
  * The NEW Act-3 field's knobs live in lib/act3FieldConstants.ts.
  */
 
@@ -34,9 +35,9 @@ export const GLYPH_DOT_FRAC = 0.65; // locked working value — tune on real ren
 
 // ── Tier thread color (About-page Round→Tier Sankey) ──────────────────────────
 //
-// Retained for the About methodology visual (components/about/RoundTierSankey.tsx),
-// which still speaks the five-tier vocabulary pending its own scheduled update. NOT a
-// chart-side render constant — the Act-3 field colors dots off the six-band ladder.
+// Legacy five-tier palette; no live consumer (the About Sankey moved to the six-band
+// money ladder in the 2026-07-13 rebuild). NOT a chart-side render constant — the Act-3
+// field colors dots off the six-band ladder.
 export const TIER_THREAD_COLOR: Record<ContractTier, string> = {
   PREMIUM:  '#C8920A', // gold
   SOLID:    '#1D3E63', // navy
