@@ -12,6 +12,7 @@
 
 import { unstable_cache } from 'next/cache'
 import outcomeScores from '@/data/outcome-scores.json'
+import searchIndex from '@/data/search-index.json'
 import { SeasonStats, StepScore, DisplaySeasonRow, PlayerOutcomeScore, normalizePosition, scoreAllFromSeasons, normalizeScoreDistribution, percentileWithinPool } from './scoring'
 import { CURRENT_DRAFT_YEAR } from './draftYears'
 import { Verdict, getVerdictMaturity, MoneyBand } from './verdict'
@@ -424,7 +425,7 @@ export interface SearchIndexEntry {
  * same source fetchPlayers() reads, just unfiltered) and project to lean entries. No
  * 11× fetchPlayers(year) loop; the CSV is downloaded a single time and mapped.
  */
-async function computeSearchIndex(): Promise<SearchIndexEntry[]> {
+export async function computeSearchIndex(): Promise<SearchIndexEntry[]> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) {
     throw new Error("SHEETS_SPREADSHEET_ID is not set (search index).");
@@ -463,16 +464,43 @@ async function computeSearchIndex(): Promise<SearchIndexEntry[]> {
     .filter((e): e is SearchIndexEntry => e !== null);
 }
 
-/**
- * Cached entrypoint — runs computeSearchIndex at most once per revalidation window per
- * server instance (the same unstable_cache boundary the outcome-scores index uses),
- * not on every request. The route handler adds the HTTP ISR layer on top.
- */
-export const fetchSearchIndex = unstable_cache(
+// Cached compute fallback — runs computeSearchIndex at most once per revalidation
+// window per server instance. Used ONLY when the static snapshot is missing/malformed.
+const getCachedSearchIndex = unstable_cache(
   computeSearchIndex,
   ['search-index-v1'],
   { revalidate: 300 },
 );
+
+/**
+ * Serve the search index from the committed static snapshot (data/search-index.json),
+ * generated offline by scripts/build-search-index.ts. This removes the full players-CSV
+ * fetch + parse from every cold render of /sitemap.xml and /api/search-index — the fix
+ * for the residual Vercel Fluid Active CPU (see the Vercel optimization brief, 2026-07-16).
+ * computeSearchIndex + getCachedSearchIndex remain as the generator engine and a graceful
+ * fallback: if the snapshot is somehow empty/malformed, fall back to computing so search
+ * and sitemap never hard-break.
+ *
+ * TRADEOFF: the snapshot is regenerated weekly (Monday CI) + on demand. A player newly
+ * added to the current draft class won't appear in search/sitemap until the next rebuild.
+ * Player DATA is never stale — the search teleport loads the fresh class on arrival; only
+ * new-row VISIBILITY lags.
+ */
+export async function fetchSearchIndex(): Promise<SearchIndexEntry[]> {
+  try {
+    const entries = searchIndex as unknown as SearchIndexEntry[];
+    if (Array.isArray(entries) && entries.length > 0) {
+      return entries;
+    }
+    throw new Error('search-index.json empty or malformed');
+  } catch {
+    try {
+      return await getCachedSearchIndex();
+    } catch {
+      return [];
+    }
+  }
+}
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 

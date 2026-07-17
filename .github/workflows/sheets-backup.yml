@@ -56,14 +56,22 @@ jobs:
           SHEETS_SPREADSHEET_ID: ${{ secrets.SHEETS_SPREADSHEET_ID }}
         run: npx tsx scripts/build-outcome-scores.ts
 
+      # data/search-index.json is the precomputed lean player index served at runtime
+      # by fetchSearchIndex() for /sitemap.xml + /api/search-index. Regenerated here so
+      # newly-added players become visible to search/sitemap on the weekly cadence.
+      - name: Regenerate search-index.json
+        env:
+          SHEETS_SPREADSHEET_ID: ${{ secrets.SHEETS_SPREADSHEET_ID }}
+        run: npx tsx scripts/build-search-index.ts
+
       - name: Commit if changed
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/backups/ data/outcome-scores.json
+          git add data/backups/ data/outcome-scores.json data/search-index.json
           if git diff --cached --quiet; then
-            echo "No changes to commit — backup and outcome scores match previous snapshot."
+            echo "No changes to commit — backup, outcome scores and search index match previous snapshot."
           else
-            git commit -m "chore: weekly sheets backup + outcome scores ${{ steps.date.outputs.date }}"
+            git commit -m "chore: weekly sheets backup + outcome scores + search index ${{ steps.date.outputs.date }}"
             git push
           fi
