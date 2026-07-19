@@ -62,12 +62,12 @@ const ACT3_SUBHEAD: Record<Act3State, string> = {
     "Every pick starts at the draft-day floor. Vertical position rises as they take the field and earn snaps.",
   pending:
     "Vertical position shows usage: a player's share of the snaps at their position. It reflects how much their team played them compared to others at the same position.",
-  // RE-POINTED (Lambda §3d-bis): the resolved field now shows usage on the Y-axis and the
-  // second contract in COLOR — the old money-on-the-Y explanation is dead. Banked user
-  // sentences (Y = usage over the first four seasons; color = guaranteed money vs the
-  // best-paid at the position).
+  // RE-POINTED (Lambda §3d-bis; Sprint 1 item 3): the resolved field shows usage on the
+  // Y-axis; the second contract lives in the THREAD (it runs to the guaranteed-money band
+  // he reached), NOT in dot color — resolved dots wear the PAYING TEAM's colors (see the
+  // Color key row). The old "money-in-color" sentence was false and has been replaced.
   resolved:
-    "Vertical position shows how often he was on the field across his first four seasons, measured against others at his position. Color shows the second contract — how much guaranteed money he received, measured against the best-paid at his position.",
+    "Vertical position shows how often he was on the field across his first four seasons, measured against others at his position. His thread shows the second contract — it runs to the guaranteed-money band he reached, measured against the best-paid at his position.",
 };
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2

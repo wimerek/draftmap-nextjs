@@ -1979,6 +1979,18 @@ a { color: inherit; text-decoration: none; }
 
 .sb-util--warn { color: rgba(212, 160, 23, 0.85); }
 
+/* Promise line (Sprint 1 item 1) — the Act-1 rest inscription that tells the 85% who
+   never click what the three acts hold. An inscription, not a callout: no gold, no
+   border. Replaces the old "prospects ranked" + "consensus board" rows. */
+.sb-promise {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: rgba(245, 240, 232, 0.68);
+  max-width: 100%;
+  margin-top: 2px;
+}
+
 .sb-num {
   color: #D4A017;
   font-variant-numeric: tabular-nums;

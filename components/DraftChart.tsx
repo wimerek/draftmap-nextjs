@@ -24,6 +24,7 @@ import {
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import { selectClassState } from "@/lib/classMaturity";
 import { useFirstSessionHints } from "@/lib/useFirstSessionHints";
+import posthog, { POSTHOG_KEY } from "@/lib/posthog";
 import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
 import Act3Field from "@/components/chart/Act3Field";
@@ -913,6 +914,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const cancelVBAnimRef = useRef<(() => void) | null>(null);
   const prefersReduced = useRef(false);
 
+  // ── First-visit idle autoplay (Sprint 1 item 2) — refs ───────────────────────
+  // armedRef latches once so the 4s countdown can't be restarted by a dep change;
+  // cleanupRef/cancelRef are populated when the effect arms so the unmount effect and
+  // the tooltip/card watcher can reach into the same teardown/cancel closures.
+  const autoplayArmedRef      = useRef(false);
+  const autoplayTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoplayCleanupRef    = useRef<(() => void) | null>(null);
+  const autoplayCancelRef     = useRef<((via: string) => void) | null>(null);
+  const autoplayEventFiredRef = useRef(false); // one auto_play_* event per session, ever
+
   // ── First-session navigation hints (contingent pulse + Act-3 explore nudge) ──
   // Desktop only (mobile mode is off; don't nudge on phones). `act` = the current beat;
   // `engaged` = a hover card or player card is open (suppress the pulse while the user
@@ -1799,6 +1810,104 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   }, [cancelOneToTwo, isFieldMode, act3Choreo, startTwoToThree]);
 
   const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
+
+  // ── First-visit idle autoplay (Sprint 1 item 2) ──────────────────────────────
+  // ~4s after the Act-1 chart is ready, if the visitor has touched nothing, start the
+  // 1→2 draft-day chapter itself — the payoff after the existing 3.5s hint breath. Any
+  // input before the fire spends the shot for the whole session (sessionStorage), and the
+  // transport (pause/skip) is the escape once it's running. Fires on every device (no
+  // mobile fork — the page is pinned to the desktop viewport), never under reduced motion.
+  // Self-contained: drives startOneToTwo directly and never touches useFirstSessionHints
+  // or its interaction signal (autoplay is NOT a user interaction).
+  //
+  // Arm-once discipline: armedRef latches on the FIRST render the arm condition holds, so a
+  // later dep change (phase-2 data landing, an isAnimating flip) can't clear/re-set the 4s
+  // timer and push the fire time back forever. The effect returns no cleanup on purpose —
+  // that would tear down on every dep change; teardown lives on cancel, on fire, and in the
+  // dedicated unmount effect below.
+  const AUTOPLAY_DELAY_MS = 4000;
+  useEffect(() => {
+    if (autoplayArmedRef.current) return; // arm at most once per mount
+    let mark: string | null = null;
+    try { mark = window.sessionStorage.getItem("dm_autoplay"); } catch { /* storage blocked */ }
+    if (mark) return;                     // already fired or cancelled this session
+    const armable =
+      !loading && !error && players.length > 0 &&
+      chartMode === "projection" && !isAnimating && !prefersReduced.current;
+    if (!armable) return;
+
+    autoplayArmedRef.current = true;      // countdown starts now, once per mount
+
+    // Guarded capture — local copy of useFirstSessionHints.ts:57 (no-op without PostHog).
+    const capture = (event: string, props?: Record<string, unknown>) => {
+      if (!POSTHOG_KEY) return;
+      try { posthog.capture(event, props); } catch { /* analytics best-effort */ }
+    };
+
+    const onPointer = () => cancel("pointer");
+    const onKey     = () => cancel("key");
+    const onWheel   = () => cancel("wheel");
+    const onTouch   = () => cancel("touch");
+    // Bare mousemove is NOT interaction — moving the mouse without touching anything stays
+    // idle, so no "mousemove" listener. Capture phase so a click on a control cancels
+    // BEFORE that control's own handler runs (→ a PLAY click before 4s = cancel then a
+    // normal manual play). Pinch/scroll on phones lands in touchstart/wheel → cancels.
+    const removeListeners = () => {
+      document.removeEventListener("pointerdown", onPointer, true);
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("wheel", onWheel, true);
+      document.removeEventListener("touchstart", onTouch, true);
+    };
+    const teardown = () => {
+      if (autoplayTimerRef.current != null) { clearTimeout(autoplayTimerRef.current); autoplayTimerRef.current = null; }
+      removeListeners(); // listeners must not outlive the pending timer
+    };
+    autoplayCleanupRef.current = teardown;
+
+    function cancel(via: string) {
+      teardown();
+      try { window.sessionStorage.setItem("dm_autoplay", "cancelled"); } catch { /* storage blocked */ }
+      if (!autoplayEventFiredRef.current) {
+        autoplayEventFiredRef.current = true;
+        capture("auto_play_cancelled", { via });
+      }
+      autoplayCancelRef.current = null;
+    }
+    autoplayCancelRef.current = cancel; // tooltip/card watcher cancels through this
+
+    document.addEventListener("pointerdown", onPointer, true);
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("wheel", onWheel, true);
+    document.addEventListener("touchstart", onTouch, true);
+
+    autoplayTimerRef.current = setTimeout(() => {
+      autoplayTimerRef.current = null;
+      removeListeners();
+      autoplayCancelRef.current = null;
+      try { window.sessionStorage.setItem("dm_autoplay", "fired"); } catch { /* storage blocked */ }
+      if (!autoplayEventFiredRef.current) {
+        autoplayEventFiredRef.current = true;
+        capture("auto_play_fired", { year: selectedYear });
+      }
+      // The same start the PLAY button resolves to at Act 1 (handleTransportPlay → Act-1
+      // branch → startOneToTwo). Call the underlying start directly — NOT the handler,
+      // which would fire hints.recordInteraction('play') and pollute the hint/manual signal.
+      // startOneToTwo already sets viewMode/isAnimating/paused, so no transport state mirror.
+      startOneToTwo();
+    }, AUTOPLAY_DELAY_MS);
+  }, [loading, error, players.length, chartMode, isAnimating, selectedYear, startOneToTwo]);
+
+  // Tooltip or player card opening cancels a pending autoplay (a hover sets no pointerdown,
+  // so the raw listeners don't catch it). Only acts while the countdown is live.
+  useEffect(() => {
+    if (autoplayTimerRef.current == null) return;
+    if (tooltip != null) autoplayCancelRef.current?.("tooltip");
+    else if (openPlayer != null) autoplayCancelRef.current?.("card");
+  }, [tooltip, openPlayer]);
+
+  // Unmount: clear any pending autoplay timer + document listeners so neither outlives the
+  // component (a fired setTimeout after unmount would call startOneToTwo on a dead tree).
+  useEffect(() => () => { autoplayCleanupRef.current?.(); }, []);
 
   // ── Keyboard map (Part 3): Space = play/pause toggle (NEVER skip) · Esc = skip ─
   useEffect(() => {

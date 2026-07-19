@@ -725,8 +725,10 @@ export default function Scoreboard({
         <>
           <div className="sb-statelabel sb-x-fade">THE BOARD</div>
           <div className="sb-herofig sb-x-fade"><span className="sb-num"><CountUp n={stats.firstRoundGradeCount} animate={animateCount} /></span> first-round grades</div>
-          <div className="sb-def sb-x-fade"><span className="sb-num">{stats.rankedCount}</span> prospects ranked</div>
-          <div className="sb-util">consensus board</div>
+          <div className="sb-promise sb-x-fade">
+            Relive the {selectedYear} NFL Draft, then see every pick graded by the league
+            itself: snap counts and second contracts.
+          </div>
         </>
       );
     }
@@ -756,7 +758,7 @@ export default function Scoreboard({
             origin left keeps the pulse anchored to the reading edge (no sideways drift). */}
         <div ref={heroFigRef} className="sb-herofig sb-x-fade" style={{ transformOrigin: "left center" }}><span id="sb-got-paid-hero" ref={heroRef} className="sb-num">{sweeping ? sweepValue : <CountUp n={stats.moneyFamilyCount} animate={animateCount} />}</span> <DenomFigure n={stats.plottedPop} tip={MONEY_DENOM_TOOLTIP} /></div>
         <div className="sb-def sb-x-fade"><span className="sb-num">{stats.becameStartersCount}</span> became starters</div>
-        <div className="sb-util">second contracts resolved</div>
+        <div className="sb-util">of {stats.plottedPop} = drafted or signed at a position with a second-contract market</div>
         {unmatched.length > 0 && (
           <div className="sb-util sb-util--warn">⚠ {unmatched.length} unmatched</div>
         )}
