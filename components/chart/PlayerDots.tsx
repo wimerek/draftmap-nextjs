@@ -24,6 +24,8 @@ import { SCHOOL_COLORS, TEAM_COLORS } from "@/lib/chartConstants";
 import { getDotColor } from "@/lib/dotColor";
 import { isPlayerFiltered } from "@/lib/lensFilter";
 import type { DraftMove } from "@/lib/scoreboardStats";
+import type { OttDotSchedule } from "@/lib/oneToTwoChoreography";
+import { OTT_PENDING_OPACITY, OTT_DIM_IN_MS } from "@/lib/oneToTwoChoreography";
 
 interface Props {
   dotPositions: DotPosition[];
@@ -58,6 +60,10 @@ interface Props {
    *  so DraftChart's RAF owns every frame and Pause can freeze it. See the per-dot
    *  block below. */
   oneToTwoElapsedMs?: number | null;
+  /** Sprint 2 — the authored 1→2 per-dot schedule (launchAt + flightMs, keyed by
+   *  player_id). During the chapter each dot flies on ITS OWN authored cue instead of a
+   *  flat `i*22` stagger. `null` outside the chapter (the CSS-transition fallback path). */
+  oneToTwoSchedule?: Map<string, OttDotSchedule> | null;
 }
 
 // ── Filter function ────────────────────────────────────────────────────────────
@@ -142,6 +148,7 @@ export default function PlayerDots({
   consensusFilter = [], classMaxPick = 0,
   highlightedId,
   oneToTwoElapsedMs = null,
+  oneToTwoSchedule = null,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
@@ -168,6 +175,16 @@ export default function PlayerDots({
   // alpha-stacking that smeared dense filtered-out clusters.
   const inScopeDots: ReactNode[] = [];
   const ghostDots: ReactNode[] = [];
+  // ── Chapter paint-order partition (Sprint 2 addendum 2, Derek 07-19) ─────────────
+  // In the 1→2 chapter ONLY, a dimmed waiting dot can paint OVER a bright landed pick
+  // (SVG paints in document order). Split the in-scope pass into a STABLE PARTITION —
+  // all not-yet-launched dots first, then all launched dots — so bright always paints
+  // above dim. Original array order is preserved WITHIN each partition (no launchAt
+  // sort), so at chapter end (every dot launched) DOM order is identical to the rest
+  // field → zero z-order pop at the commit snap. Empty outside the chapter, where
+  // `inScopeDots` is rendered as-is (rendering order untouched).
+  const chapterPending: ReactNode[] = [];
+  const chapterLaunched: ReactNode[] = [];
 
   dotPositions.forEach(({ player, x, projectedY, actualY, pickValueDelta, expectedPickValue }, i) => {
     const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
@@ -339,23 +356,45 @@ export default function PlayerDots({
 
     const isHighlighted = highlightedId === player.player_id;
 
-    // ── Act 1→2 frame-clock interpolation (DO-NOT-TOUCH the timing numbers) ───────
+    // ── Act 1→2 frame-clock interpolation (Sprint 2: authored per-pick schedule) ──
     // When oneToTwoElapsedMs is non-null we are mid projection→draft-results chapter,
     // driven frame-by-frame from DraftChart's master clock so Pause can FREEZE it.
-    // We preserve the LOCKED timing feel exactly — per-dot ease-out over 550ms with an
-    // i*22ms stagger — only moving it from a CSS transition to JS so it can be frozen.
-    // easeOut = 1-(1-t)^3 (easeOutCubic), a close stand-in for CSS `ease-out`. Position
-    // (cy, x constant), size (r), strokeWidth, and fill/stroke (school→team RGB-lerp) all
-    // morph from the SAME p, so a pause freezes them coherently. Scoped to the
-    // projection↔draft boundary: production/career/field modes never enter here
-    // (oneToTwoElapsedMs stays null there), and mobile keeps its own no-anim path.
+    // SPRINT 2 supersedes the old "DO-NOT-TOUCH the timing numbers" note (that guard was
+    // scoped to the pause refactor): the flat `i*22` stagger + fixed `550` flight are
+    // REPLACED by this dot's authored (launchAt, flightMs) from oneToTwoSchedule — pick-order
+    // launches, R1 broadcast pace + ramp, R4–7 montage, and slow-mo beat flights. The feel
+    // of the per-dot ease is unchanged (easeOutCubic 1-(1-t)^3); only the CUE and DURATION
+    // now come from the schedule. Position (cy, x constant), size (r), strokeWidth, and
+    // fill/stroke (school→team RGB-lerp) all morph from the SAME p, so a pause freezes them
+    // coherently. Scoped to the projection↔draft boundary: production/career/field modes
+    // never enter here (oneToTwoElapsedMs stays null there), and mobile keeps its no-anim
+    // path. If a dot is somehow missing from the schedule, fall back to the legacy cue.
     let effCy = cy, effR = r, effFill = fill, effStroke = dotStroke;
     let effStrokeWidth = dotStrokeWidth;
     let effGroupTransition = groupTransition;
     let effTransition = transition;
+    // Pending-dot dimming (Derek runtime finding, 07-19): a NOT-yet-launched dot renders
+    // dimmed so the board visibly fills as picks land. 1 (chapter absent) unless overridden
+    // below. Applied to the dot's inner group so glyphs/strokes dim coherently, never landed.
+    let effGroupOpacity = 1;
+    // null → not in the chapter branch (route to inScopeDots as usual). Non-null → this
+    // dot is in the chapter; true once elapsed ≥ its launchAt (drives the paint partition).
+    let chapterHasLaunched: boolean | null = null;
     if (oneToTwoElapsedMs !== null && !isProductionMode && !isMobile) {
-      const localT = Math.max(0, Math.min((oneToTwoElapsedMs - i * 22) / 550, 1));
+      const sched = oneToTwoSchedule?.get(player.player_id);
+      const launchAt = sched?.launchAt ?? i * 22;
+      const flightMs = sched?.flightMs ?? 550;
+      const localT = Math.max(0, Math.min((oneToTwoElapsedMs - launchAt) / flightMs, 1));
       const p = 1 - Math.pow(1 - localT, 3);
+      // Waiting dots ease 1 → OTT_PENDING_OPACITY over the chapter's first OTT_DIM_IN_MS
+      // (easeOutCubic, matching the flight ease); a dot lights the instant elapsed ≥ launchAt
+      // and flies full-strength. UDFA light at their wave launchAt like everyone else, so the
+      // terminal frame is uniformly full-strength (frame-identity gate unchanged).
+      const dimT = Math.min(Math.max(oneToTwoElapsedMs, 0) / OTT_DIM_IN_MS, 1);
+      const dimEase = 1 - Math.pow(1 - dimT, 3);
+      const dimmedOpacity = 1 + dimEase * (OTT_PENDING_OPACITY - 1);
+      chapterHasLaunched = oneToTwoElapsedMs >= launchAt;
+      effGroupOpacity = chapterHasLaunched ? 1 : dimmedOpacity;
       effCy = projectedY + p * (actualY - projectedY); // x is constant — only Y morphs
       effR  = BASE_R + p * (deltaToRadius(pickValueDelta) - BASE_R);
       const tc = player.team_drafted ? TEAM_COLORS[player.team_drafted] : null;
@@ -368,10 +407,17 @@ export default function PlayerDots({
       effTransition = "none";
     }
 
-    inScopeDots.push(
+    // In the chapter, route to the stable partition (pending first, launched second) so a
+    // dimmed waiting dot never paints over a bright landed one. Outside it, chapterHasLaunched
+    // is null → the dot goes to inScopeDots and paint order is untouched.
+    const targetPass =
+      chapterHasLaunched === null ? inScopeDots
+      : chapterHasLaunched        ? chapterLaunched
+      :                             chapterPending;
+    targetPass.push(
       <g key={`${player.player_id}-${i}`}>
         {/* Inner group translates to (x, cy) — all children ride the same animation */}
-        <g style={{ transform: `translate(${x}px, ${effCy}px)`, transition: effGroupTransition }}>
+        <g style={{ transform: `translate(${x}px, ${effCy}px)`, transition: effGroupTransition, opacity: effGroupOpacity }}>
           {/* Search spotlight (brief f, item 3) — rings the located dot; never scopes. */}
           {isHighlighted && (
             <circle className="dm-glow-ring" cx={0} cy={0} r={effR + 4} fill="none" pointerEvents="none" />
@@ -508,8 +554,16 @@ export default function PlayerDots({
         {ghostDots}
       </g>
 
-      {/* ── In-scope dots (full fidelity) ───────────────────────────────── */}
+      {/* ── In-scope dots (full fidelity) ─────────────────────────────────
+          Outside the chapter, `inScopeDots` holds every in-scope dot in original
+          order. Inside the chapter, they land in the stable partition instead:
+          all not-yet-launched (dim) first, then all launched (bright) — same
+          parent group, keys unchanged (player_id), so React moves nodes across
+          the partition rather than remounting. At chapter end every dot is in
+          `chapterLaunched` in original order → DOM order matches the rest field. */}
       {inScopeDots}
+      {chapterPending}
+      {chapterLaunched}
     </g>
   );
 }

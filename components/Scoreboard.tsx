@@ -41,6 +41,10 @@ import {
 import { ACT3_BANDS } from "@/lib/act3FieldConstants";
 import type { MoneyBand } from "@/lib/verdict";
 import type { Act3Sweep } from "@/lib/choreography";
+import {
+  sampleTicker,
+  type OneToTwoChoreography,
+} from "@/lib/oneToTwoChoreography";
 import TransportCluster from "@/components/TransportCluster";
 import TeamChip from "@/components/TeamChip";
 
@@ -102,8 +106,19 @@ export interface ScoreboardProps {
    * outside a resolved 2→3. Empty money bands contribute no mark → no pulse/segment.
    */
   sweep?: Act3Sweep | null;
-  /** Effective 1→2 duration (ms, already speed-adjusted) — paces the per-pick ticker. */
-  animDurationMs: number;
+  /**
+   * (Sprint 2) The authored 1→2 schedule (null off-chapter / degenerate class). The per-pick
+   * ticker reads pickAtElapsed(oneToTwoElapsedMs) + its mode/copy off this — no self-run flat
+   * clock, so ticker and dots are incapable of drifting. Replaces the retired animDurationMs.
+   */
+  oneToTwoChoreo?: OneToTwoChoreography | null;
+  /** (Sprint 2) Live 1→2 elapsed ms (null outside the chapter) — the ticker's clock. */
+  oneToTwoElapsedMs?: number | null;
+  /**
+   * (Sprint 2) Paused pick-by-pick step. dir −1/+1 walks the drafted list in pick order;
+   * DraftChart sets the master clock to the target pick's landAt. Inert unless paused.
+   */
+  onStepPick?: (dir: -1 | 1, via: 'chevron' | 'key') => void;
   /** Resolved-class join failures (rider 2) — drives the ⚠ utility line when > 0. */
   unmatched: string[];
   transport: ScoreboardTransport;
@@ -406,7 +421,9 @@ export default function Scoreboard({
   canReplay = false,
   twoToThreeElapsedMs = null,
   sweep = null,
-  animDurationMs,
+  oneToTwoChoreo = null,
+  oneToTwoElapsedMs = null,
+  onStepPick,
   unmatched,
   transport,
   classMaxPick,
@@ -519,30 +536,30 @@ export default function Scoreboard({
     }
   }, [twoToThreeElapsedMs, sweep, reducedMotion, chartMode]);
 
-  // ── Per-pick ticker (RAF; pause-aware via ref so a pause toggle never restarts it) ─
-  const [tickIdx, setTickIdx] = useState(0);
-  // Last pick the State-2 caption successfully rendered. Lets the slot survive a
-  // transient tickIdx/draftedSorted desync without blanking OR crashing.
+  // ── Per-pick ticker — SCHEDULE-DRIVEN (Sprint 2). No self-run flat clock: the caption
+  // reads pickAtElapsed(oneToTwoElapsedMs) + its mode/copy straight off the authored 1→2
+  // schedule at the live master clock, so the ticker and the dots are incapable of drifting.
+  // sampleTicker resolves the override order (beat > hold > per-pick mode) and judges the
+  // named/summary floor against REAL display time (authored interval / current speed), so
+  // speed presets re-mode the ticker for free. `paused` → the full named caption (paused =
+  // infinite read time). Last-good-pick cache still guards a transient lookup miss.
   const lastPickRef = useRef<Player | null>(null);
-  const pausedRef = useRef(paused);
-  useEffect(() => { pausedRef.current = paused; }, [paused]);
-  useEffect(() => {
-    if (!animating1to2 || draftedSorted.length === 0) { setTickIdx(0); return; }
-    const n = draftedSorted.length;
-    const dur = Math.max(300, animDurationMs);
-    let raf = 0;
-    let last = performance.now();
-    let active = 0;
-    const frame = (now: number) => {
-      const dt = now - last; last = now;
-      if (!pausedRef.current) active += dt;
-      const prog = Math.min(active / dur, 1);
-      setTickIdx(Math.min(n - 1, Math.floor(prog * n)));
-      if (prog < 1) raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
-  }, [animating1to2, draftedSorted.length, animDurationMs]);
+  const playersById = useMemo(() => {
+    const m = new Map<string, Player>();
+    for (const p of players) m.set(p.player_id, p);
+    return m;
+  }, [players]);
+  const tickerState =
+    animating1to2 && oneToTwoChoreo && oneToTwoElapsedMs != null && oneToTwoChoreo.pickTimeline.length > 0
+      ? sampleTicker(oneToTwoChoreo, oneToTwoElapsedMs, transport.speed, paused)
+      : null;
+  // Step-through chevron availability — the drafted list, in pick order, while paused.
+  const pickIdx =
+    oneToTwoChoreo && oneToTwoElapsedMs != null ? oneToTwoChoreo.pickIndexAtElapsed(oneToTwoElapsedMs) : -1;
+  const canStepPrev = animating1to2 && paused && pickIdx > 0;
+  const canStepNext =
+    animating1to2 && paused && oneToTwoChoreo != null && pickIdx < oneToTwoChoreo.classTotal - 1;
+  const showStepper = animating1to2 && oneToTwoChoreo != null && oneToTwoChoreo.pickTimeline.length > 0;
 
   // ── Cluster presentation (derived here; the cluster itself is dumb) ────────────
   let playLabel = "";
@@ -662,49 +679,113 @@ export default function Scoreboard({
   let caption: ReactNode;
   let live: "off" | "polite" = "polite";
 
-  if (animating1to2 && draftedSorted.length > 0) {
-    // ── State 2: 1→2 per-pick caption (slot NEVER blanks mid-show) ──────────────
+  // Sprint 2 — paused pick-by-pick step chevrons. Reserved-width, opacity-only reveal on
+  // pause (no transform → zero layout shift); invisible + inert during playback so they can
+  // never eat a click or cancel autoplay. Flank the .sb-hero--pick line, OUTSIDE the fixed
+  // .sb-pick-slot, so stepping never reflows a character. Rendered in EVERY State-2 mode so
+  // their width is always reserved. `‹` `›` (locked stepper vocabulary — never triangles).
+  const renderPickStep = (dir: -1 | 1, enabled: boolean): ReactNode =>
+    showStepper ? (
+      <button
+        type="button"
+        className="sb-pick-step"
+        aria-label={dir === -1 ? "Previous pick" : "Next pick"}
+        disabled={!enabled}
+        tabIndex={paused && enabled ? 0 : -1}
+        onClick={() => onStepPick?.(dir, "chevron")}
+        style={{
+          opacity: paused ? (enabled ? 1 : 0.35) : 0,
+          pointerEvents: paused && enabled ? "auto" : "none",
+        }}
+      >
+        {dir === -1 ? "‹" : "›"}
+      </button>
+    ) : null;
+
+  // The pick-hero line with chevrons flanking the fixed slot. `chip` is the team chip
+  // (named mode only); summary / hold / beat pass null.
+  const heroLine = (slot: ReactNode, chip: ReactNode): ReactNode => (
+    <div className="sb-hero sb-hero--pick">
+      {renderPickStep(-1, canStepPrev)}
+      <span className="sb-pick-slot">{slot}</span>
+      {chip}
+      {renderPickStep(1, canStepNext)}
+    </div>
+  );
+
+  if (animating1to2 && tickerState) {
+    // ── State 2: 1→2 per-pick caption — schedule-driven (slot NEVER blanks mid-show) ──
     live = "off"; // high-frequency hero — no SR spam (Part 2 ARIA)
-    // Defensive: clamp the index and NEVER read .team_drafted off an undefined
-    // player. A tickIdx/draftedSorted desync (observed on 2026's projection-less
-    // partial-draft shape) was returning undefined here and throwing mid-RAF.
-    // Math.max guards a stale/negative/NaN tickIdx; ?? falls back to the last
-    // good pick so the slot holds its caption instead of blanking or crashing.
-    const idx = Math.min(Math.max(tickIdx, 0), draftedSorted.length - 1);
-    const p = draftedSorted[idx] ?? lastPickRef.current;
-    if (!p) {
-      // No safe player yet — log the live shape so the desync can be traced, then
-      // keep the slot present but inert for this frame (no crash, no blank reflow).
-      if (typeof console !== "undefined") {
-        console.warn(
-          `[scoreboard] State-2 ticker desync for ${selectedYear}: ` +
-            `players.length=${players.length} draftedSorted.length=${draftedSorted.length} ` +
-            `tickIdx=${tickIdx} idx=${idx} ` +
-            `firstPickShape=${JSON.stringify(draftedSorted[0])}`,
-        );
-      }
-      caption = <div className="sb-def">&nbsp;</div>;
-    } else {
-      lastPickRef.current = p; // cache the last good pick for the fallback above
+    const ts = tickerState;
+    const entry = ts.entry;
+    const classTotal = oneToTwoChoreo?.classTotal ?? 0;
+    // Resolve the current pick's Player for named/beat content; cache the last good one so a
+    // transient lookup miss (a lens dropping the pick from `players`) holds the caption.
+    const p = entry ? (playersById.get(entry.playerId) ?? lastPickRef.current) : lastPickRef.current;
+    if (p) lastPickRef.current = p;
+
+    if (ts.kind === "beat" && entry && p) {
+      // Beat copy: #1 gets the "BIGGEST" superlative; #2 is the bare STEAL/REACH. Uppercase
+      // ordinal (180TH / 3RD) matches the caption register; imputed-unranked reaches → UNRANKED.
+      const word = entry.beat === "reach" ? "REACH" : "STEAL";
+      const lead = entry.beatRank === 1 ? `BIGGEST ${word}` : word;
+      const rankLine = p.rank != null ? `RANKED ${ordinal(p.rank).toUpperCase()}` : "UNRANKED";
+      caption = (
+        <>
+          {heroLine(lead, null)}
+          <div className="sb-def"><strong>{p.name}</strong> · PICK {entry.pick}</div>
+          <div className="sb-util">{rankLine}</div>
+        </>
+      );
+    } else if (ts.kind === "boundary" && ts.hold) {
+      const { steals, reaches } = ts.hold.tallies;
+      caption = (
+        <>
+          {heroLine(`ROUND ${ts.hold.afterRound}`, null)}
+          <div className="sb-def">{steals} STEALS · {reaches} REACHES</div>
+          <div className="sb-util">&nbsp;</div>
+        </>
+      );
+    } else if (ts.kind === "preUdfa") {
+      const u = oneToTwoChoreo?.udfaCount ?? 0;
+      caption = (
+        <>
+          {heroLine("THE DRAFT ENDS", null)}
+          <div className="sb-def">{u} UNDRAFTED SIGNINGS</div>
+          <div className="sb-util">&nbsp;</div>
+        </>
+      );
+    } else if (ts.kind === "summary" && entry) {
+      // Odometer only — flight is velocity, meaning is reserved for the holds (§2).
+      caption = (
+        <>
+          {heroLine(`ROUND ${entry.rd} · PICK ${entry.pick} OF ${classTotal}`, null)}
+          <div className="sb-def">&nbsp;</div>
+          <div className="sb-util">&nbsp;</div>
+        </>
+      );
+    } else if (entry && p) {
+      // Named — the caption exactly as before (pick slot + team chip / Name · POS / kth taken).
       const colors = resolveTeamColors(p.team_drafted);
       const code = teamCodeFromFullName(resolveTeamName(p.team_drafted));
       const k = posTaken.get(p.player_id) ?? 1;
+      const chip = (
+        <span
+          className="sb-team-chip"
+          style={{ background: colors.primary, color: colors.onPrimary }}
+          aria-hidden="true"
+        >{code}</span>
+      );
       caption = (
         <>
-          <div className="sb-hero sb-hero--pick">
-            <span className="sb-pick-slot">R{p.rd_drafted ?? "—"} · PICK {p.pick_drafted}</span>
-            <span
-              className="sb-team-chip"
-              style={{ background: colors.primary, color: colors.onPrimary }}
-              aria-hidden="true"
-            >{code}</span>
-          </div>
-          <div className="sb-def">
-            <strong>{p.name}</strong> · {p.pos}
-          </div>
+          {heroLine(<>R{p.rd_drafted ?? "—"} · PICK {p.pick_drafted}</>, chip)}
+          <div className="sb-def"><strong>{p.name}</strong> · {p.pos}</div>
           <div className="sb-util">{ordinal(k)} {p.pos} taken</div>
         </>
       );
+    } else {
+      // No safe player yet (transient) — keep the slot present but inert (no crash/blank).
+      caption = <div className="sb-def">&nbsp;</div>;
     }
   } else if (chartMode === "projection") {
     // ── State 1: Act 1 rest ─────────────────────────────────────────────────────

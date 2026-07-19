@@ -68,6 +68,20 @@ export function classifyDraftMove(rank: number | null, pick: number | null): Dra
   return pick < rank ? 'REACH' : 'STEAL';
 }
 
+/**
+ * classifyDraftMove PLUS the unsigned pick-VALUE gap the classification weighed — the
+ * SAME magnitude the Act-2 scoreboard counts on. The 1→2 choreography ranks its
+ * steal/reach BEATS by this `gap` (Sprint 2 §5.7: import the flag + magnitude here, never
+ * re-derive the brackets in a second place). `gap` is 0 for UNDRAFTED / unranked /
+ * exactly-on-slot picks (no meaningful gap to rank on).
+ */
+export interface DraftMoveDetail { move: DraftMove; gap: number; }
+export function classifyDraftMoveDetail(rank: number | null, pick: number | null): DraftMoveDetail {
+  const move = classifyDraftMove(rank, pick);
+  if (pick == null || pick <= 0 || rank == null || pick === rank) return { move, gap: 0 };
+  return { move, gap: Math.abs(smoothPickValue(rank) - smoothPickValue(pick)) };
+}
+
 // ── Field universe (ONE definition, shared by chart / wall / scoreboard) ───────
 
 /**

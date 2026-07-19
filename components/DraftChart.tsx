@@ -30,6 +30,7 @@ import { fmtHeight } from "@/lib/utils";
 import Act3Field from "@/components/chart/Act3Field";
 import Act3Choreography from "@/components/chart/Act3Choreography";
 import { computeAct3Choreography, computeSweep } from "@/lib/choreography";
+import { computeOneToTwoChoreography } from "@/lib/oneToTwoChoreography";
 import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
@@ -46,6 +47,18 @@ import MobileTopBar from "@/components/mobile/MobileTopBar";
 import MobileHandleBar from "@/components/mobile/MobileHandleBar";
 import MobilePlayerLabels from "@/components/chart/MobilePlayerLabels";
 import MobileRoundTicks from "@/components/chart/MobileRoundTicks";
+
+
+// ── Legacy CSS-transition stagger window ────────────────────────────────────────
+// The production/career step + first-visit mobile intro still animate via PlayerDots'
+// untouched CSS-transition fallback (per-dot `i*22ms` ease over `550ms`). These named
+// dials reproduce that window's length so the DraftChart timers that wait for it to finish
+// carry no bare `*22+550` literal (Sprint 2 grep gate). The 1→2 chapter itself no longer
+// uses this — it runs the authored lib/oneToTwoChoreography schedule.
+const CSS_STAGGER_PER_DOT_MS = 22;
+const CSS_STAGGER_FLIGHT_MS  = 550;
+const cssStaggerWindowMs = (dotCount: number): number =>
+  dotCount * CSS_STAGGER_PER_DOT_MS + CSS_STAGGER_FLIGHT_MS;
 
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -718,9 +731,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // stop). `oneToTwoElapsedMs` is null when not in the chapter, a number (0…total) while
   // running/paused; PlayerDots interpolates every dot from it. elapsedRef is the source
   // of truth the rAF loop mutates; the state mirror drives render. totalDurationRef is
-  // captured at chapter start = dotPositions.length*22 + 550 (the SAME stagger window the
-  // retired oneToTwoDurationMs used). Speed multiplies the per-frame advance, so the clock
-  // reaches `total` faster — it does NOT shrink `total`.
+  // captured at chapter start = the authored oneToTwoChoreo.total (Sprint 2; replaced the
+  // old flat dots-length stagger window). Speed multiplies the per-frame advance, so the
+  // clock reaches `total` faster — it does NOT shrink `total`.
   const [oneToTwoElapsedMs, setOneToTwoElapsedMs] = useState<number | null>(null);
   const oneToTwoRafRef   = useRef<number | null>(null);
   const lastFrameTsRef   = useRef<number>(0);
@@ -1020,6 +1033,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     [players, layout, pickValueCurve],
   );
 
+  // Sprint 2 — the AUTHORED per-pick 1→2 schedule (pick-order launches, R1 broadcast pace +
+  // ramp, R4–7 montage, boundary holds, steal/reach beats, one UDFA wave). Replaces the flat
+  // dots.length*22+550 stagger. Pure math (lib/oneToTwoChoreography.ts); PlayerDots flies each
+  // dot from `dotSchedules`, the Scoreboard ticker reads its pick→elapsed map, and the paused
+  // step-through rides the same map. Keyed by player_id, stable across the projected↔drafted
+  // flip (both Y's are precomputed on every dot), so it never rebuilds mid-chapter.
+  const oneToTwoChoreo = useMemo(
+    () => computeOneToTwoChoreography(dotPositions, players),
+    [dotPositions, players],
+  );
+  const oneToTwoChoreoRef = useRef(oneToTwoChoreo);
+  useEffect(() => { oneToTwoChoreoRef.current = oneToTwoChoreo; }, [oneToTwoChoreo]);
+
   // Phase Lambda — the Act-3 reframe field (six-band money / window_usage). One layout
   // fn covers all three field states via isPending (resolved = false; pending/floor =
   // true → band-1 relabel + unsigned dots carry no thread).
@@ -1285,7 +1311,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             setViewMode("drafted");
             const layout1 = computeChartLayout(players, view);
             const dots1 = computeAllDotPositions(players, layout1, pickValueCurve);
-            const longestDelay = dots1.length * 22 + 550;
+            const longestDelay = cssStaggerWindowMs(dots1.length);
             setTimeout(() => {
               setIsAnimating(false);
               localStorage.setItem("draftmap_visited", "1");
@@ -1539,13 +1565,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // during the chapter PlayerDots interpolates from the clock regardless of viewMode.
     setViewMode('drafted');
 
-    // Reduced motion: skip the rAF entirely — instant snap to drafted (no-motion contract).
-    if (prefersReduced.current) {
+    // Reduced motion (or a degenerate/empty class) → instant snap to drafted (no-motion
+    // contract + the 0-dot immediate-commit guard).
+    const choreo = oneToTwoChoreoRef.current;
+    if (prefersReduced.current || !choreo || choreo.dotSchedules.size === 0) {
       commitOneToTwo();
       return;
     }
 
-    totalDurationRef.current = dotPositions.length * 22 + 550;
+    // Sprint 2: the chapter length is the authored schedule's total (not a flat stagger).
+    totalDurationRef.current = choreo.total;
     elapsedRef.current  = 0;
     lastFrameTsRef.current = 0; // sentinel — seeded on the first frame
     setIsAnimating(true);
@@ -1576,7 +1605,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       oneToTwoRafRef.current = requestAnimationFrame(frame);
     };
     oneToTwoRafRef.current = requestAnimationFrame(frame);
-  }, [dotPositions.length, commitOneToTwo]);
+  }, [commitOneToTwo]);
 
   // Tear down the rAF clock if the component unmounts mid-chapter.
   useEffect(() => () => {
@@ -1727,7 +1756,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       if (!scoredReadyRef.current) return;
       setIsAnimating(true);
       setCurrentStepId(stepId);
-      const longestDelay = dotPositions.length * 22 + 550;
+      const longestDelay = cssStaggerWindowMs(dotPositions.length);
       setTimeout(() => {
         setIsAnimating(false);
       }, longestDelay);
@@ -1810,6 +1839,48 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   }, [cancelOneToTwo, isFieldMode, act3Choreo, startTwoToThree]);
 
   const handleTransportSpeed = useCallback((x: number) => { setSpeed(x); }, []);
+
+  // ── Sprint 2 — paused pick-by-pick step-through (the rider) ───────────────────
+  // Active ONLY while the 1→2 chapter exists AND is paused. No new animation system:
+  // stepping just sets the master clock to elapsedForPickIndex(target) — the target pick's
+  // landAt, so the stepped dot is seated and its caption reads. Prev/next walk the drafted
+  // list in pick order; the UDFA wave is not steppable (the chevrons disable at the ends).
+  // Resume plays from the stepped elapsed. One PostHog `pick_step` per session.
+  const handlePickStep = useCallback((dir: -1 | 1, via: 'chevron' | 'key') => {
+    if (!pausedRef.current || oneToTwoRafRef.current == null) return; // paused + chapter only
+    const choreo = oneToTwoChoreoRef.current;
+    if (!choreo || choreo.pickTimeline.length === 0) return;
+    const cur = choreo.pickIndexAtElapsed(elapsedRef.current); // −1 before the first landing
+    const target = Math.max(0, Math.min(cur + dir, choreo.pickTimeline.length - 1));
+    if (target === cur) return; // already at an end — no-op (cur −1 always steps to pick 0)
+    elapsedRef.current = choreo.elapsedForPickIndex(target);
+    setOneToTwoElapsedMs(elapsedRef.current);
+    try {
+      if (POSTHOG_KEY && !window.sessionStorage.getItem('dm_pick_step')) {
+        window.sessionStorage.setItem('dm_pick_step', '1');
+        posthog.capture('pick_step', { via });
+      }
+    } catch { /* analytics / storage best-effort */ }
+  }, []);
+
+  // Keyboard step: ArrowLeft/Right, bound ONLY while the 1→2 chapter is PAUSED so playback
+  // keydown semantics (Sprint 1 capture-phase autoplay cancel + the Space/Esc map) stay
+  // byte-identical — arrows are never live during the show. Ignores events targeting an
+  // input/select or an open menu; preventDefault only when it actually handles the key.
+  useEffect(() => {
+    if (!(isAnimating && paused && oneToTwoElapsedMs != null)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      if (el?.closest('[role="listbox"],[role="menu"]')) return; // speed/year menu open
+      e.preventDefault();
+      handlePickStep(e.key === 'ArrowLeft' ? -1 : 1, 'key');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isAnimating, paused, oneToTwoElapsedMs, handlePickStep]);
 
   // ── First-visit idle autoplay (Sprint 1 item 2) ──────────────────────────────
   // ~4s after the Act-1 chart is ready, if the visitor has touched nothing, start the
@@ -2094,11 +2165,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return isNaN(x) ? (mobileZoomedX ?? 0) : x;
   }, [mobileVB, mobileZoomedX]);
 
-  // Effective 1→2 duration (speed-adjusted) — paces the scoreboard per-pick ticker.
-  const animDurationMs = useMemo(
-    () => (dotPositions.length * 22 + 550) / speed,
-    [dotPositions.length, speed],
-  );
+  // Sprint 2: animDurationMs is RETIRED. The scoreboard ticker no longer runs its own flat
+  // clock — it reads pickAtElapsed(oneToTwoElapsedMs) + mode/copy off the authored schedule,
+  // so ticker and dots are incapable of drifting.
 
   const tierAxisVisible = yAxisPhase === 'results';
 
@@ -2152,7 +2221,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             twoToThreeElapsedMs,
             sweep: act3Sweep,
             canReplay: isFieldMode && !!act3Choreo && !prefersReduced.current,
-            animDurationMs,
+            // Sprint 2 — the authored 1→2 schedule + its live clock drive the per-pick
+            // ticker (pickAtElapsed + mode/copy) and the paused step-through chevrons.
+            // Replaces the retired animDurationMs flat clock; ticker & dots can't drift.
+            oneToTwoChoreo,
+            oneToTwoElapsedMs,
+            onStepPick: handlePickStep,
             unmatched,
             // Class-pinned imputation anchor (one value, also fed to the Act 2 hover).
             classMaxPick,
@@ -2290,6 +2364,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 classMaxPick={classMaxPick}
                 highlightedId={highlightedPlayerId}
                 oneToTwoElapsedMs={oneToTwoElapsedMs}
+                oneToTwoSchedule={oneToTwoChoreo.dotSchedules}
               />
               {isZoomedMobile && currentMobilePos && (
                 <MobilePlayerLabels

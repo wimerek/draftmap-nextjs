@@ -2041,6 +2041,30 @@ a { color: inherit; text-decoration: none; }
   min-width: 150px; /* fixed-width slot so the per-pick caption never reflows */
 }
 
+/* Sprint 2 — paused pick-by-pick step chevrons. The product's locked stepper vocabulary is
+   the year scrubber's ‹ › (CHEVRONS, not play-triangles), rendered in the loaded Oswald
+   stack. One register DOWN from the year steppers (14px vs 16px) so it reads as subordinate.
+   They flank the .sb-hero--pick line, OUTSIDE the fixed 150px .sb-pick-slot, so stepping
+   never reflows a character. Opacity + pointer-events are driven inline per pause/enabled
+   state (invisible + inert during playback, disabled-in-place at 0.35 when at an end); the
+   fade is opacity-only — NO transform, no layout shift. */
+.sb-pick-step {
+  background: none;
+  border: none;
+  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(245, 240, 232, 0.5);
+  cursor: pointer;
+  padding: 2px 6px;      /* ~20×24px hit target */
+  min-width: 20px;
+  border-radius: 3px;
+  transition: opacity 120ms ease;
+}
+.sb-pick-step:hover:not(:disabled) { color: #D4A017; }
+.sb-pick-step:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .sb-pick-step { transition: none; } }
+
 .sb-team-chip {
   display: inline-flex;
   align-items: center;
