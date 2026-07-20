@@ -40,17 +40,20 @@ export const CH_PIVOT_COL_FADE_MS      = 300;   // 0–300 position labels + sep
 export const CH_PIVOT_TRAVEL_MS        = 1000;  // 0–1000 dots swing to pick-on-floor + radius→r5.5
 export const CH_PIVOT_FURNITURE_IN     = { start: 600, end: 1000 }; // gridlines/labels/UDFA frame/gutter fade IN
 export const CH_PIVOT_WALL_IN          = { start: 700, end: 1000 }; // wall OUTLINES + strip fill/hairline fade IN
-export const CH_PIVOT_BREATH_MS        = 800;   // 1000–1800 THE BREATH — zero motion hold
-export const CH_MOVE_I_END             = CH_PIVOT_TRAVEL_MS + CH_PIVOT_BREATH_MS; // 1800
+export const CH_PIVOT_BREATH_MS        = 1200;  // 1000–2200 THE BREATH — zero motion hold (four years pass; earns weight now Act 2 is a 71s event)
+export const CH_MOVE_I_END             = CH_PIVOT_TRAVEL_MS + CH_PIVOT_BREATH_MS; // 2200
 
 // ── Movement II — THE AUDITION (spec §4) ────────────────────────────────────────
-/** Per-pick launch interval (ms) by draft round. R1 150 · R2–R3 50 · R4–R5 30 · R6–R7 18. */
+/** Per-pick launch interval (ms) by draft round. R1 250 · R2–R3 75 · R4–R5 40 · R6–R7 24.
+ *  R1 stays a fast-forward RECAP (viewer just met these names in the draft — no re-intro);
+ *  with no naming channel, anything slower than ~300 reads as tedium (2→3 pacing recal). */
 export function launchIntervalForRound(rd: number | null): number {
-  if (rd == null || rd <= 1) return 150;
-  if (rd <= 3) return 50;
-  if (rd <= 5) return 30;
-  return 18;
+  if (rd == null || rd <= 1) return 250;
+  if (rd <= 3) return 75;
+  if (rd <= 5) return 40;
+  return 24;
 }
+export const CH_AUD_BOUNDARY_HOLD_MS   = 600;   // pause at each round line during the audition (spatially legible, zero copy)
 export const CH_UDFA_WAVE_MS           = 500;   // single mass wave window; per-dot jitter 0–500 (hash)
 export const CH_UDFA_GAP_MS            = 60;    // gap after the last drafted launch before the UDFA wave
 export const CH_RISE_MS                = 500;   // per-dot rise, easeOutCubic
@@ -63,16 +66,17 @@ export const CH_MOVE_II_HOLD_MS        = 400;   // hold at end of II before III
 export const CH_MONEY_BEAT_ORDER: MoneyBand[] = ['TOP5', 'TOP10', 'MIDDLE'];
 export const CH_INK_BANDS: MoneyBand[]        = ['MIN', 'ZERO', 'NEVER'];
 
-export const CH_TAB_LIGHT_MS           = 250;   // tab bar + name + n·% fade to full; node fills 0→1
-export const CH_THREAD_LEAD_MS         = 150;   // threads begin 150ms after the beat opens
-export const CH_THREAD_FLIGHT_MS       = 450;   // per-thread flight, easeOutQuad (wall → dot draw)
-/** Per-thread stagger (ms) within a money beat, wall-slot order top→bottom. */
+export const CH_TAB_LIGHT_MS           = 400;   // tab bar + name + n·% fade to full; node fills 0→1 (name registers before threads fly)
+export const CH_THREAD_LEAD_MS         = 400;   // threads begin once the name is legible (raised with tab-light, CLI-gap #3)
+export const CH_THREAD_FLIGHT_MS       = 550;   // per-thread flight, easeOutQuad (wall → dot draw)
+/** Per-thread stagger (ms) within a money beat, wall-slot order top→bottom. Biggest
+ *  contracts land countably, one at a time. */
 export const CH_STAGGER: Record<MoneyBand, number> = {
-  TOP5: 40, TOP10: 35, MIDDLE: 15, MIN: 0, ZERO: 0, NEVER: 0,
+  TOP5: 70, TOP10: 55, MIDDLE: 20, MIN: 0, ZERO: 0, NEVER: 0,
 };
 export const CH_FLARE_MS               = 200;   // grab flare bloom at the dot (band color, money only)
 export const CH_COLOR_CROSSFADE_MS     = 250;   // dot color drafted → paying team
-export const CH_BEAT_BREATH_MS         = 400;   // breath after a money beat's last arrival
+export const CH_BEAT_BREATH_MS         = 900;   // breath after a money beat's last arrival — THE key Movement-III dial; each band's picture holds before the next tab lights
 
 export const CH_INK_MASS_MS            = 1800;  // ink threads fade in along full length (fog, not lash)
 export const CH_INK_ONSET_JITTER_MS    = 400;   // per-thread onset jitter 0–400 (deterministic hash)
@@ -239,8 +243,10 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
   let t = auditionStart;
   let lastRd: number | null = 1;
   for (const d of drafted) {
+    const rd: number | null = d.player.rd_drafted ?? lastRd;
+    if (rd !== lastRd) t += CH_AUD_BOUNDARY_HOLD_MS; // new round → micro-hold before its first pick
     launchAt.set(d.player.player_id, t);
-    lastRd = d.player.rd_drafted ?? lastRd;
+    lastRd = rd;
     t += launchIntervalForRound(lastRd);
   }
   const lastDraftedLaunch = drafted.length > 0 ? t - launchIntervalForRound(lastRd) : auditionStart;
