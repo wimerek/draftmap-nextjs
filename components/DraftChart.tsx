@@ -60,6 +60,11 @@ const CSS_STAGGER_FLIGHT_MS  = 550;
 const cssStaggerWindowMs = (dotCount: number): number =>
   dotCount * CSS_STAGGER_PER_DOT_MS + CSS_STAGGER_FLIGHT_MS;
 
+/** Does the chart frame have horizontal overflow to pan? (Sprint 3, Piece 1 — grab cursor
+ *  + drag-to-pan only engage when there's somewhere to pan; +1 tolerates sub-pixel rounding.) */
+const frameOverflows = (frame: HTMLDivElement): boolean =>
+  frame.scrollWidth > frame.clientWidth + 1;
+
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -1537,6 +1542,27 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     return () => clearTimeout(t);
   }, [isFieldMode, isAnimating]);
 
+  // ── Sprint 3, Piece 5: frame Act 3 on entry ─────────────────────────────────
+  // When the RESTING Act-3 field mounts (2→3 completion or a direct beat-III navigation),
+  // scroll the chart frame to its optimal framing — frame top just under the header, ONCE
+  // per entry. Not a scroll-jack: one framing scroll, no follow-up. Reset when we leave the
+  // resting field so a later re-entry re-frames. Desktop only (mobile owns its own layout).
+  const act3FramedRef = useRef(false);
+  useEffect(() => {
+    if (isMobile) return;
+    const resting = isFieldMode && !!act3FieldLayout && !(twoToThreeElapsedMs != null && act3Choreo);
+    if (!resting) { act3FramedRef.current = false; return; }
+    if (act3FramedRef.current) return;   // already framed this entry
+    act3FramedRef.current = true;
+    const frame = chartFrameRef.current;
+    if (typeof window === 'undefined' || !frame) return;
+    const behavior: ScrollBehavior = prefersReduced.current ? 'auto' : 'smooth';
+    const header = document.querySelector('.hz-root') as HTMLElement | null;
+    const headerH = header?.getBoundingClientRect().height ?? 0;
+    const y = frame.getBoundingClientRect().top + window.scrollY - headerH;
+    window.scrollTo({ top: Math.max(0, y), behavior });
+  }, [isFieldMode, act3FieldLayout, twoToThreeElapsedMs, act3Choreo, isMobile]);
+
   // ── Transport: 1→2 master-clock helpers (speed + pause aware) ────────────────
   // The per-dot 550ms ease + i*22ms stagger is preserved EXACTLY (PlayerDots, DO-NOT-
   // TOUCH the numbers) — only its driver moved from a CSS transition to this rAF clock so
@@ -2081,10 +2107,19 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   }, [handlePinTeam, selectedYear, router, updateURL, cancelOneToTwo, cancelTwoToThree]);
 
   // ── Desktop drag-to-scroll ────────────────────────────────────────────────
-  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // With fit-at-width (Piece 1 viewBox) the chart usually has no horizontal overflow, so
+  // drag-to-pan + the grab cursor only engage when there's actually somewhere to pan.
+  const onFrameEnter = useCallback(() => {
     if (isMobile) return;
     const frame = chartFrameRef.current;
     if (!frame) return;
+    frame.style.cursor = frameOverflows(frame) ? "grab" : "default";
+  }, [isMobile]);
+
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isMobile) return;
+    const frame = chartFrameRef.current;
+    if (!frame || !frameOverflows(frame)) return;
     dragRef.current = { active: true, startX: e.pageX, scrollLeft: frame.scrollLeft };
     frame.style.cursor = "grabbing";
     e.preventDefault();
@@ -2100,7 +2135,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
   const onMouseUp = useCallback(() => {
     dragRef.current.active = false;
-    if (chartFrameRef.current) chartFrameRef.current.style.cursor = "grab";
+    const frame = chartFrameRef.current;
+    if (frame) frame.style.cursor = frameOverflows(frame) ? "grab" : "default";
   }, []);
 
   // ── Sidebar props (shared between desktop sidebar and mobile drawer) ───────
@@ -2264,6 +2300,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
           <div
             className="dm-chart-frame"
             ref={chartFrameRef}
+            onMouseEnter={onFrameEnter}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -2299,10 +2336,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               />
             ) : (
             <svg
-              width={isMobile ? "100%" : layout.svgW}
-              height={isMobile ? undefined : layout.svgH}
-              viewBox={isMobile ? (mobileVB ?? defaultMobileVB) : undefined}
-              style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
+              width="100%"
+              viewBox={isMobile ? (mobileVB ?? defaultMobileVB) : `0 0 ${layout.svgW} ${layout.svgH}`}
+              style={{ display: "block", height: isMobile ? undefined : "auto", maxWidth: isMobile ? undefined : `${layout.svgW}px` }}
             >
               <defs>
                 {/* tierPillGradient REMOVED with <TierArrows> (brief-f parchment unification). */}

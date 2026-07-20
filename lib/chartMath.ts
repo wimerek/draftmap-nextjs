@@ -583,6 +583,23 @@ export function computeAllDotPositions(
   const result: DotPosition[] = [];
   const DOT_R = 6;
 
+  // Sprint 3, Piece 6 — clamped-dot "shelf" jitter. Dots whose rank (Act 1) or pick (Act 2)
+  // exceed the pick-256 field bottom get pinned by the Math.min clamp below to ONE line,
+  // forming an opaque horizontal pile (measured worst column ≈20 dots; classes 2024–26).
+  // ONLY those clamped dots spread UPWARD off the line into a legible shelf (never below it —
+  // the dashed UDFA boundary stays clean) + get a modest extra horizontal nudge. Seeded by
+  // player_id (stable across renders/classes — no reflow, no Math.random; reuses the Act-3
+  // strip / UDFA-gutter deterministic-spread precedent). Hover legibility ONLY: no ranking
+  // implication, no opacity/size/shape change. Unclamped dots stay byte-identical.
+  const CLAMP_SHELF_BAND_PX = 22;   // vertical spread up from the clamp line (0 → −22px)
+  // Horizontal shelf spread is column-relative (Sprint 3 accept): ±7px was too tight for
+  // ~20-dot piles. Spread across ~±30% of the dot's own column width, clamped to a sane
+  // px window so narrow/wide columns both stay legible without escaping the lane.
+  const CLAMP_SHELF_X_FRAC   = 0.30; // half-range as a fraction of column width
+  const CLAMP_SHELF_X_MIN_PX = 12;   // floor on the half-range (narrow columns)
+  const CLAMP_SHELF_X_MAX_PX = 60;   // ceiling on the half-range (wide columns)
+  const clampBottomY = layout.margin.top + layout.totalChartH - DOT_R;
+
   visiblePositions.forEach(pos => {
     const colX = colXMap[pos];
     const cW   = colWidths[pos];
@@ -606,25 +623,45 @@ export function computeAllDotPositions(
         // Vertical hash for UDFA zone placement.
         const hV = ((hashSeed * 1234567891) >>> 0) / 4294967295;
 
+        // Clamped-dot shelf offsets (Piece 6) — seeded by player_id, independent of the
+        // rank-seeded column jitter above so the shelf spreads even when ranks are adjacent.
+        const shelfSeed = hashStr(player.player_id);
+        const sV = ((shelfSeed * 2246822519) >>> 0) / 4294967295;             // 0..1 → lift up
+        const sX = ((shelfSeed * 3266489917 + 374761393) >>> 0) / 4294967295; // 0..1 → nudge X
+        const shelfUp = sV * CLAMP_SHELF_BAND_PX;        // subtracted → 0..−BAND (upward only)
+        const shelfHalfX = Math.max(
+          CLAMP_SHELF_X_MIN_PX,
+          Math.min(CLAMP_SHELF_X_MAX_PX, cW * CLAMP_SHELF_X_FRAC),
+        );
+        const shelfX  = (sX - 0.5) * 2 * shelfHalfX;     // ±half-range within the column
+
         // ── Projected Y ──────────────────────────────────────────────────
-        // Ranked: sits at rank position on continuous axis.
+        // Ranked: sits at rank position on the continuous axis (top-clamped by DOT_R). When
+        // rank exceeds the pick-256 field bottom the raw Y overflows the clamp → shelf it up.
         // Unranked: sits in UDFA zone (Derek didn't project them).
-        const projectedY = isRanked
-          ? Math.max(
-              layout.margin.top + DOT_R,
-              Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.rank!)),
-            )
-          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70);
+        const projRaw = isRanked ? pickToY(player.rank!) : 0;
+        const projClamped = isRanked && projRaw > clampBottomY;
+        const projectedY = !isRanked
+          ? udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70)
+          : projClamped
+            ? clampBottomY - shelfUp
+            : Math.max(layout.margin.top + DOT_R, projRaw);
 
         // ── Actual Y ─────────────────────────────────────────────────────
-        // Drafted: animates to actual pick slot.
+        // Drafted: animates to actual pick slot (shelf when the pick exceeds pick-256).
         // Undrafted: stays in UDFA zone (same vertical hash -> stable position).
-        const actualY = (player.pick_drafted != null && player.pick_drafted > 0)
-          ? Math.max(
-              layout.margin.top + DOT_R,
-              Math.min(layout.margin.top + layout.totalChartH - DOT_R, pickToY(player.pick_drafted)),
-            )
-          : udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70);
+        const hasPick = player.pick_drafted != null && player.pick_drafted > 0;
+        const actRaw = hasPick ? pickToY(player.pick_drafted!) : 0;
+        const actClamped = hasPick && actRaw > clampBottomY;
+        const actualY = !hasPick
+          ? udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70)
+          : actClamped
+            ? clampBottomY - shelfUp
+            : Math.max(layout.margin.top + DOT_R, actRaw);
+
+        // A dot piled in EITHER act shares one x (x doesn't animate) → give it the extra
+        // horizontal nudge; dots clamped in neither act keep a byte-identical x.
+        const clampShelfX = (projClamped || actClamped) ? shelfX : 0;
 
         // ── Tier-adjusted delta for dot-size encoding ─────────────────────────────────
         // Uses a tier-compressed scale so within-round movement stays small
@@ -651,7 +688,7 @@ export function computeAllDotPositions(
 
         result.push({
           player,
-          x: colX + cW / 2 + jitter,
+          x: colX + cW / 2 + jitter + clampShelfX,
           y: projectedY,
           projectedY,
           actualY,

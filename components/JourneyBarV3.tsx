@@ -31,17 +31,17 @@ export interface JourneyBarV3Props {
   onSelectBeat: (beat: 1 | 2 | 3) => void;
 }
 
-const BEATS: Array<{ n: 1 | 2 | 3; roman: string; title: string; teach: string }> = [
-  { n: 1, roman: "I",   title: "THE BOARD",     teach: "Where the consensus ranked them" },
-  { n: 2, roman: "II",  title: "DRAFT DAY",     teach: "Where teams drafted them" },
-  { n: 3, roman: "III", title: "4 YEARS LATER", teach: "What became of them" },
+const BEATS: Array<{ n: 1 | 2 | 3; roman: string; title: string; teach: string; teachShort: string }> = [
+  { n: 1, roman: "I",   title: "THE BOARD",     teach: "Where the consensus ranked them", teachShort: "Consensus rank" },
+  { n: 2, roman: "II",  title: "DRAFT DAY",     teach: "Where teams drafted them",        teachShort: "Draft results" },
+  { n: 3, roman: "III", title: "4 YEARS LATER", teach: "What became of them",             teachShort: "The verdict" },
 ];
 
 // ── Knobs (E4 doctrine — tune on the real render, no hunting) ───────────────
 const DISC_ACTIVE         = 32;    // px — active beat diameter
 const DISC_INACTIVE       = 26;    // px — the other beats (isolation rides the RATIO, not absolute size)
 const SPINE_INSET         = 13;    // % — left/right inset = first/last disc centers + the bar's side margins
-const SPINE_LIT_OPACITY   = 0.8;   // ★ THE VOLUME KNOB — lit-spine brightness
+const SPINE_LIT_OPACITY   = 1.0;   // ★ THE VOLUME KNOB — lit-spine brightness (Sprint 3 presence pass: 0.8 → 1.0)
 const SPINE_TRACK_OPACITY = 0.15;  // faint unlit track behind the lit segment
 const SPINE_EASE_MS       = 360;   // lit-spine glide to the active beat on act change
 const DISC_EASE_MS        = 220;   // disc size + fill settle (no overshoot)
@@ -95,7 +95,10 @@ export default function JourneyBarV3({ activeBeat, onSelectBeat }: JourneyBarV3P
               </span>
               <span className="jbv3-beat-text">
                 <span className="jbv3-beat-title">{b.title}</span>
-                <span className="jbv3-beat-teach">{b.teach}</span>
+                {/* Both teach strings rendered; the container-query ladder (globals.css) picks
+                    which shows at a given container width. Full ≥600 · short 380–600 · none <380. */}
+                <span className="jbv3-beat-teach jbv3-beat-teach--full">{b.teach}</span>
+                <span className="jbv3-beat-teach jbv3-beat-teach--short">{b.teachShort}</span>
               </span>
             </button>
           );

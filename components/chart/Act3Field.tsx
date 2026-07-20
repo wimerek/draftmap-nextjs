@@ -118,10 +118,9 @@ export default function Act3Field(props: Act3FieldProps) {
 
   return (
     <svg
-      width={isMobile ? "100%" : svgW}
-      height={isMobile ? undefined : svgH}
-      viewBox={isMobile ? `0 0 ${svgW} ${svgH}` : undefined}
-      style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
+      width="100%"
+      viewBox={`0 0 ${svgW} ${svgH}`}
+      style={{ display: "block", height: isMobile ? undefined : "auto", maxWidth: isMobile ? undefined : `${svgW}px` }}
     >
       <defs>
         {/* Two-register thread gradients: ink = faint-at-dot → firmer-at-wall (0.10→0.20);

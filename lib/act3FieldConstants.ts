@@ -19,7 +19,10 @@ import type { MoneyBand } from './verdict';
 
 /** SVG canvas — matches the jellyfish (register continuity for the 2→3 flip). */
 export const ACT3_SVG_W = 1600;
-export const ACT3_SVG_H = 960;
+/** Canvas height. Trimmed 960 → 930 (Sprint 3, Piece 4 — Tufte chrome reclaim, pairs with
+ *  ACT3_MARGIN.top 28→12 so reclaimed top space shrinks the canvas rather than redistributing
+ *  as whitespace). W=1600 is LOCKED (the 2→3 register — do not touch). Tune-on-render. */
+export const ACT3_SVG_H = 930;
 
 /**
  * FIXED pick domain across all classes (2022 max = 262). Geometry stays stable when
@@ -34,7 +37,7 @@ export const ACT3_MAX_PICK = 262;
  * very top (parchment field, no on-canvas title — Brief 2). `bottom` holds the round
  * gridline labels below the axis.
  */
-export const ACT3_MARGIN = { top: 28, right: 178, bottom: 58, left: 80 };
+export const ACT3_MARGIN = { top: 12, right: 178, bottom: 58, left: 80 };
 
 /** Reserved right-rail width (px) for the six edge tabs. Sized for the locked 13px-
  *  uppercase tab names (wall-label lock 2026-07-11) — the old ~170–180px band was cut
@@ -62,7 +65,7 @@ export const ACT3_STRIP_JITTER_PX = 10;
 
 /** Empty headroom (fraction of the usage band) above P100 so the top dots don't pin to
  *  the very top edge. Small — the field wants to fill the viewport (Brief 2 parity). */
-export const ACT3_HEADROOM_FRAC = 0.03;
+export const ACT3_HEADROOM_FRAC = 0.015;
 
 // ════════════════════════════════════════════════════════════════════════════
 //  2. THE WALL + BAND COLORS  (BAND RENDERING a–c, banked 2026-07-03)

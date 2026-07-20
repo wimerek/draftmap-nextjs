@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
 import type { DraftMove } from "@/lib/scoreboardStats";
 import { POSITION_ORDER } from "@/lib/chartConstants";
@@ -201,6 +201,15 @@ export default function Sidebar(props: SidebarProps) {
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
+  // Sprint 3, Piece 3: on a narrow viewport (< 1450px, where the expanded chart scale falls
+  // to ~0.73) start collapsed so the chart gets full fluid fit. Initial-state ONLY, once per
+  // session — never re-collapse on resize; user re-expansion is always respected (the chart
+  // just rescales live). useLayoutEffect (not a lazy initializer) avoids an SSR/hydration
+  // mismatch — one pre-paint set before the browser paints.
+  useLayoutEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1450) setCollapsed(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [openDropdown, setOpenDropdown] = useState<"position" | "round" | "team" | "school" | "consensus" | null>(null);
   const [teamSearch, setTeamSearch] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");

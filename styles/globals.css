@@ -146,14 +146,14 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   background: transparent;
   overflow-x: auto;
-  cursor: grab;
+  /* cursor is set in JS (grab only when scrollWidth > clientWidth) — a grab cursor on a
+     non-pannable chart reads broken. With fit-at-width (viewBox) overflow usually vanishes. */
+  cursor: default;
   user-select: none;
-  padding-top: 20px;
-  width: fit-content;
+  padding-top: 8px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
-}
-.dm-chart-frame:active {
-  cursor: grabbing;
 }
 
 /* Loading / error states */
@@ -625,6 +625,12 @@ a { color: inherit; text-decoration: none; }
   min-height: 100vh;
   align-items: flex-start;
   background: var(--dm-bg);
+  /* Hard layout floor (Sprint 3, Piece 2): below 1200px the desktop layout freezes and
+     the window scrolls horizontally rather than reflowing. One canonical minimum canvas —
+     nothing overlaps, no control disappears, at any width. Floor is ≤1246 so the primary
+     seeding viewport (1080p @125%) still gets full fluid fit with zero scroll. The mobile
+     media query below (fixed/column layout) overrides this at its own breakpoint. */
+  min-width: 1200px;
 }
 
 .dm-main {
@@ -1500,6 +1506,7 @@ a { color: inherit; text-decoration: none; }
     background: var(--dm-bg);
     align-items: stretch;
     padding-bottom: calc(65px + env(safe-area-inset-bottom));
+    min-width: 0;   /* release the desktop floor — mobile uses the width:1280 viewport pin */
   }
 
   /* Main chart area fills remaining space between top bar and handle bar */
@@ -1847,7 +1854,9 @@ a { color: inherit; text-decoration: none; }
 
 .hz-band .jbv3-root {
   flex: 1 1 auto;
-  min-width: 0;
+  /* Sprint 3 presence pass (item 6): min-width guard ~200px (was 0) — belt-and-suspenders
+     under the 1200px layout floor so the bar never crushes below a legible width. */
+  min-width: 200px;
 }
 
 /* Mobile keeps the Row-1 year scrubber; desktop uses the scoreboard switcher and
@@ -2805,7 +2814,19 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: center;      /* vertically center the track in the band */
   width: 100%;
+  max-width: 760px;         /* Sprint 3 presence pass (item 5): cap so three discs stop
+                               floating in 800px of emptiness + titles get defined room.
+                               Sprint 3 accept follow-up: 600 → 760 (ladder thresholds unchanged). */
+  /* Sprint 3 accept (Fix 2): centre the capped bar in the remaining header band instead of
+     leaving it pinned to the start of its flex slot. Auto side-margins absorb the slack. */
+  margin-inline: auto;
   padding: 0 8px;
+  /* Sprint 3 accept (Fix 1): make the bar its own query container so the label ladder below
+     degrades on the bar's ACTUAL rendered width (not the viewport) — the slot crushes to
+     ~200–400px at ~1250-class windows with the sidebar expanded, where fixed titles+teach
+     would overlap. Content-box tops out ≈584px at the 600px cap; the ≤560 branch is the
+     "narrower than full" trigger (chosen under that max to dodge the padding boundary). */
+  container: jbv3 / inline-size;
 }
 
 /* Fixed-height stage. SPINE_Y = 20px (disc center line); labels hang at 40px. */
@@ -2873,9 +2894,11 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--font-oswald, "Oswald"), sans-serif;
   font-weight: 600;
   font-size: 13px;
-  background: #0B2239;
-  border: 2px solid rgba(245, 240, 232, 0.5);
-  color: rgba(245, 240, 232, 0.55);
+  /* Sprint 3 presence pass: give inactive discs a body (was #0B2239 — invisible on the
+     navy header) + lift numeral/border contrast so they read as a confident second voice. */
+  background: #132C47;
+  border: 2px solid rgba(245, 240, 232, 0.7);
+  color: rgba(245, 240, 232, 0.72);
   transition:
     width var(--jbv3-disc-ease) cubic-bezier(0.2, 0, 0, 1),
     height var(--jbv3-disc-ease) cubic-bezier(0.2, 0, 0, 1),
@@ -2909,17 +2932,24 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.08em;
-  color: rgba(245, 240, 232, 0.48);
+  /* Sprint 3 presence pass (item 1): opacity floor 0.48 → 0.70 — muted but crisp. */
+  color: rgba(245, 240, 232, 0.70);
   transition: color var(--jbv3-disc-ease) ease-out;
 }
 
 .jbv3-beat-teach {
   font-size: 11px;
-  color: rgba(245, 240, 232, 0.35);
+  /* Sprint 3 presence pass (item 1): 0.35 → 0.50. */
+  color: rgba(245, 240, 232, 0.50);
   transition: color var(--jbv3-disc-ease) ease-out;
 }
+/* Two teach strings live in the DOM; the container ladder picks one. Full is the default
+   voice; short hides until the bar narrows past the ≤560 branch. */
+.jbv3-beat-teach--short { display: none; }
 
-.jbv3-beat--active .jbv3-beat-title { color: #F5F0E8; font-weight: 500; }
+/* Sprint 3 presence pass (item 2): fix the active-weight inversion — the lit title used to
+   go THINNER (500) than its inactive siblings (600). Lit = 600 so active reads heavier. */
+.jbv3-beat--active .jbv3-beat-title { color: #F5F0E8; font-weight: 600; }
 .jbv3-beat--active .jbv3-beat-teach { color: rgba(245, 240, 232, 0.6); }
 .jbv3-beat:hover .jbv3-beat-title   { color: #F5F0E8; }
 
@@ -2927,6 +2957,26 @@ a { color: inherit; text-decoration: none; }
   outline: 2px solid rgba(212, 160, 23, 0.6);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* ── Degradation ladder (Sprint 3 accept, Fix 1) ──────────────────────────
+   Driven by the bar's OWN container width (see `container: jbv3 / inline-size` on
+   .jbv3-root), so it holds sidebar-expanded AND collapsed at every viewport. Nothing
+   may overlap at any width. Thresholds are starting points — tune on the real render.
+     ≥560   full titles + full teach   (base rules above)
+     380–560  short teach copy
+     <380     no teach (titles remain)
+     <320     active beat's title only; inactive beats render disc-only          */
+@container jbv3 (max-width: 560px) {
+  .jbv3-beat-teach--full  { display: none; }
+  .jbv3-beat-teach--short { display: block; }
+}
+@container jbv3 (max-width: 380px) {
+  .jbv3-beat-teach { display: none; }   /* both variants — titles remain */
+}
+@container jbv3 (max-width: 320px) {
+  /* Only the active beat keeps its label; the others collapse to bare discs. */
+  .jbv3-beat:not(.jbv3-beat--active) .jbv3-beat-text { display: none; }
 }
 
 /* prefers-reduced-motion: no size/width animation — fill + lit-spine snap/cross-fade. */
@@ -2940,10 +2990,8 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
-@media (max-width: 639px) {
-  .jbv3-beat-teach { display: none; }
-  .jbv3-beat-title { font-size: 11px; }
-}
+/* Sprint 3 presence pass (item 8): the 639px media query hiding teach lines / shrinking
+   the title was dead code under the width:1280 mobile viewport pin — removed. */
 
 /* Brief d: the scoreboard slot is desktop chrome — hide on mobile (Beta mobile
    redesign owns the small-screen header). The bar reclaims the full band. */

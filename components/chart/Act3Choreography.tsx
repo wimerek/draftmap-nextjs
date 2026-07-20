@@ -3,7 +3,7 @@
  * components/chart/Act3Choreography.tsx
  *
  * Phase Lambda — Brief 4. The animated 2→3 transition, rendered in the SAME Act-3 SVG
- * canvas (1600×960) the resting field (Act3Field) uses, so the terminal frame is
+ * canvas (1600×930) the resting field (Act3Field) uses, so the terminal frame is
  * pixel-identical to the Brief-3 rest state (frame-identity gate §8.4). Pure paint from
  * ONE input: `elapsedMs` off DraftChart's RAF master clock. All geometry + timing come
  * pre-computed from computeAct3Choreography (lib/choreography.ts). No layout math here.
@@ -97,10 +97,9 @@ export default function Act3Choreography(props: Props) {
 
   return (
     <svg
-      width={isMobile ? "100%" : svgW}
-      height={isMobile ? undefined : svgH}
-      viewBox={isMobile ? `0 0 ${svgW} ${svgH}` : undefined}
-      style={{ display: "block", maxWidth: isMobile ? undefined : "none" }}
+      width="100%"
+      viewBox={`0 0 ${svgW} ${svgH}`}
+      style={{ display: "block", height: isMobile ? undefined : "auto", maxWidth: isMobile ? undefined : `${svgW}px` }}
     >
       <defs>
         {ACT3_WALL_ORDER.map((band) => {
