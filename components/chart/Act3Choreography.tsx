@@ -21,6 +21,7 @@
  */
 
 import type { Player } from "@/lib/sheets";
+import type { MoneyBand } from "@/lib/verdict";
 import type { Act3FieldDot, Act3WallNode } from "@/lib/chartMath";
 import { teamDotColors } from "@/lib/chartConstants";
 import { act3FieldGlyph } from "@/lib/act3FieldGlyph";
@@ -30,6 +31,7 @@ import {
   sampleDot, fadeIn, fadeOut, clamp01, easeOutQuad,
   CH_PIVOT_COL_FADE_MS, CH_PIVOT_FURNITURE_IN, CH_PIVOT_WALL_IN,
   CH_THREAD_FLIGHT_MS, CH_COLOR_CROSSFADE_MS, CH_FLARE_MS, CH_TAB_LIGHT_MS,
+  CH_CAPTION_FADE_OUT_MS, CH_MONEY_TITLE_LEAD,
 } from "@/lib/choreography";
 import {
   ACT3_BANDS, ACT3_WALL_ORDER,
@@ -38,8 +40,10 @@ import {
   ACT3_GRIDLINE_COLOR, ACT3_GRIDLINE_W, ACT3_RD_LABEL_COLOR, ACT3_RD_LABEL_SIZE,
   ACT3_AXIS_PICK_COLOR, ACT3_STRIP_FILL, ACT3_STRIP_DASH_COLOR, ACT3_STRIP_DASH,
   ACT3_CORNER_FILL, ACT3_UDFA_FRAME_COLOR, ACT3_UDFA_LABEL, ACT3_STRIP_LABEL,
-  ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_LENS_GHOST_OPACITY,
-  ACT3_WALL_NODE_W,
+  ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_MONEY_AXIS_TITLE,
+  ACT3_MONEY_AXIS_QUALIFIER, ACT3_AXIS_TITLE_SIZE, ACT3_AXIS_TITLE_BASELINE_Y,
+  ACT3_MONEY_AXIS_TITLE_X, ACT3_CAPTION_BAR_X, ACT3_CAPTION_TEXT_X,
+  ACT3_LENS_GHOST_OPACITY, ACT3_WALL_NODE_W,
 } from "@/lib/act3FieldConstants";
 
 interface Props {
@@ -84,8 +88,6 @@ export default function Act3Choreography(props: Props) {
   const furniture = fadeIn(t, CH_PIVOT_FURNITURE_IN.start, CH_PIVOT_FURNITURE_IN.end);
   const wallIn    = fadeIn(t, CH_PIVOT_WALL_IN.start, CH_PIVOT_WALL_IN.end); // outlines + strip
 
-  const yTitleX = pickLeft - 46;
-  const yAxisCy = (fieldTop + fieldBottom) / 2;
   const rdLabelY = stripBottom + 18;
 
   // ── Beat lookup (per band: when its tab lights / node fills) ──────────────────
@@ -148,12 +150,31 @@ export default function Act3Choreography(props: Props) {
         <line x1={udfaLeft} y1={fieldTop} x2={udfaLeft} y2={stripBottom} stroke={ACT3_UDFA_FRAME_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
         <line x1={udfaRight} y1={fieldTop} x2={udfaRight} y2={stripBottom} stroke={ACT3_UDFA_FRAME_COLOR} strokeWidth={1} strokeDasharray={ACT3_STRIP_DASH} />
         <text x={udfaCenterX} y={rdLabelY} fontSize={ACT3_RD_LABEL_SIZE} fill={ACT3_RD_LABEL_COLOR} textAnchor="middle" letterSpacing={0.5}>{ACT3_UDFA_LABEL}</text>
-        {/* LABEL READABILITY PASS (§3g) — mirror Act3Field exactly so the terminal
-            frame stays pixel-identical to the rest field (Brief-4 skip-frame gate). */}
-        <text transform={`rotate(-90 ${yTitleX} ${yAxisCy})`} x={yTitleX} y={yAxisCy}
-          textAnchor="middle" dominantBaseline="middle" fontSize={13.5} letterSpacing={1}>
+        {/* ── Axis titles — horizontal title band (money-axis session 2026-07-23).
+            LEFT: USAGE (the spatial Y axis). RIGHT: GUARANTEED MONEY (the wall/color
+            axis — its long-missing title; qualifier carries the position-relative
+            truth, NOT raw dollars). One register, one baseline: the matched pair is
+            the design. MUST stay character-identical across Act3Field and
+            Act3Choreography (frame-identity gate §8.4). */}
+        <text x={pickLeft} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="start" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
           <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
+        </text>
+      </g>
+
+      {/* Money-axis header — SPLIT from the furniture fade (addendum 1, Derek
+          2026-07-23): the header arrives while the last usage dots settle
+          (CH_MONEY_TITLE_LEAD before auditionEnd) and is fully legible through the
+          II→III hold BEFORE the first gold beat — the axis announces, then the
+          ladder fills. The <text> element is byte-identical to Act3Field's money
+          title; ONLY the fade grouping differs (frame-identity: terminal opacity 1
+          ≡ the rest field). USAGE keeps the Movement-I furniture fade — it is the
+          axis for the dots that are landing. */}
+      <g aria-hidden="true" style={{ pointerEvents: "none" }}
+        opacity={fadeIn(t, choreo.timeline.auditionEnd - CH_MONEY_TITLE_LEAD.start, choreo.timeline.auditionEnd - CH_MONEY_TITLE_LEAD.end)}>
+        <text x={ACT3_MONEY_AXIS_TITLE_X} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="end" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
+          <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_MONEY_AXIS_TITLE}</tspan>
+          <tspan fontWeight={500} fill="#4B5563"> · {ACT3_MONEY_AXIS_QUALIFIER}</tspan>
         </text>
       </g>
 
@@ -204,6 +225,51 @@ export default function Act3Choreography(props: Props) {
             fallbackTabStart={choreo.timeline.paydayStart} />
         ))}
       </g>
+
+      {/* ── Payday caption — the landing band's descriptor speaks in the title band
+          (money-axis session 2026-07-23). Fixed slot (no-moving-caption doctrine);
+          bar = the tab bookmark grammar in band color; text = the locked descriptor
+          VERBATIM. Transient: fades in with its tab (CH_TAB_LIGHT_MS), fades out
+          before the next beat, last one exits during handoff — ZERO residue at rest,
+          skip, or reduced-motion (frame-identity §8.4). Suppressed for zero-count
+          bands and the pending band-1 ("no second contract" would be false there). */}
+      {(() => {
+        const seq = choreo.beats; // pushed in fire order: money beats, then ink by index
+        let active: { band: MoneyBand; start: number; outStart: number } | null = null;
+        for (let i = 0; i < seq.length; i++) {
+          const b = seq[i];
+          if (t < b.tabLightStart) break;
+          const next = seq[i + 1];
+          const outStart = next
+            ? next.tabLightStart - CH_CAPTION_FADE_OUT_MS
+            : choreo.timeline.handoffStart;
+          active = { band: b.band, start: b.tabLightStart, outStart };
+        }
+        if (!active) return null;
+        const a = active;
+        if (isPending && a.band === "NEVER") return null;
+        const node = wallNodes.find((n) => n.band === a.band);
+        if (!node || node.count === 0) return null;
+        const op =
+          fadeIn(t, a.start, a.start + CH_TAB_LIGHT_MS) *
+          fadeOut(t, a.outStart, a.outStart + CH_CAPTION_FADE_OUT_MS);
+        if (op <= 0.001) return null;
+        const spec = ACT3_BANDS[a.band];
+        return (
+          <g opacity={op} aria-hidden="true" style={{ pointerEvents: "none" }}>
+            <rect
+              x={ACT3_CAPTION_BAR_X} y={ACT3_AXIS_TITLE_BASELINE_Y - 13}
+              width={3} height={16} fill={spec.color} rx={1}
+            />
+            <text
+              x={ACT3_CAPTION_TEXT_X} y={ACT3_AXIS_TITLE_BASELINE_Y}
+              textAnchor="start" fontSize={ACT3_AXIS_TITLE_SIZE} fontWeight={500} fill={ACT3_NAVY}
+            >
+              {spec.descriptor}
+            </text>
+          </g>
+        );
+      })()}
 
       {/* ── Dots ───────────────────────────────────────────────────────────────── */}
       <g>

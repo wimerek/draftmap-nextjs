@@ -80,6 +80,19 @@ export const CH_BEAT_BREATH_MS         = 900;   // breath after a money beat's l
 
 export const CH_INK_MASS_MS            = 1800;  // ink threads fade in along full length (fog, not lash)
 export const CH_INK_ONSET_JITTER_MS    = 400;   // per-thread onset jitter 0–400 (deterministic hash)
+/** Sequential ink beats (spec §5 AMENDED 2026-07-23 — Derek: the bottom half of the
+ *  ladder deserves its showcase): MIN → ZERO → NEVER each tab-light + caption at this
+ *  spacing. The fog THREAD register is unchanged; only the naming cadence changed. */
+export const CH_INK_BEAT_SPACING_MS    = 1300;
+/** Payday caption fade-out (fade-in duration = CH_TAB_LIGHT_MS, synced with its tab). */
+export const CH_CAPTION_FADE_OUT_MS    = 250;
+/** Money-axis header arrival (addendum 1): the header is SPLIT from the Movement-I
+ *  furniture fade and instead fades in over [auditionEnd - start, auditionEnd - end]
+ *  — arriving during the low-attention R7/UDFA landing tail, fully legible ~500ms
+ *  before the last dot settles, then the II→III hold (400ms) is its beat pause.
+ *  ≈1.9s of processing time before the first gold tab lights (reading budget for an
+ *  8-word header). Values = ms BEFORE timeline.auditionEnd. */
+export const CH_MONEY_TITLE_LEAD       = { start: 1500, end: 500 };
 
 // ── Terminal handoff (spec §6) ──────────────────────────────────────────────────
 export const CH_HANDOFF_MS             = 300;   // opacities settle to banked rest register
@@ -337,15 +350,22 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
     beatCursor = lastArrival + CH_BEAT_BREATH_MS;
   }
 
-  // Ink mass — all three ink tabs light together; threads fade in full-length (fog).
+  // Ink beats — SEQUENTIAL tab-lights walking down the wall (spec §5 AMENDED
+  // 2026-07-23; the one-mass ink beat is retired). Thread register unchanged: fog
+  // (full-length fade, jittered onset, no lash, no flares) — but each band's fog
+  // onsets at ITS OWN beat, so threads never precede their band's naming.
   const inkStart = beatCursor;
-  let inkThreadEnd = inkStart + CH_INK_MASS_MS;
-  for (const band of CH_INK_BANDS) {
-    beats.push({ band, family: 'ink', tabLightStart: inkStart, nodeFillStart: inkStart });
-    if (!threads(band)) continue; // pending NEVER: node dashed, no threads
+  // Floor covers the LAST beat's full fog window even when a band has zero threads
+  // (pending NEVER / empty band) — handoff must never begin before the last tab
+  // has lit and its caption has had its dwell.
+  let inkThreadEnd = inkStart + (CH_INK_BANDS.length - 1) * CH_INK_BEAT_SPACING_MS + CH_INK_MASS_MS;
+  CH_INK_BANDS.forEach((band, bi) => {
+    const beatStart = inkStart + bi * CH_INK_BEAT_SPACING_MS;
+    beats.push({ band, family: 'ink', tabLightStart: beatStart, nodeFillStart: beatStart });
+    if (!threads(band)) return; // pending NEVER: node dashed, no threads
     const list = byBand.get(band) ?? [];
     list.forEach((d) => {
-      const onset = inkStart + hash01(d.player.player_id, '#ink') * CH_INK_ONSET_JITTER_MS;
+      const onset = beatStart + hash01(d.player.player_id, '#ink') * CH_INK_ONSET_JITTER_MS;
       inkThreadEnd = Math.max(inkThreadEnd, onset + CH_INK_MASS_MS);
       const s = dotSchedules.get(d.player.player_id)!;
       s.threaded = true;
@@ -353,7 +373,7 @@ export function computeAct3Choreography(players: Player[], isPending: boolean): 
       // ZERO + MIN crossfade to paying at their onset; NEVER never flips (drafted stays).
       if (band !== 'NEVER') { s.colorStart = onset; s.flareStart = null; }
     });
-  }
+  });
   const inkEnd = inkThreadEnd;
   const handoffStart = inkEnd;
   const total = handoffStart + CH_HANDOFF_MS;

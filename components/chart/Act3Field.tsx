@@ -30,7 +30,9 @@ import {
   ACT3_GRIDLINE_COLOR, ACT3_GRIDLINE_W, ACT3_RD_LABEL_COLOR, ACT3_RD_LABEL_SIZE,
   ACT3_AXIS_PICK_COLOR, ACT3_STRIP_FILL, ACT3_STRIP_DASH_COLOR, ACT3_STRIP_DASH,
   ACT3_CORNER_FILL, ACT3_UDFA_FRAME_COLOR, ACT3_UDFA_LABEL, ACT3_STRIP_LABEL,
-  ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_LENS_GHOST_OPACITY,
+  ACT3_Y_AXIS_TITLE, ACT3_Y_AXIS_QUALIFIER, ACT3_MONEY_AXIS_TITLE,
+  ACT3_MONEY_AXIS_QUALIFIER, ACT3_AXIS_TITLE_SIZE, ACT3_AXIS_TITLE_BASELINE_Y,
+  ACT3_MONEY_AXIS_TITLE_X, ACT3_LENS_GHOST_OPACITY,
   ACT3_FOCUS_DIM_OPACITY,
 } from "@/lib/act3FieldConstants";
 
@@ -54,7 +56,7 @@ interface Act3FieldProps {
 export default function Act3Field(props: Act3FieldProps) {
   const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId, focusedBand, onBandFocus } = props;
   const {
-    svgW, svgH, fieldTop, fieldBottom, stripTop, stripBottom,
+    svgW, svgH, fieldTop, stripTop, stripBottom,
     pickLeft, pickRight, udfaLeft, udfaRight, udfaCenterX,
     wallX, wallNodeW, maxPick, dots, wallNodes, roundAnchors, isPending,
   } = layout;
@@ -111,9 +113,6 @@ export default function Act3Field(props: Act3FieldProps) {
     return <circle key={`gh-${d.player.player_id}`} cx={d.x} cy={d.y} r={ACT3_DOT_R} fill={c.fill} />;
   };
 
-  // Y-axis furniture (rotated left title). Sits just left of the pick scale.
-  const yTitleX = pickLeft - 46;
-  const yAxisCy = (fieldTop + fieldBottom) / 2;
   const rdLabelY = stripBottom + 18;
 
   return (
@@ -189,17 +188,19 @@ export default function Act3Field(props: Act3FieldProps) {
           {ACT3_UDFA_LABEL}
         </text>
 
-        {/* Rotated left Y-axis title — USAGE · share of position's snaps. LABEL
-            READABILITY PASS (§3g): size 11→12.5, qualifier weight 400→500 and a firmer
-            grey so the axis reads without competing with the data. ⚠ tune on live wall. */}
-        <text
-          transform={`rotate(-90 ${yTitleX} ${yAxisCy})`}
-          x={yTitleX} y={yAxisCy}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={13.5} letterSpacing={1}
-        >
+        {/* ── Axis titles — horizontal title band (money-axis session 2026-07-23).
+            LEFT: USAGE (the spatial Y axis). RIGHT: GUARANTEED MONEY (the wall/color
+            axis — its long-missing title; qualifier carries the position-relative
+            truth, NOT raw dollars). One register, one baseline: the matched pair is
+            the design. MUST stay character-identical across Act3Field and
+            Act3Choreography (frame-identity gate §8.4). */}
+        <text x={pickLeft} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="start" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
           <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
+        </text>
+        <text x={ACT3_MONEY_AXIS_TITLE_X} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="end" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
+          <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_MONEY_AXIS_TITLE}</tspan>
+          <tspan fontWeight={500} fill="#4B5563"> · {ACT3_MONEY_AXIS_QUALIFIER}</tspan>
         </text>
       </g>
 

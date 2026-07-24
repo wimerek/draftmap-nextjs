@@ -32,12 +32,14 @@ export const ACT3_MAX_PICK = 262;
 
 /**
  * Field margins. `right` reserves the wall + right-rail edge tabs (~220px band, sized
- * for the locked 13px-uppercase tab names — wall-label lock 2026-07-11). `left` holds
- * the rotated USAGE Y-axis title. `top` near the
- * very top (parchment field, no on-canvas title — Brief 2). `bottom` holds the round
- * gridline labels below the axis.
+ * for the locked 13px-uppercase tab names — wall-label lock 2026-07-11). `top` = the
+ * 32px AXIS-TITLE BAND (money-axis label session 2026-07-23): both horizontal axis
+ * titles live here (USAGE left · GUARANTEED MONEY right, shared baseline y=22).
+ * `bottom` holds the round gridline labels — trimmed 58→38 to pay for the title band
+ * (label content ends ~stripBottom+36, the rest was dead slack; ACT3_SVG_H unchanged,
+ * field height unchanged — net vertical cost of the band is ZERO).
  */
-export const ACT3_MARGIN = { top: 12, right: 178, bottom: 58, left: 80 };
+export const ACT3_MARGIN = { top: 32, right: 178, bottom: 38, left: 80 };
 
 /** Reserved right-rail width (px) for the six edge tabs. Sized for the locked 13px-
  *  uppercase tab names (wall-label lock 2026-07-11) — the old ~170–180px band was cut
@@ -117,10 +119,10 @@ export interface Act3BandSpec {
 }
 
 export const ACT3_BANDS: Record<MoneyBand, Act3BandSpec> = {
-  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top 5 at position',   descriptor: 'top-5 money at his position' },
-  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top 10 at position',  descriptor: 'top-10 money at his position' },
-  MIDDLE: { band: 'MIDDLE', color: '#6FA8D8', family: 'money', threadW: 1.5,  threadOpacityDot: ACT3_MIDDLE_SKY_OPACITY, threadOpacityWall: ACT3_MIDDLE_SKY_OPACITY, labelPlaceholder: 'Middle class', descriptor: 'a middle-class deal' },
-  MIN:    { band: 'MIN',    color: '#565E68', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Minimum',             descriptor: 'minimum-level money' },
+  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top 5 at position',   descriptor: 'top-5 guarantees at his position' },
+  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top 10 at position',  descriptor: 'top-10 guarantees at his position' },
+  MIDDLE: { band: 'MIDDLE', color: '#6FA8D8', family: 'money', threadW: 1.5,  threadOpacityDot: ACT3_MIDDLE_SKY_OPACITY, threadOpacityWall: ACT3_MIDDLE_SKY_OPACITY, labelPlaceholder: 'Middle class', descriptor: 'middle-class guarantees' },
+  MIN:    { band: 'MIN',    color: '#565E68', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Minimum',             descriptor: 'minimum-level guarantees' },
   ZERO:   { band: 'ZERO',   color: '#7A828D', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Signed, $0 guaranteed', descriptor: 'signed, nothing guaranteed' },
   NEVER:  { band: 'NEVER',  color: '#99A1AA', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Never re-signed',     descriptor: 'no second contract' },
 };
@@ -198,10 +200,34 @@ export const ACT3_UDFA_LABEL = 'UNDRAFTED';
 /** Left edge-tab on the too-few-snaps strip: `TOO FEW SNAPS · n`. */
 export const ACT3_STRIP_LABEL = 'TOO FEW SNAPS';
 
-// ── Y-axis title (rotated, left edge) ─────────────────────────────────────────
-/** Ports the resolved field's rotated left-axis treatment (Brief 2). */
+// ── Axis titles (horizontal, title band — money-axis session 2026-07-23) ──────
+/** BOTH titles share ONE register (the shipped USAGE register, §3g + 07-11 locks):
+ *  Inter (inherited), ACT3_AXIS_TITLE_SIZE, title tspan 700 ACT3_NAVY, qualifier
+ *  tspan 500 #4B5563, letterSpacing 1, ` · ` separator, shared baseline. The old
+ *  rotated -90° treatment is DELETED (measured ~1.8× read-speed penalty, growing
+ *  with phrase length; horizontal top-anchored is the Schwabish/Datawrapper
+ *  convention). */
 export const ACT3_Y_AXIS_TITLE = 'USAGE';
-export const ACT3_Y_AXIS_QUALIFIER = "share of position's snaps";
+export const ACT3_Y_AXIS_QUALIFIER = 'snaps played vs others at his position';
+/** The money axis. The wall IS an axis: axes and legends are the same object class
+ *  (a titled guide) and this is its missing title. The qualifier carries the
+ *  position-relative truth — the metric is NOT raw dollars. Copy LOCKED. */
+export const ACT3_MONEY_AXIS_TITLE = 'GUARANTEED MONEY';
+export const ACT3_MONEY_AXIS_QUALIFIER = 'vs the top at his position';
+/** Shared axis-title metrics. SIZE is the ONLY sanctioned tune knob (13.5→13,
+ *  always BOTH titles together, only on Derek's instruction at the real render). */
+export const ACT3_AXIS_TITLE_SIZE = 13.5;
+export const ACT3_AXIS_TITLE_BASELINE_Y = 22;
+/** Money header right edge (textAnchor="end"); the line runs leftward over the
+ *  UDFA gutter — title-band space, no data collision possible. */
+export const ACT3_MONEY_AXIS_TITLE_X = 1588;
+
+// ── Payday caption slot (title band; rendered ONLY by Act3Choreography) ───────
+/** Fixed slot: 3px band-color bar + the band's locked descriptor (the tab bookmark
+ *  grammar, relocated). Transient — fades with the landing beat, fully gone at
+ *  rest and on skip/reduced-motion (frame-identity gate §8.4). */
+export const ACT3_CAPTION_BAR_X = 930;
+export const ACT3_CAPTION_TEXT_X = 939;
 
 // ── Brand anchors (locked — do not alter) ─────────────────────────────────────
 export const ACT3_FIELD_BG = '#F5F0E8'; // parchment (register continuity, Acts 1–2)
