@@ -248,7 +248,7 @@ export default async function AboutPage() {
               </p>
               <p>
                 The full answer arrives when a player&rsquo;s rookie deal ends and the
-                league&rsquo;s open market sets his value, in guaranteed money. Real
+                league&rsquo;s open market sets the player&rsquo;s value, in guaranteed money. Real
                 dollars. Real cap space. Front office jobs on the line.
               </p>
               <p>
@@ -297,7 +297,7 @@ export default async function AboutPage() {
               <p>
                 Researchers led by Jason Merrick of Virginia Commonwealth University,
                 with Wharton&rsquo;s Cade Massey among them, had reached the same core
-                insight: that a player&rsquo;s second contract, what the market pays him,
+                insight: that a player&rsquo;s second contract, what the market pays,
                 is the truest read on draft value. They measure it as a share of the
                 salary cap; DraftMap sorts it against the top of each position. An NFL
                 team had handed them twelve years of its private scouting data to work

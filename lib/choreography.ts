@@ -76,14 +76,14 @@ export const CH_STAGGER: Record<MoneyBand, number> = {
 };
 export const CH_FLARE_MS               = 200;   // grab flare bloom at the dot (band color, money only)
 export const CH_COLOR_CROSSFADE_MS     = 250;   // dot color drafted → paying team
-export const CH_BEAT_BREATH_MS         = 900;   // breath after a money beat's last arrival — THE key Movement-III dial; each band's picture holds before the next tab lights
+export const CH_BEAT_BREATH_MS         = 1200;   // breath after a money beat's last arrival — THE key Movement-III dial; each band's picture holds before the next tab lights
 
 export const CH_INK_MASS_MS            = 1800;  // ink threads fade in along full length (fog, not lash)
 export const CH_INK_ONSET_JITTER_MS    = 400;   // per-thread onset jitter 0–400 (deterministic hash)
 /** Sequential ink beats (spec §5 AMENDED 2026-07-23 — Derek: the bottom half of the
  *  ladder deserves its showcase): MIN → ZERO → NEVER each tab-light + caption at this
  *  spacing. The fog THREAD register is unchanged; only the naming cadence changed. */
-export const CH_INK_BEAT_SPACING_MS    = 1300;
+export const CH_INK_BEAT_SPACING_MS    = 1500;
 /** Payday caption fade-out (fade-in duration = CH_TAB_LIGHT_MS, synced with its tab). */
 export const CH_CAPTION_FADE_OUT_MS    = 250;
 /** Money-axis header arrival (addendum 1): the header is SPLIT from the Movement-I

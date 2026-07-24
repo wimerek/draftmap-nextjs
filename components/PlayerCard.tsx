@@ -722,7 +722,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
                   <div className="dm-usage-label">
                     <span className="dm-usage-year">{usageStepLabel} USAGE</span>
                     <span className="dm-usage-desc">
-                      How often this player was on the field compared to others at his position. Listed as USG below
+                      How often this player was on the field compared to others at the position. Listed as USG below
                     </span>
                   </div>
                   <div className="dm-usage-legend">

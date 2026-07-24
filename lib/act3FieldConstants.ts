@@ -119,8 +119,8 @@ export interface Act3BandSpec {
 }
 
 export const ACT3_BANDS: Record<MoneyBand, Act3BandSpec> = {
-  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top 5 at position',   descriptor: 'top-5 guarantees at his position' },
-  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top 10 at position',  descriptor: 'top-10 guarantees at his position' },
+  TOP5:   { band: 'TOP5',   color: '#C8920A', family: 'money', threadW: 1.75, threadOpacityDot: 0.70, threadOpacityWall: 0.70, labelPlaceholder: 'Top 5 at position',   descriptor: 'top-5 guarantees at the position' },
+  TOP10:  { band: 'TOP10',  color: '#1D3E63', family: 'money', threadW: 1.5,  threadOpacityDot: 0.55, threadOpacityWall: 0.55, labelPlaceholder: 'Top 10 at position',  descriptor: 'top-10 guarantees at the position' },
   MIDDLE: { band: 'MIDDLE', color: '#6FA8D8', family: 'money', threadW: 1.5,  threadOpacityDot: ACT3_MIDDLE_SKY_OPACITY, threadOpacityWall: ACT3_MIDDLE_SKY_OPACITY, labelPlaceholder: 'Middle class', descriptor: 'middle-class guarantees' },
   MIN:    { band: 'MIN',    color: '#565E68', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Minimum',             descriptor: 'minimum-level guarantees' },
   ZERO:   { band: 'ZERO',   color: '#7A828D', family: 'ink',   threadW: 1.1,  threadOpacityDot: 0.10, threadOpacityWall: 0.20, labelPlaceholder: 'Signed, $0 guaranteed', descriptor: 'signed, nothing guaranteed' },
@@ -208,12 +208,12 @@ export const ACT3_STRIP_LABEL = 'TOO FEW SNAPS';
  *  with phrase length; horizontal top-anchored is the Schwabish/Datawrapper
  *  convention). */
 export const ACT3_Y_AXIS_TITLE = 'USAGE';
-export const ACT3_Y_AXIS_QUALIFIER = 'snaps played vs others at his position';
+export const ACT3_Y_AXIS_QUALIFIER = 'snaps played vs others at the position';
 /** The money axis. The wall IS an axis: axes and legends are the same object class
  *  (a titled guide) and this is its missing title. The qualifier carries the
  *  position-relative truth — the metric is NOT raw dollars. Copy LOCKED. */
 export const ACT3_MONEY_AXIS_TITLE = 'GUARANTEED MONEY';
-export const ACT3_MONEY_AXIS_QUALIFIER = 'vs the top at his position';
+export const ACT3_MONEY_AXIS_QUALIFIER = 'vs the top at the position';
 /** Shared axis-title metrics. SIZE is the ONLY sanctioned tune knob (13.5→13,
  *  always BOTH titles together, only on Derek's instruction at the real render). */
 export const ACT3_AXIS_TITLE_SIZE = 13.5;

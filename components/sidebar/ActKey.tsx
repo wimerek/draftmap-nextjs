@@ -67,7 +67,7 @@ const ACT3_SUBHEAD: Record<Act3State, string> = {
   // he reached), NOT in dot color — resolved dots wear the PAYING TEAM's colors (see the
   // Color key row). The old "money-in-color" sentence was false and has been replaced.
   resolved:
-    "Vertical position shows how often he was on the field across his first four seasons, measured against others at his position. His thread shows the second contract — it runs to the guaranteed-money band he reached, measured against the best-paid at his position.",
+    "Vertical position shows how often a player was on the field across the first four seasons, measured against others at the position. The thread shows the second contract — it runs to the guaranteed-money band the player reached, measured against the best-paid at the position.",
 };
 
 // (The fuller "What the tiers mean" definition block was removed in the Brief 2
@@ -160,7 +160,7 @@ function Act2Body({
       </KeyRow>
       <KeyRow sample={<SizeSample />}>
         <span className="sb-key-term">Size</span>: the gap between a player&rsquo;s consensus
-        ranking and his actual pick.
+        ranking and the actual pick.
       </KeyRow>
       {/* Lines explainer — colored text only; the inline ↑↓ arrows carry direction, so
           no arrow sample. reach = sky, steal = gold (matches the chart's leader lines). */}

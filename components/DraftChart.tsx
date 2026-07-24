@@ -144,9 +144,9 @@ function verdictBlock2(
 
   switch (v.moneyBand) {
     case "TOP5":
-      return { hero: "TOP-5 MONEY AT HIS POSITION", gold: true, sub: null, deal: dealGtd, tagLine };
+      return { hero: "TOP-5 MONEY AT THE POSITION", gold: true, sub: null, deal: dealGtd, tagLine };
     case "TOP10":
-      return { hero: "TOP-10 MONEY AT HIS POSITION", gold: false, sub: null, deal: dealGtd, tagLine };
+      return { hero: "TOP-10 MONEY AT THE POSITION", gold: false, sub: null, deal: dealGtd, tagLine };
     case "MIDDLE":
       return { hero: "MIDDLE-CLASS MONEY", gold: false, sub: null, deal: dealGtd, tagLine };
     case "MIN":
