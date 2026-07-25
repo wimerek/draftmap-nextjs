@@ -79,6 +79,26 @@ export default function HowToReadTourLayer({
     return () => window.clearTimeout(t);
   }, [target]);
 
+  // Bug 2 (v2.3): a below-the-fold tracked dot (e.g. a deep steal) leaves the tether
+  // pointing off-screen. When the target sits outside the visible "clear zone" (below
+  // the fixed card, or off the viewport), smooth-scroll the WINDOW once so the dot lands
+  // in view above the card. The existing rAF loop re-anchors the tether through the scroll.
+  useEffect(() => {
+    if (!target) return;
+    const svg = document.querySelector(".dm-chart-frame svg") as SVGSVGElement | null;
+    const card = cardRef.current;
+    if (!svg || !card || target.svgH <= 0) return;
+    const s = svg.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const dotY = s.top + (target.y / target.svgH) * s.height; // same projection as measure()
+    const CLEAR_TOP = 90;             // keep off the very top
+    const CLEAR_BOTTOM = c.top - 32;  // keep the dot above the card, with margin
+    if (dotY >= CLEAR_TOP && dotY <= CLEAR_BOTTOM) return; // already visible → no scroll
+    const desiredY = (CLEAR_TOP + CLEAR_BOTTOM) / 2;       // park it mid clear-zone
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    window.scrollBy({ top: dotY - desiredY, behavior: reduce ? "auto" : "smooth" });
+  }, [target]);
+
   // Measurement loop — runs only while a target exists. Reads the rendered chart SVG + the
   // card's rect each frame and projects the SVG-space point into screen coords. The card
   // anchor is its BOTTOM-center, or its TOP-center when the target sits above the card, so

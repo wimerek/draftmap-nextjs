@@ -40,6 +40,7 @@
  */
 import { useCallback, useMemo, useRef, useState } from "react";
 import posthog, { POSTHOG_KEY } from "@/lib/posthog";
+import { VERDICT_RESOLVED_THROUGH } from "@/lib/verdict";
 
 /** 0 closed · 1–4 the card pages (3 and 4 are both Act 3 — see the beat model above). */
 export type TourBeat = 0 | 1 | 2 | 3 | 4;
@@ -264,10 +265,13 @@ export function useHowToReadTour(args: HowToReadTourArgs): HowToReadTour {
 
   // "from the beginning" is load-bearing: it sets the expectation for the landing pause the
   // host holds before the broadcast starts (§D).
+  // v2.3 Bug 1: the provenance line must name the newest RESOLVED class (a module constant),
+  // not the class the tour happens to be standing on — on a resolved-but-not-newest class
+  // (e.g. 2021) the old templating claimed that class was "the newest that's finished it".
   const handoff = useMemo<TourHandoff>(() => ({
-    body: `It takes four years to tell the whole story, so we begin with ${year}: the newest class that's finished it.`,
+    body: `It takes four years to tell the whole story. The most recent class to finish it is ${VERDICT_RESOLVED_THROUGH}.`,
     cta: "▶ Watch the full story unfold from the beginning",
-  }), [year]);
+  }), []);
 
   // Journey-bar lighting is DRIVEN by the tour (not derived from chartMode) while open, so
   // the bar lights beat N during the speak+hold BEFORE the motion answers. Beats 3 and 4 are
