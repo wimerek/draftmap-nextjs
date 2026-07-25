@@ -36,6 +36,26 @@ import {
   ACT3_FOCUS_DIM_OPACITY,
 } from "@/lib/act3FieldConstants";
 
+/**
+ * "How to read" tour — Beat 3's two-phase reveal (v2 brief §1/G1). Non-null ONLY while the
+ * tour is open. This is NOT the authored 2→3 choreography: nothing here reads the master
+ * clock, and Act3Choreography is never mounted. The tour renders THIS rest field and drives
+ * two calm CSS transitions to its real target geometry:
+ *   phase A  dotsAt 'floor' → 'usage'   (one simultaneous glide, no stagger)
+ *   hold     the vertical idea lands on its own
+ *   phase B  threads 'armed' → 'drawn'  (draw-on wall→dot; wall + money axis fade in with it)
+ * `armed` is the pre-frame that gives the CSS transition something to move FROM.
+ * At `{ dotsAt: 'usage', threads: 'drawn' }` every mark equals the resting field exactly, so
+ * closing the tour is a no-op repaint (frame identity §8.4 preserved).
+ */
+export interface Act3TourReveal {
+  dotsAt: "floor" | "usage";
+  threads: "hidden" | "armed" | "drawn";
+  /** Glide/draw durations in ms; 0 = jump-cut (reduced motion §10.10). */
+  usageMs: number;
+  threadsMs: number;
+}
+
 interface Act3FieldProps {
   layout: Act3FieldLayout;
   isMobile: boolean;
@@ -51,15 +71,43 @@ interface Act3FieldProps {
   focusedBand?: MoneyBand | null;
   /** Toggle band focus (click a wall node / thread; null clears via empty-space click). */
   onBandFocus?: (band: MoneyBand | null) => void;
+  /** "How to read" tour Beat-3 reveal (see Act3TourReveal). null = the resting field. */
+  tourReveal?: Act3TourReveal | null;
+  /**
+   * "How to read" tour — the TRACKED player's id (v2.2 §A). The same dot the tour ringed on
+   * the board and followed through the draft is ringed here too, and its thread is emphasized
+   * so the aggregate reads as concrete ("our steal is one of the N in TOP 10"). Null outside
+   * the tour → every mark below renders byte-identical to the resting field (§8.4).
+   */
+  trackedId?: string | null;
 }
 
 export default function Act3Field(props: Act3FieldProps) {
-  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId, focusedBand, onBandFocus } = props;
+  const { layout, isMobile, onDotClick, onDotHover, onDotLeave, litIds, highlightedId, focusedBand, onBandFocus,
+    tourReveal = null, trackedId = null } = props;
   const {
-    svgW, svgH, fieldTop, stripTop, stripBottom,
+    svgW, svgH, fieldTop, fieldBottom, stripTop, stripBottom,
     pickLeft, pickRight, udfaLeft, udfaRight, udfaCenterX,
     wallX, wallNodeW, maxPick, dots, wallNodes, roundAnchors, isPending,
   } = layout;
+
+  // ── Tour reveal derivations (null → every expression below is inert) ─────────────
+  const tourEase = "cubic-bezier(0.33, 0, 0.15, 1)";
+  // Phase A: dots sit on the field floor before the usage glide (the same FLOOR_Y the
+  // authored choreography's Movement I lands on, so the two agree on "pre-usage").
+  const tourDotY = (d: Act3FieldDot) => (tourReveal?.dotsAt === "floor" ? fieldBottom : d.y);
+  const tourDotStyle = tourReveal && tourReveal.usageMs > 0
+    ? { transition: `transform ${tourReveal.usageMs}ms ${tourEase}` }
+    : undefined;
+  // Phase B: the money story (threads + wall + the GUARANTEED MONEY axis title) arrives
+  // only once the usage idea has landed.
+  const moneyIn = !tourReveal || tourReveal.threads !== "hidden";
+  const moneyStyle = tourReveal
+    ? {
+        opacity: tourReveal.threads === "hidden" ? 0 : 1,
+        transition: tourReveal.threadsMs > 0 ? `opacity ${Math.round(tourReveal.threadsMs * 0.6)}ms ease` : undefined,
+      }
+    : undefined;
 
   // Lens: null litIds → no lens → isLit() true for all → resting render.
   const lensed = !!litIds;
@@ -90,10 +138,15 @@ export default function Act3Field(props: Act3FieldProps) {
     // Focus dim (#6): a dot of a non-focused band recedes; the lens ghost is handled
     // separately (ghostDot), so renderDot only ever needs the focus dim.
     const dimFocus = focused && d.band !== focusedBand;
-    return (
-      <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }} opacity={dimFocus ? ACT3_FOCUS_DIM_OPACITY : undefined}>
+    // Tour Beat 3: the dot rides a translate group so ALL dots glide together under one
+    // easing; outside the tour the marks keep their original absolute cx/cy (byte-identical
+    // rest render). cx/cy go to 0 under the tour because the group carries the position.
+    const cx = tourReveal ? 0 : d.x;
+    const cy = tourReveal ? 0 : d.y;
+    const body = (
+      <>
         <circle
-          cx={d.x} cy={d.y} r={ACT3_DOT_R}
+          cx={cx} cy={cy} r={ACT3_DOT_R}
           fill={c.fill}
           stroke={ACT3_DOT_STROKE}
           strokeWidth={ACT3_DOT_STROKE_W}
@@ -101,7 +154,14 @@ export default function Act3Field(props: Act3FieldProps) {
           onMouseLeave={isMobile ? undefined : onDotLeave}
           onClick={() => onDotClick(p)}
         />
-        <AwardGlyphMark glyph={glyph} cx={d.x} cy={d.y} r={ACT3_DOT_R} />
+        <AwardGlyphMark glyph={glyph} cx={cx} cy={cy} r={ACT3_DOT_R} />
+      </>
+    );
+    return (
+      <g key={`dot-${p.player_id}`} style={{ cursor: "pointer" }} opacity={dimFocus ? ACT3_FOCUS_DIM_OPACITY : undefined}>
+        {tourReveal ? (
+          <g style={{ transform: `translate(${d.x}px, ${tourDotY(d)}px)`, ...tourDotStyle }}>{body}</g>
+        ) : body}
       </g>
     );
   };
@@ -110,7 +170,7 @@ export default function Act3Field(props: Act3FieldProps) {
   // opacity, no glyphs, pointer-inert (mirrors the jellyfish ghost).
   const ghostDot = (d: Act3FieldDot) => {
     const c = dotColors(d.player);
-    return <circle key={`gh-${d.player.player_id}`} cx={d.x} cy={d.y} r={ACT3_DOT_R} fill={c.fill} />;
+    return <circle key={`gh-${d.player.player_id}`} cx={d.x} cy={tourDotY(d)} r={ACT3_DOT_R} fill={c.fill} />;
   };
 
   const rdLabelY = stripBottom + 18;
@@ -198,27 +258,47 @@ export default function Act3Field(props: Act3FieldProps) {
           <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_Y_AXIS_TITLE}</tspan>
           <tspan fontWeight={500} fill="#4B5563"> · {ACT3_Y_AXIS_QUALIFIER}</tspan>
         </text>
-        <text x={ACT3_MONEY_AXIS_TITLE_X} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="end" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
-          <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_MONEY_AXIS_TITLE}</tspan>
-          <tspan fontWeight={500} fill="#4B5563"> · {ACT3_MONEY_AXIS_QUALIFIER}</tspan>
-        </text>
+        {/* The money axis arrives with the threads during the tour's phase B (the wall's
+            title should not announce a ladder that isn't drawn yet); at rest and outside
+            the tour it is byte-identical to the original furniture render. */}
+        <g style={moneyStyle}>
+          <text x={ACT3_MONEY_AXIS_TITLE_X} y={ACT3_AXIS_TITLE_BASELINE_Y} textAnchor="end" fontSize={ACT3_AXIS_TITLE_SIZE} letterSpacing={1}>
+            <tspan fontWeight={700} fill={ACT3_NAVY}>{ACT3_MONEY_AXIS_TITLE}</tspan>
+            <tspan fontWeight={500} fill="#4B5563"> · {ACT3_MONEY_AXIS_QUALIFIER}</tspan>
+          </text>
+        </g>
       </g>
 
       {/* ── Threads (behind dots) — two-register weave ────────────────────── */}
+      {/* Tour phase B draws them ON (wall→dot) via a single dashoffset transition; before
+          that they are not rendered at all, so the usage idea lands on a clean field. */}
       <g fill="none">
-        {dots.map((d) => {
+        {moneyIn && dots.map((d) => {
           if (!(d.threadPath && d.band)) return null;
           const spec = ACT3_BANDS[d.band];
           const band = d.band;
+          const drawStyle = tourReveal
+            ? {
+                transition: tourReveal.threadsMs > 0 ? `stroke-dashoffset ${tourReveal.threadsMs}ms ${tourEase}` : undefined,
+              }
+            : undefined;
+          // v2.2 §A: the tracked player's thread is the one the caption is talking about, so it
+          // trades the two-register gradient for the band's SOLID color at a hair more weight.
+          // This is the "thread emphasis" the addendum allows in place of an Act-3 tether —
+          // enough to find one dot in a dense weave without a line crossing the field.
+          const isTracked = !!trackedId && d.player.player_id === trackedId;
           return (
             <path
               key={`th-${d.player.player_id}`}
               d={d.threadPath}
-              stroke={`url(#a3-thread-${band})`}
-              strokeWidth={spec.threadW}
+              stroke={isTracked ? spec.color : `url(#a3-thread-${band})`}
+              strokeWidth={isTracked ? spec.threadW + 1 : spec.threadW}
               opacity={markOpacity(band, d.player.player_id)}
+              {...(tourReveal
+                ? { pathLength: 1, strokeDasharray: "1", strokeDashoffset: tourReveal.threads === "drawn" ? 0 : -1 }
+                : {})}
               // Clicking a thread toggles focus on its band (#6 toggle path).
-              style={onBandFocus ? { cursor: "pointer" } : undefined}
+              style={onBandFocus ? { cursor: "pointer", ...drawStyle } : drawStyle}
               onClick={onBandFocus ? () => focusToggle(band) : undefined}
             />
           );
@@ -228,7 +308,7 @@ export default function Act3Field(props: Act3FieldProps) {
       {/* ── The wall — six true-count nodes + right-rail edge tabs ─────────── */}
       {/* Clicking a node isolates its band (#6). The node keeps full weight when it is
           the focused band (or nothing is focused); non-focused nodes dim. */}
-      <g>
+      <g style={moneyStyle}>
         {wallNodes.map((n) => (
           <Act3WallTab
             key={`wall-${n.band}`}
@@ -254,6 +334,28 @@ export default function Act3Field(props: Act3FieldProps) {
           dots.map((d) => renderDot(d))
         )}
       </g>
+
+      {/* ── Tracked-dot ring (v2.2 §A) ─────────────────────────────────────
+          The tour's narrative spine, marked on both Act-3 pages. It rides the SAME translate
+          group as the dots, so it climbs with him during the usage glide (the point: the user
+          watches HIS dot rise) instead of appearing after the motion settles. Reuses
+          .dm-glow-ring — the same gold pulse the board and draft-day beats ring him with, so
+          it reads as one continuous mark. Inert (not rendered) whenever trackedId is null. */}
+      {trackedId && (() => {
+        const td = dots.find((d) => d.player.player_id === trackedId);
+        if (!td) return null;
+        return (
+          <g
+            style={{
+              transform: `translate(${td.x}px, ${tourDotY(td)}px)`,
+              ...tourDotStyle,
+              pointerEvents: "none",
+            }}
+          >
+            <circle className="dm-glow-ring" cx={0} cy={0} r={ACT3_DOT_R + 5} fill="none" />
+          </g>
+        );
+      })()}
 
       {/* Search spotlight — independent of the lens; rings the located dot. */}
       {highlightedId && (() => {

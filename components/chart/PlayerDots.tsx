@@ -64,6 +64,31 @@ interface Props {
    *  player_id). During the chapter each dot flies on ITS OWN authored cue instead of a
    *  flat `i*22` stagger. `null` outside the chapter (the CSS-transition fallback path). */
   oneToTwoSchedule?: Map<string, OttDotSchedule> | null;
+  /** "How to read" tour (v2 brief §1/G1) — TOUR-SCOPED calm glide. Non-null ONLY while the
+   *  tour is open; it never touches the authored animation path (oneToTwoElapsedMs stays
+   *  null, the choreography clock is bypassed entirely). The dot positions themselves come
+   *  from the SAME layout the live acts use (projectedY / actualY, per viewMode) — the tour
+   *  only supplies the transition, so all dots move at once under ONE easing with zero
+   *  pick-by-pick stagger. `heroId` gets a longer arc (+heroExtraMs) so it lands last and
+   *  reads as the hero; every other in-scope dot RECEDES (see `otherOpacity`). */
+  tourGlide?: TourGlide | null;
+}
+
+/** Tour-scoped glide spec (see `tourGlide`). */
+export interface TourGlide {
+  /** Glide duration in ms; 0 = jump-cut (reduced motion). */
+  durationMs: number;
+  /** The hero dot (Beat 2's steal) — travels its longer arc over durationMs + heroExtraMs. */
+  heroId?: string | null;
+  heroExtraMs?: number;
+  /**
+   * Opacity of the RECEDED FIELD — every non-hero in-scope dot while a hero is named
+   * (1 = no recede). v2.1 §E: this is now a SINGLE LAYER opacity over the whole receded
+   * pass (the vs-consensus ghost technique), not a per-dot alpha that stacks in dense
+   * clusters, and receded dots also drop their drafted-view gap inflation. In v2 every dot
+   * kept its full gap-halo at a per-dot 0.32 and the tethered steal did not pop.
+   */
+  otherOpacity?: number;
 }
 
 // ── Filter function ────────────────────────────────────────────────────────────
@@ -149,6 +174,7 @@ export default function PlayerDots({
   highlightedId,
   oneToTwoElapsedMs = null,
   oneToTwoSchedule = null,
+  tourGlide = null,
 }: Props) {
   const inDraftedView     = viewMode === "drafted";
   // draft-results uses team colors (where the player was drafted to).
@@ -185,6 +211,11 @@ export default function PlayerDots({
   // `inScopeDots` is rendered as-is (rendering order untouched).
   const chapterPending: ReactNode[] = [];
   const chapterLaunched: ReactNode[] = [];
+  // ── Tour recede pass (v2.1 §E) ───────────────────────────────────────────────────
+  // Beat 2's non-hero dots. Same full markup (they still GLIDE — the field moving is the
+  // lesson), but collected here so they can be wrapped in ONE low-opacity <g> exactly like
+  // the filtered-out ghost layer. Empty whenever the tour isn't naming a hero.
+  const tourRecede: ReactNode[] = [];
 
   dotPositions.forEach(({ player, x, projectedY, actualY, pickValueDelta, expectedPickValue }, i) => {
     const sc = SCHOOL_COLORS[player.school ?? ""] ?? { fill: "#9CA3AF", stroke: "#6B7280" };
@@ -380,6 +411,11 @@ export default function PlayerDots({
     // null → not in the chapter branch (route to inScopeDots as usual). Non-null → this
     // dot is in the chapter; true once elapsed ≥ its launchAt (drives the paint partition).
     let chapterHasLaunched: boolean | null = null;
+    // The tour's Beat-2 hero (see tourGlide) — hoisted so the paint partition below can
+    // float it above the receded field.
+    const isTourHero = !!tourGlide?.heroId && player.player_id === tourGlide.heroId;
+    // ...and its complement: an in-scope dot that recedes to context behind the hero.
+    const isTourReceded = !!tourGlide?.heroId && !isTourHero;
     if (oneToTwoElapsedMs !== null && !isProductionMode && !isMobile) {
       const sched = oneToTwoSchedule?.get(player.player_id);
       const launchAt = sched?.launchAt ?? i * 22;
@@ -405,13 +441,42 @@ export default function PlayerDots({
       effStrokeWidth = 1.5 + p * (2.5 - 1.5);
       effGroupTransition = "none"; // JS owns every frame — no CSS transition
       effTransition = "none";
+    } else if (tourGlide && !isMobile) {
+      // ── "How to read" tour glide (G1) ─────────────────────────────────────────
+      // A TOUR-SCOPED CSS transition, applied only while the tour is open and removed on
+      // close. The target position is whatever the live layout already resolved for this
+      // view (cy above), so tour and chart can never disagree on where a dot lands; the
+      // tour just tweens to it under ONE easing instead of the authored per-pick stagger.
+      const dur = tourGlide.durationMs + (isTourHero ? (tourGlide.heroExtraMs ?? 0) : 0);
+      if (dur > 0) {
+        const ease = "cubic-bezier(0.33, 0, 0.15, 1)";
+        effGroupTransition = `transform ${dur}ms ${ease}, opacity 320ms ease`;
+        effTransition = [`r ${dur}ms ${ease}`, `fill ${dur}ms ${ease}`, `stroke ${dur}ms ${ease}`].join(", ");
+      } else {
+        // Reduced motion → jump-cut to the end state (§10.10); the beat still teaches.
+        effGroupTransition = "none";
+        effTransition = "none";
+      }
+      // §E: the hero holds full strength; the rest of the field recedes to context. The
+      // recede is applied as ONE layer opacity on the pass below (not here, per-dot), and
+      // receded dots also give up the drafted view's gap inflation — a board where every
+      // dot wears its own fat pick-value halo is exactly why the tethered steal didn't pop.
+      // Size is not what Beat 2 teaches; the movement is.
+      if (isTourReceded) {
+        effR = BASE_R;
+        effStrokeWidth = 1.5;
+      }
     }
 
     // In the chapter, route to the stable partition (pending first, launched second) so a
     // dimmed waiting dot never paints over a bright landed one. Outside it, chapterHasLaunched
     // is null → the dot goes to inScopeDots and paint order is untouched.
+    // The tour's hero rides the LAUNCHED partition (painted last) so the receded field can
+    // never paint over it; every other tour dot keeps its original in-scope order.
     const targetPass =
-      chapterHasLaunched === null ? inScopeDots
+      isTourHero                  ? chapterLaunched
+      : isTourReceded             ? tourRecede
+      : chapterHasLaunched === null ? inScopeDots
       : chapterHasLaunched        ? chapterLaunched
       :                             chapterPending;
     targetPass.push(
@@ -561,6 +626,18 @@ export default function PlayerDots({
           parent group, keys unchanged (player_id), so React moves nodes across
           the partition rather than remounting. At chapter end every dot is in
           `chapterLaunched` in original order → DOM order matches the rest field. */}
+      {/* ── Tour recede layer (v2.1 §E) ───────────────────────────────────
+          Beat 2's non-hero field at ONE group opacity, painted before the
+          hero (which rides `chapterLaunched`) so the hero can never be
+          overpainted. Same technique as the ghost layer above: a single
+          opacity over opaque children, so dense clusters recede as a clean
+          uniform field instead of alpha-stacking into a smear. Empty (and
+          therefore inert) whenever no tour hero is named. */}
+      {tourRecede.length > 0 && (
+        <g style={{ opacity: tourGlide?.otherOpacity ?? 1, pointerEvents: "none" }}>
+          {tourRecede}
+        </g>
+      )}
       {inScopeDots}
       {chapterPending}
       {chapterLaunched}

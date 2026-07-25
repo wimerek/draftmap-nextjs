@@ -24,6 +24,11 @@ import {
 import { getJourneySteps, type ChartMode } from "@/lib/dataAvailability";
 import { selectClassState } from "@/lib/classMaturity";
 import { useFirstSessionHints } from "@/lib/useFirstSessionHints";
+import { useHowToReadTour, type LiveBeat } from "@/lib/useHowToReadTour";
+import { selectTourTrackedPlayer } from "@/lib/tourTrackedPlayer";
+import HowToReadTourLayer, { type TourTarget } from "@/components/HowToReadTourLayer";
+import type { TourGlide } from "@/components/chart/PlayerDots";
+import type { Act3TourReveal } from "@/components/chart/Act3Field";
 import posthog, { POSTHOG_KEY } from "@/lib/posthog";
 import { usageTierLabel, DEFAULT_SPEED, KP_STRIP_COPY } from "@/lib/act3Constants";
 import { fmtHeight } from "@/lib/utils";
@@ -958,6 +963,231 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     onPulseYear: () => setYearPulseKey(k => k + 1),
   });
 
+  // ── "How to read" read-along tour (build brief v2, 2026-07-24) — the PULL counterpart to
+  // the idle autoplay. useHowToReadTour is the state machine (open + beat 1..3 + captions);
+  // the ENGINE work is hosted here via its callbacks.
+  //
+  // G1 — the load-bearing rule: the tour NEVER drives the authored broadcast. It does not
+  // start (or fast-forward) startOneToTwo/startTwoToThree and never touches the choreography
+  // master clocks — that per-pick stagger IS the jank v1 shipped. Instead it drives its own
+  // calm reveal to the SAME target positions the live acts use:
+  //   · Acts 1/2 — the chart's own projected/drafted dot positions, tweened by a TOUR-SCOPED
+  //     CSS transition that PlayerDots applies only while `tourGlide` is non-null.
+  //   · Act 3 — computeAct3FieldLayout's real geometry, revealed by Act3Field's `tourReveal`
+  //     two-phase (floor → usage → threads). The authored Act3Choreography never mounts.
+  // Because the tour reuses the live layout functions, tour and chart can never disagree on
+  // where a dot lands, and the terminal frame of each beat IS the live rest frame.
+  const TOUR_HOLD_MS        = 720;   // conductor: caption speaks, chart holds, THEN motion
+  const TOUR_FADE_MS        = 150;   // G3 fade-through when a beat's pre-state differs
+  const TOUR_B2_GLIDE_MS    = 900;   // G2: one simultaneous projected→drafted easing
+  const TOUR_B2_HERO_MS     = 300;   // ...the hero steal completes its longer arc after
+  const TOUR_B3_USAGE_MS    = 1200;  // §B page 3a: dots ease into their usage heights
+  const TOUR_B3_THREADS_MS  = 1500;  // §B page 3b: threads draw in to the six money bands
+  // §E: the non-hero field during Beat 2, de-emphasized to context as ONE layer opacity (the
+  // vs-consensus ghost technique), not per-dot — see PlayerDots' tour-recede pass.
+  const TOUR_RECEDE_OPACITY = 0.22;
+  // §D: after the handoff resets to the Act-1 board, HOLD before the broadcast starts, so
+  // "from the beginning" lands and the user can orient instead of being thrown into motion.
+  const TOUR_HANDOFF_PAUSE_MS = 1200;
+
+  /** What the chart is showing for the active beat (the tour's own reveal state machine). */
+  type TourStage =
+    | 'idle'
+    | 'b1'                                                   // the board, at rest
+    | 'b2-pre' | 'b2-glide'                                  // projected → drafted, one glide
+    | 'b3-floor' | 'b3-usage' | 'b3-threads-armed' | 'b3-threads';
+
+  const tourTimersRef  = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const tourRafRef     = useRef<number | null>(null);
+  const tourEntryRef   = useRef<{ stepId: string; year: number } | null>(null); // §10.8 restore
+  const [tourStage, setTourStage]   = useState<TourStage>('idle');
+  const [tourFade, setTourFade]     = useState(false);
+  const [tourYear, setTourYear]     = useState<number>(selectedYear);
+  const [tourTether, setTourTether] = useState<TourTarget | null>(null);
+  // Which beat's tether/ring is currently armed (null = none). Set by the beat's timer chain
+  // once its motion has SETTLED (G5), then resolved to a real dot position by the effect
+  // further down (the dot lists live below this block).
+  const [tourTetherBeat, setTourTetherBeat] = useState<1 | 2 | null>(null);
+
+  const clearTourTimers = useCallback(() => {
+    tourTimersRef.current.forEach(clearTimeout);
+    tourTimersRef.current = [];
+    if (tourRafRef.current != null) { cancelAnimationFrame(tourRafRef.current); tourRafRef.current = null; }
+  }, []);
+  const tourAfter = useCallback((ms: number, fn: () => void) => {
+    tourTimersRef.current.push(setTimeout(fn, ms));
+  }, []);
+
+  // Refs so the tour's timer chain reads CURRENT values without re-arming on every render.
+  const act3ModeRef = useRef(act3Mode);
+  act3ModeRef.current = act3Mode;
+  const selectedYearRef = useRef(selectedYear);
+  selectedYearRef.current = selectedYear;
+  const chartModeForTourRef = useRef(chartMode);
+  chartModeForTourRef.current = chartMode;
+
+  const tour = useHowToReadTour({
+    // §2/§10.9: acts 1–2 teach IN PLACE on the class the user is on. Only a pending-class
+    // Act 3 (no money bands to show) borrows the resolved default-landing class.
+    year: tourYear,
+    onOpen: () => {
+      // Cancel a pending idle-autoplay via ITS OWN cancel path — no autoplay-effect edits.
+      autoplayCancelRef.current?.("tour");
+      clearTourTimers();
+      cancelOneToTwo();
+      cancelTwoToThree();
+      tourEntryRef.current = { stepId: currentStepId, year: selectedYear }; // restore on Exit
+    },
+    onBeat: (beat, prev) => {
+      clearTourTimers();
+      setTourTether(null);
+      setTourTetherBeat(null);
+
+      const rm = prefersReduced.current;
+      const hold = rm ? 0 : TOUR_HOLD_MS;
+      const fade = rm ? 0 : TOUR_FADE_MS;
+
+      // §10.9: entering an Act-3 page (3 usage / 4 money) on a pending/floor class borrows the
+      // resolved default class (there is no money ladder to teach otherwise). Acts 1–2 stay
+      // in place on whatever class the user is reading.
+      let year = selectedYearRef.current;
+      if (beat >= 3 && act3ModeRef.current !== 'verdict' && year !== DEFAULT_LANDING_YEAR) {
+        year = DEFAULT_LANDING_YEAR;
+        setSelectedYear(year);
+        router.replace(`/draft/${year}`, { scroll: false });
+      }
+      setTourYear(year);
+
+      // The pre-state each beat rewinds to before its reveal (G3: the motion IS the lesson,
+      // so a beat always replays from the start even if its end-state is already on screen).
+      // The one exception is the money page arriving from the usage page — page 3b's whole
+      // point is that the threads join a field that is ALREADY at its usage heights, so it
+      // rewinds to 'b3-usage' (a no-op when stepping forward) rather than back to the floor.
+      const applyPreState = () => {
+        cancelOneToTwo();
+        cancelTwoToThree();
+        if (beat >= 3) {
+          setCurrentStepId('act3');
+          setTourStage(beat === 3 ? 'b3-floor' : 'b3-usage');
+        } else {
+          setViewMode('projected');
+          setCurrentStepId('projection');
+          setTourStage(beat === 1 ? 'b1' : 'b2-pre');
+        }
+      };
+
+      // Fade through the reset only when the pre-state's field differs from what's on
+      // screen (entering Beat 2 from live Act 2, an Act-3 page from anywhere, back-steps...).
+      // Stepping BACK from money to usage also fades: the threads have to leave and the dots
+      // drop to the floor to replay, and a hard cut there reads as a glitch.
+      const preIsField = beat >= 3;
+      const nowIsField = chartModeForTourRef.current === 'verdict'
+        || chartModeForTourRef.current === 'pending'
+        || chartModeForTourRef.current === 'floor';
+      const preDiffers = preIsField !== nowIsField
+        || (beat < 3 && chartModeForTourRef.current !== 'projection')
+        || (beat === 3 && prev === 4);
+      const needsFade = fade > 0 && preDiffers;
+
+      const runReveal = () => {
+        if (beat === 1) {
+          // THE BOARD is static — the ring + tether are the whole teach.
+          setTourTetherBeat(1);
+          return;
+        }
+        if (beat === 2) {
+          // G2: the full field glides projected→drafted under ONE easing, all dots at once;
+          // the hero steal completes its longer arc last, ringed + tethered.
+          setViewMode('drafted');
+          setCurrentStepId('draft');
+          setTourStage('b2-glide');
+          tourAfter(rm ? 0 : TOUR_B2_GLIDE_MS + TOUR_B2_HERO_MS + 60, () => setTourTetherBeat(2));
+          return;
+        }
+        if (beat === 3) {
+          // §B page 3a — USAGE ONLY. The dots ease from the floor into their usage heights
+          // and the field HOLDS there: no threads, no auto-advance, no timer. The next thing
+          // that happens is whatever the user asks for, and their Next is what brings the
+          // threads in (which is why this step doesn't read as a box swap).
+          setTourStage('b3-usage');
+          return;
+        }
+        // §B page 3b — MONEY. The dots are already seated at their usage heights, so the
+        // reveal here is purely the threads drawing in to the six bands.
+        setTourStage('b3-threads-armed');
+        // One frame at the armed state gives the draw-on transition something to move
+        // FROM (the paths mount at full dashoffset, then release).
+        tourRafRef.current = requestAnimationFrame(() => {
+          tourRafRef.current = requestAnimationFrame(() => {
+            tourRafRef.current = null;
+            setTourStage('b3-threads');
+            // §10.7: when the threads settle the handoff surfaces IN PLACE on the card —
+            // reaching the end of the money page is the finish, no dead extra "Next".
+            tourAfter(rm ? 0 : TOUR_B3_THREADS_MS + 120, () => tourHandleRef.current?.setHandoffReady(true));
+          });
+        });
+      };
+
+      if (needsFade) {
+        setTourFade(true);
+        tourAfter(fade, () => {
+          applyPreState();
+          setTourFade(false);
+          tourAfter(hold, runReveal);
+        });
+      } else {
+        applyPreState();
+        tourAfter(hold, runReveal);
+      }
+    },
+    onClose: () => {
+      clearTourTimers();
+      setTourStage('idle');
+      setTourFade(false);
+      setTourTether(null);
+      setTourTetherBeat(null);
+      cancelOneToTwo();
+      cancelTwoToThree();
+      // §10.8: return the user to the live act (and class) they opened the tour from.
+      const entry = tourEntryRef.current;
+      if (entry) {
+        if (entry.year !== selectedYearRef.current) {
+          setSelectedYear(entry.year);
+          router.replace(`/draft/${entry.year}`, { scroll: false });
+        }
+        setCurrentStepId(entry.stepId);
+        setViewMode(entry.stepId === 'projection' ? 'projected' : 'drafted');
+      }
+      // Return focus to the "How to read" control.
+      requestAnimationFrame(() => (document.querySelector('.hz-htr-btn') as HTMLElement | null)?.focus());
+    },
+    onHandoffPlay: () => {
+      // §10.7: close the tour and start the LIVE Play — the full authored broadcast, at the
+      // user's own speed (the tour never touched the speed lever). Same path
+      // handleTransportPlay resolves to at Act 1, called directly so it doesn't pollute the
+      // hint funnel (mirrors autoplay).
+      clearTourTimers();
+      setTourStage('idle');
+      setTourFade(false);
+      setTourTether(null);
+      setTourTetherBeat(null);
+      cancelOneToTwo();
+      cancelTwoToThree();
+      setViewMode('projected');
+      setCurrentStepId('projection');
+      // §D — LANDING PAUSE. Reset to the Act-1 board AT REST, hold, and only then start the
+      // broadcast. Jumping straight into motion from the Act-3 field was the jarring part:
+      // the CTA promises "from the beginning", so the user needs a moment to actually see the
+      // beginning before it moves. Routed through tourAfter so unmount/Exit clears it.
+      tourAfter(TOUR_HANDOFF_PAUSE_MS, () => startOneToTwo());
+    },
+  });
+  // Stable mirror of the tour handle for event handlers + the timer chain (which must not
+  // re-arm when a beat changes the handle's identity).
+  const tourRef = useRef(tour);
+  tourRef.current = tour;
+  const tourHandleRef = tourRef;
+
   // ── Derive view (column layout) from positionFilter ──────────────────────
   const DEF_POS = ['EDGE', 'DT', 'LB', 'CB', 'S'];
   const OFF_POS = ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
@@ -1083,6 +1313,117 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     () => (act3Choreo && act3Mode === 'verdict' ? computeSweep(act3Choreo) : null),
     [act3Choreo, act3Mode],
   );
+
+  // ── "How to read" tour — the TRACKED player (v2.2 §A, the narrative spine) ─────────
+  // ONE player, ringed on all four card pages: undervalued on the board → fell on draft day
+  // → the league paid him. Data-driven (biggest fall past consensus among the paid bands), so
+  // it auto-updates as the default landing class advances. Computed off `players`, i.e. the
+  // class currently loaded — which is the class the Act-3 pages borrow when the user's class
+  // is pending (§10.9), so the spine stays intact there too.
+  //
+  // Null on a PENDING class (no money bands exist yet): beats 1–2 then fall back to their v2
+  // designations below, and the tour still teaches — it just loses the single face.
+  const tourTrackedPlayer = useMemo(() => selectTourTrackedPlayer(players), [players]);
+  const tourTrackedDot = useMemo<DotPosition | null>(() => {
+    if (!tourTrackedPlayer) return null;
+    return dotPositions.find(d => d.player.player_id === tourTrackedPlayer.player_id) ?? null;
+  }, [tourTrackedPlayer, dotPositions]);
+
+  // ── Fallback tether/ring targets (§10.4) — used only when no tracked player resolves ──
+  // Beat 1 example dot = the top-ranked QB (§10.4): the far-RIGHT column, always present and
+  // recognizable, so the tether crosses the board instead of clipping the nearest corner dot.
+  // Fallback = the earliest pick in the class (a stable, always-present dot).
+  const tourExampleDot = useMemo<DotPosition | null>(() => {
+    let qb: DotPosition | null = null;
+    let qbY = Infinity;      // pickToY grows downward → smallest projectedY = best-projected QB
+    let anyBest: DotPosition | null = null;
+    let anyBestPick = Infinity;
+    for (const d of dotPositions) {
+      if (d.player.pos === 'QB' && d.projectedY < qbY) { qbY = d.projectedY; qb = d; }
+      const pk = d.player.pick_drafted;
+      if (pk != null && pk > 0 && pk < anyBestPick) { anyBestPick = pk; anyBest = d; }
+    }
+    return qb ?? anyBest;
+  }, [dotPositions]);
+  // Beat 2 steal dot = the biggest steal — the beatRank===1 STEAL beat the 1→2 ticker already
+  // names, so the tour and the live ticker agree (no new steal metric). Fallback = any steal.
+  const tourStealDot = useMemo<DotPosition | null>(() => {
+    const tl = oneToTwoChoreo?.pickTimeline;
+    if (!tl) return null;
+    const entry = tl.find(e => e.beat === 'steal' && e.beatRank === 1) ?? tl.find(e => e.beat === 'steal');
+    if (!entry) return null;
+    return dotPositions.find(d => d.player.player_id === entry.playerId) ?? null;
+  }, [oneToTwoChoreo, dotPositions]);
+
+  // G5 — the tether is drawn only AFTER the beat's motion settles, at the target's FINAL
+  // rect, then persists (softening) until the beat advances. The timer chain arms
+  // `tourTetherBeat`; this resolves it against the live layout (screen projection itself
+  // lives in HowToReadTourLayer). Beat 3 has no tether — the settling field + threads
+  // self-focus (§7).
+  // v2.2 §A: BOTH beats tether the TRACKED dot — beat 1 at its board height, beat 2 at the
+  // slot it fell to. The v2 designations survive only as the pending-class fallback.
+  useEffect(() => {
+    if (!tour.open || tourTetherBeat == null) { setTourTether(null); return; }
+    const dot = tourTrackedDot ?? (tourTetherBeat === 1 ? tourExampleDot : tourStealDot);
+    if (!dot) { setTourTether(null); return; }
+    const y = tourTetherBeat === 1 ? dot.projectedY : dot.actualY;
+    setTourTether({ x: dot.x, y, svgW: layout.svgW, svgH: layout.svgH });
+  }, [tour.open, tourTetherBeat, tourTrackedDot, tourExampleDot, tourStealDot, layout.svgW, layout.svgH]);
+
+  // ── Tour-scoped motion props (G1) ────────────────────────────────────────────
+  // Non-null ONLY while the tour is open, so the authored animation path is untouched: the
+  // choreography clocks stay null, PlayerDots keeps its shipped behavior, and Act3Field
+  // renders byte-identical the moment the tour closes.
+  const tourGlide = useMemo<TourGlide | null>(() => {
+    if (!tour.open || (tourStage !== 'b2-pre' && tourStage !== 'b2-glide')) return null;
+    const rm = prefersReduced.current;
+    return {
+      durationMs: rm ? 0 : TOUR_B2_GLIDE_MS,
+      // v2.2 §A: the hero of draft day is the TRACKED player — the same dot beat 1 ringed on
+      // the board. He lands last, ringed + tethered, and his fill tweens college → NFL team
+      // over the glide (the fill transition PlayerDots applies under tourGlide), which is the
+      // demonstration for beat 2's new color line.
+      heroId: (tourTrackedDot ?? tourStealDot)?.player.player_id ?? null,
+      heroExtraMs: rm ? 0 : TOUR_B2_HERO_MS,
+      otherOpacity: TOUR_RECEDE_OPACITY,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour.open, tourStage, tourTrackedDot, tourStealDot]);
+
+  const tourReveal = useMemo<Act3TourReveal | null>(() => {
+    if (!tour.open || !tourStage.startsWith('b3')) return null;
+    const rm = prefersReduced.current;
+    return {
+      dotsAt: tourStage === 'b3-floor' ? 'floor' : 'usage',
+      threads:
+        tourStage === 'b3-threads-armed' ? 'armed'
+        : tourStage === 'b3-threads'     ? 'drawn'
+        :                                  'hidden',
+      usageMs:   rm ? 0 : TOUR_B3_USAGE_MS,
+      threadsMs: rm ? 0 : TOUR_B3_THREADS_MS,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour.open, tourStage]);
+
+  // Keyboard while the tour is open: Esc exits · ←/→ step (§10.8). Installed once; reads the
+  // stable tourRef. The transport Space/Esc + paused arrow-step handlers early-return while
+  // the tour is open (below), so there is no double-handling.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!tourRef.current.open) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      if (e.key === 'Escape') { e.preventDefault(); tourRef.current.close(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); tourRef.current.back(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); tourRef.current.next(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Clear the tour's timer chain on unmount so a fired setTimeout can't touch a dead tree.
+  useEffect(() => () => clearTourTimers(), [clearTourTimers]);
 
   // Per-dot production Y positions and opacities for the current journey step.
   // Recomputed whenever the step or chart mode changes.
@@ -1896,6 +2237,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   useEffect(() => {
     if (!(isAnimating && paused && oneToTwoElapsedMs != null)) return;
     const onKey = (e: KeyboardEvent) => {
+      if (tourRef.current.open) return; // the tour owns ←/→ while open
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
@@ -2009,6 +2351,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // ── Keyboard map (Part 3): Space = play/pause toggle (NEVER skip) · Esc = skip ─
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (tourRef.current.open) return; // the tour owns Space/Esc while open
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
@@ -2038,6 +2381,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     3; // player-production / career / verdict
 
   const handleSelectBeat = useCallback((beat: 1 | 2 | 3) => {
+    // While the tour is open the journey-bar discs JUMP the tour to that beat (§10.5), not
+    // the live engine nav.
+    if (tourRef.current.open) { tourRef.current.goto(beat); return; }
     setIsPlaying(false);
     // Click beat = start; click again while animating = skip (Part 3 skip path).
     if (isAnimatingRef.current) {
@@ -2055,8 +2401,21 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setCurrentStepId('act3');
   }, [animateToStep, handleTransportSkip, cancelOneToTwo, cancelTwoToThree]);
 
+  // §2 — CONTEXT-AWARE ENTRY. "How to read" opens on the beat that matches the act the user
+  // is CURRENTLY viewing, never forcing an Act-2/Act-3 reader back through Act 1 (the exact
+  // skip-the-tutorial failure the research warns about). Back/Next still roam all three.
+  const handleOpenTour = useCallback(() => {
+    const m = chartModeRef.current;
+    const entry: LiveBeat = m === 'projection' ? 1 : m === 'draft-results' ? 2 : 3;
+    tourRef.current.openTour(entry);
+  }, []);
+
   // ── Desktop event handlers ────────────────────────────────────────────────
   const handleDotClick = useCallback((player: Player) => {
+    // §7/§10.6: dot clicks are INERT while the tour is open — no Player Card, and no exit
+    // either (the v1 trap: the tether invited a click that dumped the user out of the tour).
+    // Suppressed globally, never per-dot; restored the moment the tour closes.
+    if (tourRef.current.open) return;
     setTooltip(null);
     handleOpenPlayer(player);
   }, [handleOpenPlayer]);
@@ -2074,7 +2433,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   const dismissTooltip   = useCallback(() => setTooltip(null), []);
   // Click-away on the chart area clears the tooltip AND the search glow-ring (highlight
   // never scopes, so clearing it touches no filter/scoreboard state).
-  const handleChartAreaClick = useCallback(() => { dismissTooltip(); setHighlightedPlayerId(null); }, [dismissTooltip]);
+  const handleChartAreaClick = useCallback(() => {
+    // G6: empty-chart clicks do NOT close the tour (only Exit / Esc / the handoff do), so a
+    // stray click mid-teach can't drop the user out.
+    if (tourRef.current.open) return;
+    dismissTooltip(); setHighlightedPlayerId(null);
+  }, [dismissTooltip]);
   const handleLiveToggle = useCallback(() => setLiveMode(l => !l), []);
   const handleShowLinesToggle = useCallback(() => setShowLines(l => !l), []);
 
@@ -2233,8 +2597,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
         {/* ── HeaderZone: journey bar + persistent scoreboard slot ── */}
         <HeaderZone
-          activeBeat={activeBeat}
+          activeBeat={tour.open ? tour.activeBeatForBar : activeBeat}
           onSelectBeat={handleSelectBeat}
+          onOpenTour={handleOpenTour}
           scoreboard={{
             // Player search re-homed into the identity column (fix-pass-3 §2) — was the
             // header top-right slot. Same matcher/teleport/glow-ring; only its home moved.
@@ -2278,6 +2643,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
             chipPulse,
             // First-session hints: year switcher breathes once per bump (Act-3 explore nudge).
             yearPulseKey,
+            // The "How to read" tour does NOT speak through the scoreboard (v2 §5/§10.2):
+            // its caption lives in the floating paged card, and G4 keeps the scoreboard on
+            // its normal state-driven REST caption for the active act throughout a tour.
             transport: {
               speed,
               restartPulseKey,
@@ -2298,7 +2666,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
 
         {!loading && !error && (
           <div
-            className="dm-chart-frame"
+            className={`dm-chart-frame${tour.open ? " dm-tour-frame" : ""}${tourFade ? " dm-tour-fade" : ""}`}
             ref={chartFrameRef}
             onMouseEnter={onFrameEnter}
             onMouseDown={onMouseDown}
@@ -2333,6 +2701,13 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 highlightedId={highlightedPlayerId}
                 focusedBand={focusedBand}
                 onBandFocus={setFocusedBand}
+                /* Beat 3's two-phase reveal (usage glide → hold → threads draw in). Null
+                   outside the tour → the resting field renders byte-identical. */
+                tourReveal={tourReveal}
+                /* v2.2 §A: ring the tracked dot on both Act-3 pages and emphasize its thread,
+                   so the aggregate reads as concrete. Non-null ONLY while an Act-3 tour page
+                   is live — at rest the field is byte-identical (§8.4). */
+                trackedId={tourReveal ? tourTrackedPlayer?.player_id ?? null : null}
               />
             ) : (
             <svg
@@ -2385,7 +2760,9 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 chartMode={chartMode}
                 currentStepId={currentStepId}
                 isAnimating={isAnimating}
-                showLines={showLines}
+                /* Leader lines stay off during a tour beat — the hero steal's own arc is
+                   the teach; a full connector layer would crowd it. Restored on Exit. */
+                showLines={tour.open ? false : showLines}
                 isMobile={isMobile}
                 isZoomedMobile={isZoomedMobile}
                 productionPositions={productionPositions}
@@ -2401,6 +2778,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 highlightedId={highlightedPlayerId}
                 oneToTwoElapsedMs={oneToTwoElapsedMs}
                 oneToTwoSchedule={oneToTwoChoreo.dotSchedules}
+                /* Tour-scoped calm glide (G1) — never the authored per-pick stagger. */
+                tourGlide={tourGlide}
               />
               {isZoomedMobile && currentMobilePos && (
                 <MobilePlayerLabels
@@ -2475,6 +2854,24 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
         playerSlug={openPlayer ? generateBaseSlug(openPlayer.name) : undefined}
         currentStepId={currentStepId}
       />
+
+      {/* ── "How to read" read-along tour overlay (build brief v2) — the floating paged card
+             (caption + page dots + controls + handoff) plus the persistent tether and glow
+             ring. Screen-space, non-modal (no scrim): the chart stays visible behind it. ── */}
+      {tour.open && (
+        <HowToReadTourLayer
+          beat={tour.beat}
+          caption={tour.caption}
+          breathKey={tour.breathKey}
+          target={tourTether}
+          handoffReady={tour.handoffReady}
+          handoff={tour.handoff}
+          onBack={tour.back}
+          onNext={tour.next}
+          onExit={tour.close}
+          onHandoff={tour.handoffPlay}
+        />
+      )}
     </div>
   );
 }

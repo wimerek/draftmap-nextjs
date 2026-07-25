@@ -33,9 +33,12 @@ interface HeaderZoneProps {
   onSelectBeat: (beat: 1 | 2 | 3) => void;
   /** Everything the persistent scoreboard slot needs (class switcher + re-homed search). */
   scoreboard: ScoreboardProps;
+  /** Open the "How to read" read-along tour (build brief 2026-07-24). HeaderZone stays
+   *  presentational — it only surfaces the entry control; all tour logic lives upstream. */
+  onOpenTour: () => void;
 }
 
-export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard }: HeaderZoneProps) {
+export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard, onOpenTour }: HeaderZoneProps) {
   // The scrubber drives the SAME year state the scoreboard switcher does (mobile fallback).
   const { selectedYear, onYearChange, availableYears } = scoreboard;
   const scrubberYears = [...availableYears].sort((a, b) => a - b);
@@ -105,6 +108,15 @@ export default function HeaderZone({ activeBeat, onSelectBeat, scoreboard }: Hea
       <div className="hz-band">
         <Scoreboard {...scoreboard} />
         <JourneyBarV3 activeBeat={activeBeat} onSelectBeat={onSelectBeat} />
+        {/* "How to read" — the quiet PULL-help entry (build brief 2026-07-24, §4/§5.1).
+            Third child of hz-band, subordinate to the journey bar (muted parchment + a
+            1px gold underline, no pill/glyph, no rest pulse). Desktop chrome (hidden with
+            the scoreboard <768px via .hz-htr CSS). */}
+        <div className="hz-htr">
+          <button type="button" className="hz-htr-btn" onClick={onOpenTour}>
+            How to read
+          </button>
+        </div>
       </div>
     </div>
   );

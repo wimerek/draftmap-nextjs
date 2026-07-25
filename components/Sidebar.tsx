@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
 import type { DraftMove } from "@/lib/scoreboardStats";
 import { POSITION_ORDER } from "@/lib/chartConstants";
@@ -152,6 +152,20 @@ function HouseIcon() {
   );
 }
 
+// ── Key/legend icon (collapsed-rail Reads & Keys popover) ───────────────────────
+// A small stroked key glyph, same visual family as the rail's other icon-only controls.
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+      stroke={SB_ICON_STROKE} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="4" />
+      <path d="M11 11l7 7" />
+      <path d="M16 16l2-2" />
+      <path d="M18.5 18.5l1.5-1.5" />
+    </svg>
+  );
+}
+
 // ── SidebarSection ────────────────────────────────────────────────────────────
 
 function SidebarSection({
@@ -214,6 +228,34 @@ export default function Sidebar(props: SidebarProps) {
   const [teamSearch, setTeamSearch] = useState("");
   const [schoolSearch, setSchoolSearch] = useState("");
   const teamSearchRef = useRef<HTMLInputElement>(null);
+
+  // Collapsed-rail "Reads & Keys" popover (build brief 2026-07-24 §5.5/§10.7) — reference
+  // lookup only; it does NOT re-expand the sidebar and does NOT launch the tour. Closes on
+  // outside-click / Esc; only rendered while collapsed.
+  const [keyPopoverOpen, setKeyPopoverOpen] = useState(false);
+  const [keyPopTop, setKeyPopTop] = useState(0); // fixed-popover top, from the button's rect
+  const keyPopoverRef = useRef<HTMLDivElement>(null);
+  const keyBtnRef = useRef<HTMLButtonElement>(null);
+  const toggleKeyPopover = () => {
+    if (keyBtnRef.current) setKeyPopTop(keyBtnRef.current.getBoundingClientRect().top);
+    setKeyPopoverOpen(o => !o);
+  };
+  useEffect(() => {
+    if (!keyPopoverOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!keyPopoverRef.current?.contains(e.target as Node)) setKeyPopoverOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setKeyPopoverOpen(false); };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [keyPopoverOpen]);
+  // A class/act change makes an open key stale (it re-reads chartMode) — close it so it can't
+  // linger describing a field it no longer shows, and never leave it open when re-expanding.
+  useEffect(() => { setKeyPopoverOpen(false); }, [chartMode, collapsed]);
 
   // The in-class string for the pinned team (so the ☆ row toggles the SAME teamFilter
   // entry the checkboxes use); falls back to the raw pin if the team isn't in this class.
@@ -280,6 +322,33 @@ export default function Sidebar(props: SidebarProps) {
               <span className="sb-collapse-badge" aria-label="Filters active" />
             )}
           </button>
+        </div>
+      )}
+
+      {/* ── Collapsed-rail "Reads & Keys" affordance (build brief 2026-07-24 §5.5) — pops the
+            existing act-aware ActKey in a popover to the RIGHT of the rail. Reference lookup
+            only: it does not re-expand the sidebar and does not launch the tour. ── */}
+      {collapsed && (
+        <div className="sb-rail-key" ref={keyPopoverRef}>
+          <button
+            ref={keyBtnRef}
+            className={`sb-collapse-btn${keyPopoverOpen ? " sb-rail-key-btn--open" : ""}`}
+            onClick={toggleKeyPopover}
+            title="Reads & Keys"
+            aria-label="Reads & Keys"
+            aria-expanded={keyPopoverOpen}
+          >
+            <KeyIcon />
+          </button>
+          {keyPopoverOpen && (
+            <div className="sb-rail-key-popover" role="dialog" aria-label="Reads & Keys" style={{ top: keyPopTop }}>
+              <ActKey
+                chartMode={chartMode}
+                showLines={showLines}
+                onShowLinesToggle={onShowLinesToggle}
+              />
+            </div>
+          )}
         </div>
       )}
 
