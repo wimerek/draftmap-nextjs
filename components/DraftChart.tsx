@@ -138,7 +138,7 @@ function verdictBlock2(
 ): { hero: string; gold: boolean; sub: string | null; deal: string | null; tagLine: string | null } {
   const gtd = fmtMoney(v.gtdDollars);
   const yrs = v.contractYears ?? "—";
-  const dealGtd = `${yrs} yr · ${gtd} guaranteed`;
+  const dealGtd = `${yrs} yr · ${gtd} total guaranteed`;
 
   // Tag / option note (SPIKE RESOLUTION #4) — hover-only, no glyph, no band shift. Reads
   // the tag_option column; the line keeps the ladder from understating a franchise tag
@@ -158,7 +158,7 @@ function verdictBlock2(
       return { hero: "MINIMUM-LEVEL MONEY", gold: false, sub: null, deal: dealGtd, tagLine };
     case "ZERO":
       return { hero: "SIGNED, $0 GUARANTEED", gold: false, sub: null,
-        deal: `${yrs} yr · $0 guaranteed`, tagLine };
+        deal: `${yrs} yr · $0 total guaranteed`, tagLine };
     case "NEVER":
       return { hero: "NEVER RE-SIGNED", gold: false,
         sub: `one of ${neverCount} never re-signed`, deal: null, tagLine };

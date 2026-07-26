@@ -252,12 +252,12 @@ export default async function AboutPage() {
                 dollars. Real cap space. Front office jobs on the line.
               </p>
               <p>
-                DraftMap measures that value as the guaranteed money in a
-                player&rsquo;s second contract. Not the reported total: the money a
-                team truly commits. It weighs each figure against the top of the
-                player&rsquo;s own position, and against the salary cap that climbs
-                each year. A guarantee that&rsquo;s mid-tier money for a quarterback
-                would sit near the top for a running back.
+                DraftMap measures that value as the full guarantee in a
+                player&rsquo;s second contract. Not the headline number: the money a
+                team truly commits. It weighs that figure against the top of the
+                player&rsquo;s own position, and against the salary cap in the year
+                the deal was signed. A guarantee that&rsquo;s mid-tier money for a
+                quarterback would sit near the top for a running back.
               </p>
               <p>
                 Neither measure is perfect. But together they&rsquo;re the closest the

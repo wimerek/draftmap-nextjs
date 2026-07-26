@@ -235,7 +235,7 @@ function Act3Body({ state }: { state: Act3State }) {
           (the wall at the right groups the bands). */}
       <KeyRow sample={<ThreadSample />}>
         <span className="sb-key-term">Threads</span>: connect each player to the
-        second-contract money band he reached.
+        second-contract money band the player reached.
       </KeyRow>
       <p className="sb-key-threadlink">
         <Link href="/about" className="sb-key-explainer-link">

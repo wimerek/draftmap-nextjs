@@ -254,7 +254,7 @@ export function useHowToReadTour(args: HowToReadTourArgs): HowToReadTour {
           lines: [
             "This is when each player becomes eligible for a second contract.",
             "The market pays the best players the highest guarantees: the truest measure of their worth to the teams with money and jobs on the line.",
-            "Threads connect every player to one of six bands, by the guarantees he earned.",
+            "Threads connect every player to one of six bands, by the total guarantees he earned.",
             "The player dot now marks the team that paid him.",
           ],
         };
