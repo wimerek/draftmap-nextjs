@@ -638,11 +638,89 @@ function overviewViewBox(layout: ChartLayout): [number, number, number, number] 
   return [0, 0, layout.svgW, layout.svgH];
 }
 
+// ── URL param parsers (2026-08-02) ───────────────────────────────────────────
+const DRAFT_MOVES: readonly string[] = ['REACH', 'STEAL', 'IN_RANGE', 'UNDRAFTED'];
+
+function parseCsvParam(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function parseRoundParam(raw: string | null): (number | 'UDFA')[] {
+  return parseCsvParam(raw)
+    .map(v => (v === 'UDFA' ? 'UDFA' : Number(v)))
+    .filter((v): v is number | 'UDFA' => v === 'UDFA' || (typeof v === 'number' && Number.isFinite(v)));
+}
+
+function parseConsensusParam(raw: string | null): DraftMove[] {
+  return parseCsvParam(raw).filter(v => DRAFT_MOVES.includes(v)) as DraftMove[];
+}
+
+function parsePosParam(raw: string | null): string[] {
+  if (!raw) return [];
+  if (raw === 'offense') return ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
+  if (raw === 'defense') return ['EDGE', 'DT', 'LB', 'CB', 'S'];
+  return parseCsvParam(raw);
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DraftChart({ year = 2026, initialPosition, initialStepId }: DraftChartProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // ── URL state (2026-08-02) ────────────────────────────────────────────────
+  // Declared FIRST, above everything, because the tour hook and several handlers close over
+  // these. All three are dependency-free, so position is free and ordering hazards are not.
+  //
+  // Native History API, not router.replace: Next 14.1+ integrates pushState/replaceState with
+  // the App Router and syncs useSearchParams, without the router round-trip.
+  // `mode` is Derek's ruling: 'push' for act + player (a Back stop the reader expects),
+  // 'replace' for filters (squashed into the current entry).
+  //
+  // Reads window.location.search, NOT searchParams.toString() — searchParams is a React value
+  // that lags a native history write within the same tick, so two writes in one tick would
+  // clobber each other.
+  const writeURL = useCallback((
+    updates: Record<string, string | null>,
+    mode: 'push' | 'replace' = 'replace',
+  ) => {
+    const params = new URLSearchParams(window.location.search);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === '') params.delete(key);
+      else params.set(key, value);
+    });
+    const qs = params.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    const now  = `${window.location.pathname}${window.location.search}`;
+    if (next === now) return; // no-op guard — prevents duplicate history entries
+    if (mode === 'push') window.history.pushState(null, '', next);
+    else window.history.replaceState(null, '', next);
+  }, []);
+
+  // A class switch must not silently drop the lens. Carries every param forward except the two
+  // that cannot survive a class change: `player` (slugs are class-scoped) and `step` (every
+  // caller resets the act itself). `overrides` exists so a caller that DOES want a step on the
+  // new URL can set it in the SAME router.replace — writing it afterwards would race the
+  // pending navigation and get wiped.
+  const yearHref = useCallback((
+    y: number,
+    overrides: Record<string, string | null> = {},
+  ) => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('player');
+    params.delete('step');
+    Object.entries(overrides).forEach(([key, value]) => {
+      if (value === null || value === '') params.delete(key);
+      else params.set(key, value);
+    });
+    const qs = params.toString();
+    return `/draft/${y}${qs ? `?${qs}` : ''}`;
+  }, []);
+
+  // Claimed (assigned) BEFORE any setCurrentStepId that must not produce a history entry.
+  // Three sites claim it: tour onClose, resolveTeleport, the popstate handler.
+  const stepSyncRef = useRef<string | null>(null);
 
   // ── Delta-2: Journey navigation state ────────────────────────────────────
   const [selectedYear,  setSelectedYear]  = useState<number>(year);
@@ -829,14 +907,18 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (pos === 'defense') return ['EDGE', 'DT', 'LB', 'CB', 'S'];
     return pos.split(',').filter(Boolean);
   });
-  const [roundFilter,  setRoundFilter]  = useState<(number | 'UDFA')[]>([]);
-  const [teamFilter,   setTeamFilter]   = useState<string[]>([]);
-  const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
+  const [roundFilter,  setRoundFilter]  = useState<(number | 'UDFA')[]>(
+    () => parseRoundParam(searchParams.get('round')));
+  const [teamFilter,   setTeamFilter]   = useState<string[]>(
+    () => parseCsvParam(searchParams.get('team')));
+  const [schoolFilter, setSchoolFilter] = useState<string[]>(
+    () => parseCsvParam(searchParams.get('school')));
   // vs-consensus (Brief 3) — a categorical SCOPE filter (STEAL/IN_RANGE/REACH), act-aware:
   // it scopes only in Act 2+ (the predicate ignores it in 'projection'). The selection is
   // REMEMBERED across act switches — never wiped on entering Act 1 — so it re-applies on
   // return. Surfaced in the sidebar only in Act 2 & 3.
-  const [consensusFilter, setConsensusFilter] = useState<DraftMove[]>([]);
+  const [consensusFilter, setConsensusFilter] = useState<DraftMove[]>(
+    () => parseConsensusParam(searchParams.get('consensus')));
 
   // ── Your team (brief f, item 2) — identity persistence, NOT a parallel filter ──
   // `pinnedTeam` is the saved IDENTITY (your team); the active lens is still plain
@@ -1054,7 +1136,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       if (beat >= 3 && act3ModeRef.current !== 'verdict' && year !== DEFAULT_LANDING_YEAR) {
         year = DEFAULT_LANDING_YEAR;
         setSelectedYear(year);
-        router.replace(`/draft/${year}`, { scroll: false });
+        router.replace(yearHref(year), { scroll: false });
       }
       setTourYear(year);
 
@@ -1151,9 +1233,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       // §10.8: return the user to the live act (and class) they opened the tour from.
       const entry = tourEntryRef.current;
       if (entry) {
+        const entryStep = entry.stepId === 'projection' ? null : entry.stepId;
+        // Claim the sync BEFORE the state set: restoring the act the user opened the tour
+        // from is not navigation and must not become a Back stop.
+        stepSyncRef.current = entry.stepId;
         if (entry.year !== selectedYearRef.current) {
           setSelectedYear(entry.year);
-          router.replace(`/draft/${entry.year}`, { scroll: false });
+          // Step rides INSIDE the navigation — a separate write would race it and be wiped.
+          router.replace(yearHref(entry.year, { step: entryStep }), { scroll: false });
+        } else {
+          writeURL({ step: entryStep }, 'replace');
         }
         setCurrentStepId(entry.stepId);
         setViewMode(entry.stepId === 'projection' ? 'projected' : 'drafted');
@@ -1765,29 +1854,15 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     localStorage.setItem("draftmap_visited", "1");
   }, [layout, visiblePositions]);
 
-  const updateURL = useCallback((updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === '') {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    });
-    const newSearch = params.toString();
-    const path = window.location.pathname;
-    router.replace(`${path}${newSearch ? `?${newSearch}` : ''}`, { scroll: false });
-  }, [router, searchParams]);
-
   const handleOpenPlayer = useCallback((player: Player) => {
     setOpenPlayer(player);
-    updateURL({ player: generateBaseSlug(player.name) });
-  }, [updateURL]);
+    writeURL({ player: generateBaseSlug(player.name) }, 'push');
+  }, [writeURL]);
 
   const handleClosePlayer = useCallback(() => {
     setOpenPlayer(null);
-    updateURL({ player: null });
-  }, [updateURL]);
+    writeURL({ player: null }, 'push');
+  }, [writeURL]);
 
   // ── Filter change handlers ────────────────────────────────────────────────
   const handlePositionFilterChange = useCallback((positions: string[]) => {
@@ -1795,34 +1870,41 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     const def = ['EDGE', 'DT', 'LB', 'CB', 'S'];
     const off = ['RB', 'WR', 'TE', 'OT', 'IOL', 'QB'];
     if (positions.length === 0) {
-      updateURL({ pos: null });
+      writeURL({ pos: null });
     } else if (positions.length === def.length && def.every(p => positions.includes(p))) {
-      updateURL({ pos: 'defense' });
+      writeURL({ pos: 'defense' });
     } else if (positions.length === off.length && off.every(p => positions.includes(p))) {
-      updateURL({ pos: 'offense' });
+      writeURL({ pos: 'offense' });
     } else {
-      updateURL({ pos: positions.join(',') });
+      writeURL({ pos: positions.join(',') });
     }
-  }, [updateURL]);
+  }, [writeURL]);
 
   const handleRoundFilterChange = useCallback((rounds: (number | 'UDFA')[]) => {
     setRoundFilter(rounds);
     if (rounds.length === 0) {
-      updateURL({ round: null });
+      writeURL({ round: null });
     } else {
-      updateURL({ round: rounds.join(',') });
+      writeURL({ round: rounds.join(',') });
     }
-  }, [updateURL]);
+  }, [writeURL]);
 
   const handleTeamFilterChange = useCallback((teams: string[]) => {
     setTeamFilter(teams);
-    updateURL({ team: teams.length === 0 ? null : teams.join(',') });
-  }, [updateURL]);
+    writeURL({ team: teams.length === 0 ? null : teams.join(',') });
+  }, [writeURL]);
 
   const handleSchoolFilterChange = useCallback((schools: string[]) => {
     setSchoolFilter(schools);
-    updateURL({ school: schools.length === 0 ? null : schools.join(',') });
-  }, [updateURL]);
+    writeURL({ school: schools.length === 0 ? null : schools.join(',') });
+  }, [writeURL]);
+
+  // vs-consensus is a URL param like every other lens (contract 2026-08-02), so the raw
+  // setter can no longer be handed to the sidebar — the write has to ride with it.
+  const handleConsensusFilterChange = useCallback((moves: DraftMove[]) => {
+    setConsensusFilter(moves);
+    writeURL({ consensus: moves.length === 0 ? null : moves.join(',') });
+  }, [writeURL]);
 
   const handleClearAllFilters = useCallback(() => {
     setPositionFilter([]);
@@ -1830,8 +1912,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setTeamFilter([]);
     setSchoolFilter([]);
     setConsensusFilter([]);
-    updateURL({ pos: null, round: null, team: null, school: null });
-  }, [updateURL]);
+    writeURL({ pos: null, round: null, team: null, school: null, consensus: null });
+  }, [writeURL]);
 
   // ── Your team (brief f, item 2) handlers ───────────────────────────────────
   // Toggle ONE team's membership in the existing teamFilter (others preserved —
@@ -2042,6 +2124,82 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     t23RafRef.current = requestAnimationFrame(frame);
   }, [act3Choreo, cancelTwoToThree, commitTwoToThree]);
 
+  // ── URL sync: step (2026-08-02) ───────────────────────────────────────────
+  // ONE writer. Never add writeURL to a setCurrentStepId call site — the tour and the 1→2/2→3
+  // chapters set the step repeatedly and would spray history entries.
+  //   · Suppressed while the tour is open: the tour rewinds and replays steps as a teaching
+  //     device, which is not navigation. onClose claims stepSyncRef so the restore is silent.
+  //   · First run replaces (mounting is not a navigation); every later change pushes.
+  //   · 'projection' writes as ABSENT — Act 1 is the bare URL (canonical-tag safe).
+  useEffect(() => {
+    if (tourStage !== 'idle') return;
+    if (stepSyncRef.current === currentStepId) return;
+    const isFirst = stepSyncRef.current === null;
+    stepSyncRef.current = currentStepId;
+    writeURL(
+      { step: currentStepId === 'projection' ? null : currentStepId },
+      isFirst ? 'replace' : 'push',
+    );
+  }, [currentStepId, tourStage, writeURL]);
+
+  // ── URL sync: Back/Forward (2026-08-02) ───────────────────────────────────
+  // Restores the FULL snapshot from the history entry — step, player and every filter — because
+  // a history entry is a whole URL, and the address bar must keep describing the screen.
+  // Bound once; reads live values through refs so it never re-binds.
+  const currentStepIdRef = useRef(currentStepId);
+  useEffect(() => { currentStepIdRef.current = currentStepId; }, [currentStepId]);
+  const playersRef = useRef(players);
+  useEffect(() => { playersRef.current = players; }, [players]);
+  const journeyStepsRef = useRef(journeySteps);
+  useEffect(() => { journeyStepsRef.current = journeySteps; }, [journeySteps]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      // A route-level Back (a different /draft/[year]) is the router's job — the page remounts
+      // with a new `year` prop and re-seeds from scratch. Bail rather than fight it.
+      if (window.location.pathname !== `/draft/${selectedYearRef.current}`) return;
+
+      const p = new URLSearchParams(window.location.search);
+
+      // — step —
+      const raw = p.get('step') ?? 'projection';
+      const mapped = (raw === 'verdict' || raw === 'pending-field' || raw === 'floor')
+        ? 'act3' : raw;
+      const valid = mapped === 'act3' || journeyStepsRef.current.some(s => s.id === mapped);
+      const nextStep = valid ? mapped : 'projection';
+      if (nextStep !== currentStepIdRef.current) {
+        // Back does NOT replay a chapter. It cancels whatever is running and SEATS the
+        // destination act at rest — the same state a cold deep link lands on. A 71-second
+        // 1→2 chapter is not a thing a Back press can mean.
+        cancelOneToTwo();
+        cancelTwoToThree();
+        stepSyncRef.current = nextStep; // consume: the write effect must not echo this back
+        setCurrentStepId(nextStep);
+        setViewMode(nextStep === 'projection' ? 'projected' : 'drafted');
+        setIsPlaying(false);
+      }
+
+      // — player —
+      const slug = p.get('player');
+      if (!slug) {
+        setOpenPlayer(null);
+      } else {
+        const match = playersRef.current.find(pl => generateBaseSlug(pl.name) === slug);
+        setOpenPlayer(match ?? null);
+      }
+
+      // — filters (full snapshot) —
+      setPositionFilter(parsePosParam(p.get('pos')));
+      setRoundFilter(parseRoundParam(p.get('round')));
+      setTeamFilter(parseCsvParam(p.get('team')));
+      setSchoolFilter(parseCsvParam(p.get('school')));
+      setConsensusFilter(parseConsensusParam(p.get('consensus')));
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [cancelOneToTwo, cancelTwoToThree]);
+
   // ── HeaderZone handlers ───────────────────────────────────────────────────
   const handleYearChange = useCallback((newYear: number) => {
     hints.recordInteraction('year', { from: selectedYear, to: newYear }); // funnel: class_switched (+ hint_clicked if nudged)
@@ -2050,8 +2208,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     setSelectedYear(newYear);
     setCurrentStepId('projection');
     setIsPlaying(false);
-    router.replace(`/draft/${newYear}`, { scroll: false });
-  }, [router, hints, cancelOneToTwo, cancelTwoToThree, selectedYear]);
+    router.replace(yearHref(newYear), { scroll: false });
+  }, [router, yearHref, hints, cancelOneToTwo, cancelTwoToThree, selectedYear]);
 
   // ── Player search teleport (brief f, item 3) ────────────────────────────────
   // Resolve a pending teleport once the destination class's SCORED data is in (landing
@@ -2068,11 +2226,16 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     const landingStep = state === 'floor' ? (classHasPicks ? 'draft' : 'projection') : 'act3';
     cancelOneToTwo(); // a search teleport fired mid-1→2 must not leave a zombie chapter
     cancelTwoToThree(); // ...nor mid-2→3
+    stepSyncRef.current = landingStep; // one action = one history entry: claim the step sync
     setCurrentStepId(landingStep);
     setOpenPlayer(player);
     setHighlightedPlayerId(player.player_id);
+    writeURL({
+      step: landingStep === 'projection' ? null : landingStep,
+      player: generateBaseSlug(player.name),
+    }, 'push');
     pendingTeleportRef.current = null;
-  }, [players, selectedYear, scoredReady, cancelOneToTwo, cancelTwoToThree]);
+  }, [players, selectedYear, scoredReady, cancelOneToTwo, cancelTwoToThree, writeURL]);
 
   const handleSearchSelect = useCallback((entry: SearchIndexEntry) => {
     pendingTeleportRef.current = { playerId: entry.player_id, year: entry.draft_year };
@@ -2080,12 +2243,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     if (entry.draft_year !== selectedYear) {
       setIsPlaying(false);
       setSelectedYear(entry.draft_year);
-      router.replace(`/draft/${entry.draft_year}`, { scroll: false });
+      router.replace(yearHref(entry.draft_year), { scroll: false });
       // The resolver effect lands it once the class's scored data arrives.
     } else {
       resolveTeleport(); // same class — resolve now if ready (else the effect catches it)
     }
-  }, [selectedYear, router, resolveTeleport]);
+  }, [selectedYear, router, yearHref, resolveTeleport]);
 
   // Fires resolveTeleport whenever players / selectedYear / scoredReady change — i.e.,
   // the moment the teleported-to class finishes loading.
@@ -2466,9 +2629,10 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
       setSelectedYear(DEFAULT_LANDING_YEAR);
       router.replace(`/draft/${DEFAULT_LANDING_YEAR}`, { scroll: false });
     } else {
-      updateURL({ pos: null, round: null, team: null, school: null, step: null });
+      writeURL({ pos: null, round: null, team: null, school: null,
+                 consensus: null, player: null, step: null });
     }
-  }, [handlePinTeam, selectedYear, router, updateURL, cancelOneToTwo, cancelTwoToThree]);
+  }, [handlePinTeam, selectedYear, router, writeURL, cancelOneToTwo, cancelTwoToThree]);
 
   // ── Desktop drag-to-scroll ────────────────────────────────────────────────
   // With fit-at-width (Piece 1 viewBox) the chart usually has no horizontal overflow, so
@@ -2516,7 +2680,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     // vs-consensus (Brief 3) — remembered in state only (no URL), re-applies on return to
     // Act 2+. The sidebar renders the control only when chartMode !== 'projection'.
     consensusFilter,
-    onConsensusFilterChange: setConsensusFilter,
+    onConsensusFilterChange: handleConsensusFilterChange,
     onClearAllFilters: handleClearAllFilters,
     liveMode,
     onLiveModeToggle: handleLiveToggle,

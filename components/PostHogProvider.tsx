@@ -6,21 +6,22 @@
 
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { POSTHOG_KEY, POSTHOG_HOST } from '@/lib/posthog';
 
 function PageViewTracker() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
+  // Fires on PATH change only (2026-08-02). The chart mirrors act + card + filters into the
+  // query string, so a searchParams dep counted every filter toggle and every act transition
+  // as a pageview. The query string is still captured — read live at fire time — so a deep
+  // link's full URL is recorded exactly once.
   useEffect(() => {
-    const url =
-      window.location.origin +
-      pathname +
-      (searchParams.toString() ? `?${searchParams.toString()}` : '');
-    posthog.capture('$pageview', { $current_url: url });
-  }, [pathname, searchParams]);
+    posthog.capture('$pageview', {
+      $current_url: window.location.origin + pathname + window.location.search,
+    });
+  }, [pathname]);
 
   return null;
 }
