@@ -60,7 +60,25 @@ async function loadTwin(yearStr: string, positionSlug: string) {
   const { drafted, udfa } = buildClassTable(prep, position);
   const columns = getTableColumns(maturity);
 
-  return { year, position, positionSlug, prep, maturity, capsules, drafted, udfa, columns };
+  // Provenance for the class's consensus numbers (the table's "Consensus" column).
+  // Data-driven, never year-hardcoded: prefix-match the source recorded on any ranked
+  // player in the class. Raw consensus_source is never rendered.
+  const provenance = consensusProvenance(players);
+
+  return { year, position, positionSlug, prep, maturity, capsules, drafted, udfa, columns, provenance };
+}
+
+/** Published provenance sentence for a class, or null if no ranked player carries a
+ *  source (shouldn't happen — omit rather than guess). */
+function consensusProvenance(players: Awaited<ReturnType<typeof fetchPlayers>>): string | null {
+  const src = players.find((p) => p.rank != null && p.consensus_source)?.consensus_source;
+  if (src?.startsWith('Wide Left')) {
+    return 'Pre-draft projections are from the Wide Left Consensus Big Board compiled by Arif Hasan, an aggregation of published analyst boards.';
+  }
+  if (src?.startsWith('Jack')) {
+    return "Pre-draft projections derive from Jack Lichtenstein's Consensus Big Board, an aggregation of published analyst boards.";
+  }
+  return null;
 }
 
 function truncate(text: string, max = 150): string {
@@ -93,7 +111,7 @@ export default async function PositionTwinPage({ params }: Props) {
   const data = await loadTwin(params.year, params.position);
   if (!data) notFound();
 
-  const { year, position, positionSlug, maturity, capsules, drafted, udfa, columns } = data;
+  const { year, position, positionSlug, maturity, capsules, drafted, udfa, columns, provenance } = data;
   const pageUrl = `${APEX}/draft/${year}/${positionSlug}`;
 
   const faq = buildFaqJsonLd(capsules);
@@ -129,6 +147,9 @@ export default async function PositionTwinPage({ params }: Props) {
 
       {/* ── Data table ── */}
       <ClassTable columns={columns} drafted={drafted} udfa={udfa} position={position} year={year} />
+
+      {/* ── Provenance: credits the table's Consensus column, within one glance of it ── */}
+      {provenance && <p className="twin-provenance">{provenance}</p>}
     </main>
   );
 }

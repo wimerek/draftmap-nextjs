@@ -900,6 +900,21 @@ a { color: inherit; text-decoration: none; }
 }
 .sb-legend-subtext--muted { opacity: 0.7; }
 
+/* Consensus credit (v3, B-1) — sidebar fine print directly above the footer.
+   Rides the legend-subtext treatment; only spacing and the gold link are its own.
+   Wrapping to 2–3 lines is expected and fine. */
+.sb-credit {
+  padding: 0 14px;
+  margin-bottom: 10px;
+  font-style: normal;
+}
+.sb-credit-link {
+  color: #D4A017;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sb-credit-link:hover { color: #F5F0E8; }
+
 /* ── Help text ───────────────────────────────────────────────────────────── */
 .sb-help-text {
   font-size: 11px;
@@ -3552,6 +3567,18 @@ a { color: inherit; text-decoration: none; }
   font-size: 14px;
   color: #4A6274;
   margin: 6px 0 0;
+}
+
+/* Provenance line under the class table — the subtitle's family, quieter: credits
+   the Consensus column without competing with it. */
+.twin-provenance {
+  max-width: 1100px;
+  margin: 14px auto 0;
+  padding: 0 20px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6B7F8E;
 }
 
 /* Chart section — the existing DraftChart manages its own internal scroll frame. */

@@ -7,6 +7,7 @@ import { VALID_DRAFT_YEARS, CURRENT_DRAFT_YEAR, DEFAULT_LANDING_YEAR } from "@/l
 import { TEAM_COLORS, SCHOOL_COLORS, teamDotColors, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import { generateBaseSlug } from "@/lib/slugs";
 import { posRankMap } from "@/lib/twinData";
+import { classConsensusCredit } from "@/lib/consensusCredit";
 import { classifyDraftMove, teamCodeFromFullName, type DraftMove } from "@/lib/scoreboardStats";
 import type { MoneyBand } from "@/lib/verdict";
 import { isPlayerFiltered } from "@/lib/lensFilter";
@@ -455,6 +456,16 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
   if (player.rank != null) defParts.push(`No. ${player.rank}`);
   const defLine = ranked && defParts.length > 0 ? `Ranked: ${defParts.join(" · ")}` : null;
 
+  // Credit line — who compiled the board this rank came from. Ranked players only
+  // (an unranked prospect has no number to credit). NEVER the raw consensus_source
+  // string: prefix-match and render the published short form. The Jack form is
+  // deliberately trimmed vs. the About card so it holds one line at 250px.
+  const src = ranked ? player.consensus_source : null;
+  const creditLine =
+    src?.startsWith("Wide Left") ? "Consensus: Wide Left (Arif Hasan)" :
+    src?.startsWith("Jack")      ? "Consensus: Jack Lichtenstein (derivative)" :
+                                   null;
+
   return (
     <div className="dm-tooltip" style={{ left: x, top: y, width: 250, background: "#0B2239", padding: 0, overflow: "hidden" }}>
       <div style={{ height: 4, background: sc.fill }} />
@@ -468,6 +479,9 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
           <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>THE BOARD</div>
           <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: ivory }}>{hero}</div>
           {defLine && <div style={{ fontSize: 11, color: dim, marginTop: 1 }}>{defLine}</div>}
+          {creditLine && (
+            <div style={{ fontSize: 9.5, color: "rgba(245,240,232,0.45)", marginTop: 4 }}>{creditLine}</div>
+          )}
         </div>
 
         {/* Footer */}
@@ -871,6 +885,14 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
   // hub pages' per-class pool + the defensive filter used elsewhere here).
   const posRankByPid = useMemo(
     () => posRankMap(players.filter(p => p.draft_year === selectedYear)),
+    [players, selectedYear],
+  );
+
+  // Consensus credit (v3, B-1) — one page-level source line for the sidebar, covering
+  // every chart surface that publishes a consensus rank (Act 1 hovers, Act 2 ticker).
+  // Same selected-class pool as above; null when no ranked player carries a source.
+  const consensusCredit = useMemo(
+    () => classConsensusCredit(players.filter(p => p.draft_year === selectedYear)),
     [players, selectedYear],
   );
 
@@ -2700,6 +2722,8 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
     pinnedTeam,
     onToggleTeam: handleToggleTeam,
     onPinTeam: handlePinTeam,
+    // Consensus credit (v3, B-1) — expanded rail only; the sidebar has no player data.
+    consensusCredit,
   };
 
   // ── Default mobile viewBox (EDGE zoomed) before state settles ────────────

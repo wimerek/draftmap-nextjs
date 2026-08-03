@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChartMode } from "@/lib/dataAvailability";
 import type { DraftMove } from "@/lib/scoreboardStats";
+import type { ConsensusCredit } from "@/lib/consensusCredit";
 import { POSITION_ORDER } from "@/lib/chartConstants";
 import { TEAM_COLORS, sameTeam, resolveTeamName } from "@/lib/chartConstants";
 import FilterDropdown from "@/components/sidebar/FilterDropdown";
@@ -45,6 +46,10 @@ export interface SidebarProps {
   pinnedTeam: string | null;
   onToggleTeam: (team: string) => void;
   onPinTeam: (team: string | null) => void;
+  // Page-level credit for the loaded class's consensus board (v3, B-1). Computed in
+  // DraftChart from the players array — the sidebar has no player data of its own.
+  // Expanded rail only; null when the class carries no source.
+  consensusCredit?: ConsensusCredit | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -212,6 +217,7 @@ export default function Sidebar(props: SidebarProps) {
     litCount, totalCount,
     onResetView,
     pinnedTeam, onToggleTeam, onPinTeam,
+    consensusCredit,
   } = props;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -718,6 +724,25 @@ export default function Sidebar(props: SidebarProps) {
           {!collapsed && <span className="sb-nav-link-label">Player List</span>}
         </Link>
       </div>
+      )}
+
+      {/* ── Consensus credit (v3, B-1) ──
+          One page-level source line for every chart surface that publishes a
+          consensus rank (Act 1 hovers, the Act 2 pick ticker). Expanded rail only —
+          the icon-only rail has no room. Never renders raw consensus_source. */}
+      {!collapsed && consensusCredit && (
+        <div className="sb-legend-subtext sb-legend-subtext--muted sb-credit">
+          {consensusCredit.lead}
+          {" · "}
+          <a
+            href={consensusCredit.href}
+            target="_blank"
+            rel="noopener"
+            className="sb-credit-link"
+          >
+            {consensusCredit.domain}
+          </a>
+        </div>
       )}
 
       {/* ── Footer meta cluster: Home (reset) + About (Brief 1, Piece 6) ── */}

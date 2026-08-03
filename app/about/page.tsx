@@ -179,8 +179,11 @@ export default async function AboutPage() {
 
         {/* ④ Narrative — editorial grid: prose + (mostly sparse) margin */}
         <section>
-          {/* Why It Exists — margin intentionally clear (the "rest beat") */}
-          <NarrativeSection id="why-it-exists" title="Why It Exists">
+          {/* Why It Exists — carries the Consensus sources card (Derek, 08-02;
+              supersedes the old "rest beat" clear margin). It's the quietest note
+              type on the page — pure type, no glyph, no numerals — and the opening
+              line here is the page's first mention of the rankings pile being cited. */}
+          <NarrativeSection id="why-it-exists" title="Why It Exists" aside={<ConsensusSourcesNote />}>
             <p>
               Leading up to the draft, the coverage piles up: rankings, mock
               drafts, profiles, takes, more rankings. And it starts earlier every
@@ -597,6 +600,63 @@ function SourcesNote() {
           </a>
         </p>
       </div>
+    </div>
+  );
+}
+
+// §Why-it-exists gutter: where Act 1's projections come from.
+// Deliberately shares the underlined-eyebrow grammar with SourcesNote — the two
+// citation cards are a family. Footer is MUTED, not gold: it's informational, not a
+// punchline (MethodNotes owns the gold-footer move).
+function ConsensusSourcesNote() {
+  const link =
+    "underline decoration-dm-accent decoration-2 underline-offset-2 transition-opacity hover:opacity-70";
+  return (
+    <div>
+      <p
+        className="border-b pb-1.5"
+        style={{ borderColor: "#e2dac9", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}
+      >
+        Consensus sources
+      </p>
+
+      <div className="mt-3">
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
+          Wide Left Consensus Big Board
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, lineHeight: 1.4, color: "#5a6b78" }}>
+          Compiled by Arif Hasan
+          <span style={{ color: "#a99a78" }}> &middot; </span>
+          <a href="https://wideleft.football" target="_blank" rel="noopener" className={link} style={{ color: "#9a7611" }}>
+            wideleft.football
+          </a>
+        </p>
+        <p className="mt-1" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78" }}>
+          2016&ndash;18 &middot; 2020&ndash;21 &middot; 2024&ndash;26
+        </p>
+      </div>
+
+      <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
+
+      <div>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
+          Jack Lichtenstein Consensus Big Board
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, lineHeight: 1.4, color: "#5a6b78" }}>
+          A derivative
+          <span style={{ color: "#a99a78" }}> &middot; </span>
+          <a href="https://jacklich10.com/bigboard/nfl/" target="_blank" rel="noopener" className={link} style={{ color: "#9a7611" }}>
+            jacklich10.com
+          </a>
+        </p>
+        <p className="mt-1" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78" }}>
+          2019 &middot; 2022 &middot; 2023
+        </p>
+      </div>
+
+      <p className="mt-3" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontStyle: "italic", fontSize: 11, color: "#5a6b78", lineHeight: 1.4 }}>
+        A player with no projection fell outside the published board. Every row records its source.
+      </p>
     </div>
   );
 }

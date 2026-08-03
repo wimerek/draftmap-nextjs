@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { classConsensusCredit } from "@/lib/consensusCredit";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Player } from "@/lib/sheets";
@@ -115,6 +116,11 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
       .then((data: Player[]) => { setPlayers(data); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
   }, [year]);
+
+  // Consensus credit (v3, C-1) — credits the "#" (consensus rank) column. Taken from
+  // the loaded year's data, so it follows the year selector; raw consensus_source is
+  // never rendered. Full form, same two strings as the chart sidebar.
+  const credit = classConsensusCredit(players);
 
   const visible = players
     .filter(p => posFilter === "ALL" || p.pos === posFilter)
@@ -356,6 +362,23 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Consensus credit (v3, C-1) — sits directly under the table, within a glance
+          of the "#" column it credits. Page footnote treatment. */}
+      {credit && (
+        <p style={{ color: "#9a8a7a", fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+          {credit.lead}
+          {" · "}
+          <a
+            href={credit.href}
+            target="_blank"
+            rel="noopener"
+            style={{ color: "#7A5000", textDecoration: "underline", textUnderlineOffset: 2 }}
+          >
+            {credit.domain}
+          </a>
+        </p>
+      )}
     </div>
   );
 }

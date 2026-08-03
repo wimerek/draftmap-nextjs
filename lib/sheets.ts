@@ -69,7 +69,11 @@ export interface Player {
   // Consensus projections
   rd: number | null;              // consensus projected round (1–7)
   rank: number | null;            // consensus overall projected rank
-  consensus_source: string | null; // e.g. "NFLMockDraftDatabase", "PFF"
+  // Two values only: "Wide Left Consensus Big Board (Arif Hasan) — wideleft.football"
+  // and "Jack Lichtenstein Consensus Big Board — 14 of 17 component boards, re-averaged".
+  // NEVER rendered raw (the raw strings carry em dashes) — prefix-match "Wide Left" /
+  // "Jack" and map to the published display copy.
+  consensus_source: string | null;
 
   // Physical / NFL measurables
   height: string | null;  // NFL format: "6020" → 6'2" via fmtHeight()
