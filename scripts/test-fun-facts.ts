@@ -20,6 +20,8 @@ function makePlayer(overrides: Partial<Player>): Player {
     school:           overrides.school ?? 'State University',
     rd:               overrides.rd ?? 3,
     rank:             overrides.rank ?? 80,
+    forecaster_rank:  overrides.forecaster_rank ?? null,
+    evaluator_rank:   overrides.evaluator_rank ?? null,
     consensus_source: null,
     height:           overrides.height ?? '6010',
     weight:           overrides.weight ?? 200,

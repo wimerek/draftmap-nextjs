@@ -28,6 +28,8 @@ export interface SheetsRawRow {
   school?: string;
   rd?: string;
   rank?: string;
+  forecaster_rank?: string;
+  evaluator_rank?: string;
   consensus_source?: string;
   height?: string;
   weight?: string;
@@ -69,6 +71,18 @@ export interface Player {
   // Consensus projections
   rd: number | null;              // consensus projected round (1–7)
   rank: number | null;            // consensus overall projected rank
+  /**
+   * The two halves of the consensus, split by what the source was TRYING to do
+   * (columns present in the sheet since the 2026-08-02 reload):
+   *   forecaster_rank — boards predicting where the player will actually go
+   *   evaluator_rank  — boards ranking how good they think the player is
+   * Rendered together as one Act-1 hover row, and ONLY when both are present.
+   * Coverage is uneven by class (see the hover row) — absent → the row is absent.
+   * NOTE: the sheet's `variance` column is deliberately NOT parsed here — it is an
+   * uncharacterized index, ruled not-for-display 2026-08-04.
+   */
+  forecaster_rank: number | null;
+  evaluator_rank: number | null;
   // Two values only: "Wide Left Consensus Big Board (Arif Hasan) — wideleft.football"
   // and "Jack Lichtenstein Consensus Big Board — 14 of 17 component boards, re-averaged".
   // NEVER rendered raw (the raw strings carry em dashes) — prefix-match "Wide Left" /
@@ -308,6 +322,8 @@ function mapRow(row: SheetsRawRow): Player {
     school:           toStr(row.school),
     rd:               toInt(row.rd),
     rank:             toInt(row.rank),
+    forecaster_rank:  toInt(row.forecaster_rank),
+    evaluator_rank:   toInt(row.evaluator_rank),
     consensus_source: toStr(row.consensus_source),
     height:           toStr(row.height),
     weight:           toFloat(row.weight),

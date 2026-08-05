@@ -4,7 +4,7 @@
  * Pure layout math functions for the DraftMap chart.
  *
  * Session E changes (2026-05-02):
- *   - Continuous Y-axis: pick 1 at top, pick 256 at bottom.
+ *   - Continuous Y-axis: pick 1 at top, pick MAX_PICK at bottom.
  *     Y position = pickToY(rank) — a linear scale. Round bands eliminated.
  *   - Variable position column widths proportional to player count at each position.
  *   - isOverview parameter removed (single overview mode only — no zoom states).
@@ -221,10 +221,15 @@ export interface ChartLayout {
   tierBandDefs: TierBandDef[];
   /** Y coordinates of tier-color transitions (Great→Good, Good→Solid, Solid→Role). */
   tierBoundaryYs: number[];
-  /** Y coordinates of round boundary lines (after R1, R2, ..., R6). */
-  roundBoundaryYs: number[];
-  /** Y center of each round label (midpoint of its range on the pick axis). */
-  roundLabelYs: Record<number, number>;
+  /**
+   * Y coordinates of the two DAY boundary lines — Day 1|2 (pick 32.5) and
+   * Day 2|3 (pick 102.5). The only heavy horizontal rules on the field.
+   * (Act 1 Resolution, 2026-08-04: the seven round lines / R1–R7 labels are gone —
+   * the draft is watched in three nights, not seven rounds.)
+   */
+  dayBoundaryYs: number[];
+  /** Y center of each day label (geometric midpoint of that day's band edges). */
+  dayLabelYs: Record<number, number>;
   /** Linear scale: rank (1–MAX_PICK) → SVG Y coordinate. */
   pickToY: (rank: number) => number;
   visiblePositions: string[];
@@ -232,7 +237,7 @@ export interface ChartLayout {
   hasOffense: boolean;
   pillX: number;
   pillW: number;
-  /** Y coordinate of the top of the UDFA zone (starts at the pick-256 line). */
+  /** Y coordinate of the top of the OUTSIDE zone (starts at the pick-MAX_PICK line). */
   udfaZoneY: number;
   /** Height of the UDFA zone in pixels. */
   udfaZoneH: number;
@@ -240,8 +245,16 @@ export interface ChartLayout {
 
 // ── Y-axis constants ──────────────────────────────────────────────────────────
 
-/** Total number of NFL draft picks (domain of the Y axis). */
-const MAX_PICK = 256;
+/**
+ * Total number of NFL draft picks (domain of the Y axis).
+ *
+ * Act 1 Resolution ruling (a), 2026-08-04: extended 256 → 262. Real drafts run
+ * 257–262 picks once compensatory selections are counted, and at 256 those extra
+ * picks clamp-shelved onto the field-bottom line — a pile that contradicted the
+ * act's premise ("drafted = on the field"). 262 is the deepest real class and is
+ * the SAME fixed domain Act 3 uses (ACT3_MAX_PICK), so the two fields agree.
+ */
+const MAX_PICK = 262;
 
 /** Pixels per pick on the continuous Y axis. */
 const PX_PER_PICK = 5;
@@ -260,25 +273,18 @@ const MAX_COL_W = 220;
  *   Great            = picks  1–15
  *   Good             = picks 16–64  (rest of R1 + all R2)
  *   Solid            = picks 65–96  (R3)
- *   Role Player/Proj = picks 97–256 (R4–R7)
+ *   Role Player/Proj = picks 97–MAX_PICK (R4–R7)
  *
  * Boundary values sit halfway between rounds/tiers for clean visual separation.
  */
 const TIER_PICK_BOUNDARIES = [15.5, 64.5, 96.5] as const;
 
-/** Round boundary pick numbers (end of each round 1–6). */
-const ROUND_BOUNDARY_PICKS = [32, 64, 96, 128, 160, 192] as const;
-
-/** Midpoint pick of each round (for round label placement). */
-const ROUND_MIDPOINT_PICKS: Record<number, number> = {
-  1: 16,
-  2: 48,
-  3: 80,
-  4: 112,
-  5: 144,
-  6: 176,
-  7: 224,
-};
+/**
+ * Day boundary pick numbers — the two seams of the three-night draft.
+ * Day 1 = picks 1–32 (R1) · Day 2 = 33–102 (R2–R3) · Day 3 = 103–MAX_PICK (R4–R7).
+ * Half-pick values so the rule sits BETWEEN two picks, never through one.
+ */
+const DAY_BOUNDARY_PICKS = [32.5, 102.5] as const;
 
 // ── Main layout computation ───────────────────────────────────────────────────
 
@@ -308,7 +314,7 @@ export function computeChartLayout(
   const margin = { top: 72, right: 160, bottom: 48, left: 100 };
 
   // ── Y-axis: continuous pick scale ────────────────────────────────────────
-  const totalChartH = MAX_PICK * PX_PER_PICK; // 1280px
+  const totalChartH = MAX_PICK * PX_PER_PICK; // 1310px
 
   const pickToY = (rank: number): number =>
     margin.top + ((rank - 1) / (MAX_PICK - 1)) * totalChartH;
@@ -354,8 +360,9 @@ export function computeChartLayout(
   const chartW = visiblePositions.reduce((sum, p) => sum + colWidths[p], 0) + sepW;
   const svgW   = margin.left + chartW + margin.right;
 
-  // ── UDFA zone (below pick-256 line) ──────────────────────────────────────
-  // Undrafted players animate here. 80px band with dashed top border.
+  // ── OUTSIDE zone (below the pick-MAX_PICK line) ──────────────────────────
+  // Undrafted players animate here; in Act 1 it also houses the deep board
+  // (rank > MAX_PICK) and the unranked. 130px band with dashed top border.
   const UDFA_ZONE_H = 130;
   const udfaZoneY   = margin.top + totalChartH;   // top of UDFA band
   const svgH        = udfaZoneY + UDFA_ZONE_H + margin.bottom;
@@ -392,20 +399,24 @@ export function computeChartLayout(
 
   const tierBoundaryYs = TIER_PICK_BOUNDARIES.map(p => pickToY(p));
 
-  // ── Round boundary Y positions (reference lines) ──────────────────────────
-  const roundBoundaryYs = ROUND_BOUNDARY_PICKS.map(p => pickToY(p));
+  // ── Day boundary Y positions (the two heavy rules) ────────────────────────
+  const dayBoundaryYs = DAY_BOUNDARY_PICKS.map(p => pickToY(p));
 
-  // ── Round label Y positions (centered in each round's pick range) ─────────
-  const roundLabelYs: Record<number, number> = {};
-  for (let rd = 1; rd <= 7; rd++) {
-    roundLabelYs[rd] = pickToY(ROUND_MIDPOINT_PICKS[rd]);
-  }
+  // ── Day label Y positions — geometric midpoint of each band's edges. Day 3's
+  // band runs from the 102.5 rule to the field bottom (the OUTSIDE zone's top).
+  const fieldTopY    = margin.top;
+  const fieldBottomY = margin.top + totalChartH;
+  const dayLabelYs: Record<number, number> = {
+    1: (fieldTopY        + dayBoundaryYs[0]) / 2,
+    2: (dayBoundaryYs[0] + dayBoundaryYs[1]) / 2,
+    3: (dayBoundaryYs[1] + fieldBottomY)     / 2,
+  };
 
   return {
     svgW, svgH, chartW, totalChartH,
     margin, colWidths, colXMap, sepW,
     tierBandDefs, tierBoundaryYs,
-    roundBoundaryYs, roundLabelYs,
+    dayBoundaryYs, dayLabelYs,
     pickToY,
     visiblePositions, hasDefense, hasOffense,
     pillX, pillW,
@@ -472,7 +483,7 @@ export interface DotPosition {
   projectedY: number;
   /**
    * Y at actual pick slot (Drafted view). For undrafted players this is the
-   * UDFA zone center Y (with vertical jitter). Always a number.
+   * OUTSIDE zone center Y (with vertical jitter). Always a number.
    */
   actualY: number;
   /**
@@ -484,7 +495,7 @@ export interface DotPosition {
   pickValueDelta: number;
   /**
    * Expected pick value (0–100) from pick_value_curve.json for this player's
-   * actual draft slot (or virtual pick 257 for undrafted).
+   * actual draft slot (or a virtual past-the-board pick for undrafted).
    * Used for production dot-size encoding (|USG score − expectedPickValue|).
    */
   expectedPickValue: number;
@@ -510,11 +521,11 @@ export interface DotPosition {
  *   Upper R1  (6–15):    91 → 82  (1.0 units/pick)
  *   Lower R1  (16–32):   81 → 73  (0.5 units/pick)
  *   R2        (33–64):   70 → 56  (0.45 units/pick)
- *   R3        (65–96):   53 → 40  (0.42 units/pick)
- *   R4        (97–128):  37 → 28  (0.29 units/pick)
+ *   R3        (65–102):  53 → 40  (0.35 units/pick)
+ *   R4        (103–128): 37 → 28  (0.35 units/pick)
  *   R5        (129–160): 25 → 18  (0.23 units/pick)
  *   R6        (161–192): 15 → 10  (0.16 units/pick)
- *   R7        (193–256):  7 →  3  (0.063 units/pick)
+ *   R7        (193–262):  7 →  3  (0.057 units/pick)
  *   UDFA:                0
  */
 export function tierAdjustedValue(pick: number): number {
@@ -525,26 +536,34 @@ export function tierAdjustedValue(pick: number): number {
   // the real Day 2 / Day 3 draft value drop. R4-R7 are tightly compressed
   // so late-round movement stays visually quiet; R1-R3 movement reads clearly.
   //
+  // Act 1 Resolution §5.1 (2026-08-04): the cliff MOVED from 96/97 to 102/103 so the
+  // size encoding agrees with the new day furniture and the rank→rd derivation
+  // (Day 2 = picks 33–102 = R2–R3). Endpoints and the overall shape are unchanged —
+  // the Day-2 tail band still runs 52→40, it just spans 38 picks instead of 32, so its
+  // per-pick slope eases from 0.39 to 0.32. Ruling (a) also extended the R7 tail from
+  // 256 to MAX_PICK=262; without that a real pick-260 selection scored 0, identical to
+  // going undrafted.
+  //
   //   Elite R1  (1-5):    100->92  (2.0/pick)
   //   Upper R1  (6-15):    91->82  (1.0/pick)   gap=1 from Elite
   //   Lower R1  (16-32):   81->73  (0.5/pick)   gap=1 from Upper
   //   R2        (33-64):   69->57  (0.39/pick)  gap=4 from R1
-  //   R3        (65-96):   52->40  (0.39/pick)  gap=5 from R2
-  //   --- Day 2/Day 3 cliff: 20-unit gap ---
-  //   R4        (97-128):  32->26  (0.19/pick)  gap=8 from R3  (cliff reduced from 20)
+  //   R2/R3 tail(65-102):  52->40  (0.32/pick)  gap=5 from R2
+  //   --- Day 2/Day 3 cliff: 8-unit gap, now at 102/103 ---
+  //   R4        (103-128): 32->26  (0.24/pick)  gap=8 from the Day-2 tail
   //   R5        (129-160): 20->14  (0.19/pick)  gap=6 from R4
   //   R6        (161-192): 10->6   (0.13/pick)  gap=4 from R5
-  //   R7        (193-256):  4->1   (0.048/pick) gap=2 from R6
+  //   R7        (193-262):  4->1   (0.043/pick) gap=2 from R6
   //   UDFA:                 0                   gap=1 from R7
   if (pick <=   5) return 100 - (pick -   1) * (8   /  4);
   if (pick <=  15) return  91 - (pick -   6) * (9   /  9);
   if (pick <=  32) return  81 - (pick -  16) * (8   / 16);
   if (pick <=  64) return  69 - (pick -  33) * (12  / 31);
-  if (pick <=  96) return  52 - (pick -  65) * (12  / 31);
-  if (pick <= 128) return  32 - (pick -  97) * (6   / 31);   // 32->26, gap=8 from R3
+  if (pick <= 102) return  52 - (pick -  65) * (12  / 37);   // 52->40, cliff now at 102/103
+  if (pick <= 128) return  32 - (pick - 103) * (6   / 25);   // 32->26, gap=8 from the tail
   if (pick <= 160) return  20 - (pick - 129) * (6   / 31);   // 20->14, gap=6 from R4
   if (pick <= 192) return  10 - (pick - 161) * (4   / 31);   // 10->6,  gap=4 from R5
-  if (pick <= 256) return   4 - (pick - 193) * (3   / 63);   //  4->1,  gap=2 from R6
+  if (pick <= 262) return   4 - (pick - 193) * (3   / 69);   //  4->1,  gap=2 from R6
   return 0; // UDFA
 }
 
@@ -565,12 +584,23 @@ function hashStr(s: string): number {
  * Session E: Y = pickToY(rank). X = column center.
  * Session G: Extended with projectedY, actualY, pickValueDelta for animation.
  * Session H:
- *   - Unranked players (rank 0/null) NOW INCLUDED. They sit in the UDFA zone
- *     in Projected view and animate to their actual pick slot (or stay in UDFA)
+ *   - Unranked players (rank 0/null) NOW INCLUDED. They sit in the OUTSIDE zone
+ *     in Projected view and animate to their actual pick slot (or stay in the zone)
  *     in Drafted view.
  *   - pickValueDelta is now raw pick delta |pick_drafted - rank| (not curve-weighted).
- *     Undrafted = (257 - rank) for ranked players; 32 for unranked-but-drafted.
+ *     Undrafted = (MAX_PICK+1 - rank) for ranked players; 32 for unranked-but-drafted.
  *   - pick_value_curve param retained for future Results view; not used for sizing.
+ *
+ * Act 1 Resolution §2.2 (2026-08-04):
+ *   - The DEEP BOARD (a real consensus rank past the last pick, rank > MAX_PICK) now
+ *     renders IN the OUTSIDE zone alongside the unranked, via the SAME code path —
+ *     identical radius, fill, stroke, opacity and jitter. Nothing visually separates
+ *     them; the hover carries the difference (a deep-board player keeps his real
+ *     "Consensus #N", an unranked one reads "OUTSIDE THE PUBLISHED BOARD").
+ *   - The Sprint 3 Piece-6 clamp shelf is RETIRED on BOTH branches. Under ruling (a)
+ *     (MAX_PICK 262) no drafted player can overflow the field, so the actual branch
+ *     had nothing left to shelf; the projected branch's overflow now belongs in the
+ *     zone rather than piled on the field's bottom line.
  */
 export function computeAllDotPositions(
   players: Player[],
@@ -583,23 +613,6 @@ export function computeAllDotPositions(
   const result: DotPosition[] = [];
   const DOT_R = 6;
 
-  // Sprint 3, Piece 6 — clamped-dot "shelf" jitter. Dots whose rank (Act 1) or pick (Act 2)
-  // exceed the pick-256 field bottom get pinned by the Math.min clamp below to ONE line,
-  // forming an opaque horizontal pile (measured worst column ≈20 dots; classes 2024–26).
-  // ONLY those clamped dots spread UPWARD off the line into a legible shelf (never below it —
-  // the dashed UDFA boundary stays clean) + get a modest extra horizontal nudge. Seeded by
-  // player_id (stable across renders/classes — no reflow, no Math.random; reuses the Act-3
-  // strip / UDFA-gutter deterministic-spread precedent). Hover legibility ONLY: no ranking
-  // implication, no opacity/size/shape change. Unclamped dots stay byte-identical.
-  const CLAMP_SHELF_BAND_PX = 22;   // vertical spread up from the clamp line (0 → −22px)
-  // Horizontal shelf spread is column-relative (Sprint 3 accept): ±7px was too tight for
-  // ~20-dot piles. Spread across ~±30% of the dot's own column width, clamped to a sane
-  // px window so narrow/wide columns both stay legible without escaping the lane.
-  const CLAMP_SHELF_X_FRAC   = 0.30; // half-range as a fraction of column width
-  const CLAMP_SHELF_X_MIN_PX = 12;   // floor on the half-range (narrow columns)
-  const CLAMP_SHELF_X_MAX_PX = 60;   // ceiling on the half-range (wide columns)
-  const clampBottomY = layout.margin.top + layout.totalChartH - DOT_R;
-
   visiblePositions.forEach(pos => {
     const colX = colXMap[pos];
     const cW   = colWidths[pos];
@@ -609,6 +622,10 @@ export function computeAllDotPositions(
       .filter(p => p.pos === pos)
       .forEach(player => {
         const isRanked = (player.rank ?? 0) > 0;
+        // ON THE BOARD = carries a consensus rank that lands ON the field. A rank past
+        // the last pick is a real number but not a field position — it belongs in the
+        // OUTSIDE zone with the unranked (§2.2).
+        const onBoard  = isRanked && player.rank! <= MAX_PICK;
 
         // Stable hash seed: ranked -> rank integer, unranked -> hash of Airtable ID.
         const hashSeed = isRanked ? player.rank! : hashStr(player.player_id);
@@ -623,45 +640,23 @@ export function computeAllDotPositions(
         // Vertical hash for UDFA zone placement.
         const hV = ((hashSeed * 1234567891) >>> 0) / 4294967295;
 
-        // Clamped-dot shelf offsets (Piece 6) — seeded by player_id, independent of the
-        // rank-seeded column jitter above so the shelf spreads even when ranks are adjacent.
-        const shelfSeed = hashStr(player.player_id);
-        const sV = ((shelfSeed * 2246822519) >>> 0) / 4294967295;             // 0..1 → lift up
-        const sX = ((shelfSeed * 3266489917 + 374761393) >>> 0) / 4294967295; // 0..1 → nudge X
-        const shelfUp = sV * CLAMP_SHELF_BAND_PX;        // subtracted → 0..−BAND (upward only)
-        const shelfHalfX = Math.max(
-          CLAMP_SHELF_X_MIN_PX,
-          Math.min(CLAMP_SHELF_X_MAX_PX, cW * CLAMP_SHELF_X_FRAC),
-        );
-        const shelfX  = (sX - 0.5) * 2 * shelfHalfX;     // ±half-range within the column
-
         // ── Projected Y ──────────────────────────────────────────────────
-        // Ranked: sits at rank position on the continuous axis (top-clamped by DOT_R). When
-        // rank exceeds the pick-256 field bottom the raw Y overflows the clamp → shelf it up.
-        // Unranked: sits in UDFA zone (Derek didn't project them).
-        const projRaw = isRanked ? pickToY(player.rank!) : 0;
-        const projClamped = isRanked && projRaw > clampBottomY;
-        const projectedY = !isRanked
+        // On the board: sits at rank position on the continuous axis (top-clamped by DOT_R).
+        // Off the board — unranked (Derek didn't project them) OR ranked past the last pick
+        // (the deep board) — sits in the OUTSIDE zone. ONE code path, so the two kinds of
+        // "outside" are visually indistinguishable by construction (§2.2).
+        const projectedY = !onBoard
           ? udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70)
-          : projClamped
-            ? clampBottomY - shelfUp
-            : Math.max(layout.margin.top + DOT_R, projRaw);
+          : Math.max(layout.margin.top + DOT_R, pickToY(player.rank!));
 
         // ── Actual Y ─────────────────────────────────────────────────────
-        // Drafted: animates to actual pick slot (shelf when the pick exceeds pick-256).
-        // Undrafted: stays in UDFA zone (same vertical hash -> stable position).
+        // Drafted: animates to actual pick slot. Under ruling (a) every real pick
+        // (through 262) lands ON the field — no clamp, no shelf.
+        // Undrafted: stays in the OUTSIDE zone (same vertical hash -> stable position).
         const hasPick = player.pick_drafted != null && player.pick_drafted > 0;
-        const actRaw = hasPick ? pickToY(player.pick_drafted!) : 0;
-        const actClamped = hasPick && actRaw > clampBottomY;
         const actualY = !hasPick
           ? udfaCenterY + (hV - 0.5) * (udfaZoneH * 0.70)
-          : actClamped
-            ? clampBottomY - shelfUp
-            : Math.max(layout.margin.top + DOT_R, actRaw);
-
-        // A dot piled in EITHER act shares one x (x doesn't animate) → give it the extra
-        // horizontal nudge; dots clamped in neither act keep a byte-identical x.
-        const clampShelfX = (projClamped || actClamped) ? shelfX : 0;
+          : Math.max(layout.margin.top + DOT_R, pickToY(player.pick_drafted!));
 
         // ── Tier-adjusted delta for dot-size encoding ─────────────────────────────────
         // Uses a tier-compressed scale so within-round movement stays small
@@ -688,7 +683,7 @@ export function computeAllDotPositions(
 
         result.push({
           player,
-          x: colX + cW / 2 + jitter + clampShelfX,
+          x: colX + cW / 2 + jitter,
           y: projectedY,
           projectedY,
           actualY,

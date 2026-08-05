@@ -729,7 +729,9 @@ export default function Scoreboard({
       // ordinal (180TH / 3RD) matches the caption register; imputed-unranked reaches → UNRANKED.
       const word = entry.beat === "reach" ? "REACH" : "STEAL";
       const lead = entry.beatRank === 1 ? `BIGGEST ${word}` : word;
-      const rankLine = p.rank != null ? `RANKED ${ordinal(p.rank).toUpperCase()}` : "UNRANKED";
+      // §3.3: "OFF THE BOARD" — this line only ever renders for a blank-rank player, for
+      // whom it is strictly true; "UNRANKED" implied a judgment the boards never made.
+      const rankLine = p.rank != null ? `RANKED ${ordinal(p.rank).toUpperCase()}` : "OFF THE BOARD";
       caption = (
         <>
           {heroLine(lead, null)}

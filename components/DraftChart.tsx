@@ -41,7 +41,7 @@ import PlayerCard from "@/components/PlayerCard";
 import PlayerSearch from "@/components/PlayerSearch";
 import TierAxisLabels from "@/components/chart/TierAxisLabels";
 import PositionColumns from "@/components/chart/PositionColumns";
-import RoundZones from "@/components/chart/RoundZones";
+import DayZones from "@/components/chart/DayZones";
 import PlayerDots from "@/components/chart/PlayerDots";
 import UDFAZone from "@/components/chart/UDFAZone";
 import HowToReadModal from "@/components/HowToReadModal";
@@ -52,7 +52,7 @@ import Sidebar, {
 import MobileTopBar from "@/components/mobile/MobileTopBar";
 import MobileHandleBar from "@/components/mobile/MobileHandleBar";
 import MobilePlayerLabels from "@/components/chart/MobilePlayerLabels";
-import MobileRoundTicks from "@/components/chart/MobileRoundTicks";
+import MobileDayTicks from "@/components/chart/MobileDayTicks";
 
 
 // ── Legacy CSS-transition stagger window ────────────────────────────────────────
@@ -440,13 +440,21 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
     .filter(Boolean)
     .join(" · ");
 
-  // Block 2 — THE BOARD. Hero = positional rank (ivory). Unranked prospect (no
-  // consensus rank → sits in the UDFA zone of the projection board) gets a plain
-  // designation and no "Ranked:" line.
+  // Block 2 — THE BOARD. Hero = positional rank (ivory). A player with no consensus
+  // rank sits in the OUTSIDE zone of the projection board and gets a plain designation
+  // and no "Ranked:" line. §3.1: "UNRANKED PROSPECT" said the boards had judged him and
+  // found nothing; they simply never listed him. The board's edge is the board's, not
+  // the player's.
+  //
+  // Wrap: the hero does not fit one line at 250px, and §3.1 pins the break AFTER
+  // "OUTSIDE THE" (the natural break lands after "PUBLISHED"). A non-breaking space
+  // between PUBLISHED and BOARD is what moves it — the only remaining break points are
+  // the two real spaces, so the line fills to "OUTSIDE THE" and wraps. No new styles,
+  // and if the card ever widens enough the line simply stops wrapping.
   const ranked = posRank != null;
   const hero = ranked
     ? `${ordinal(posRank).toUpperCase()}-RANKED ${player.pos}`
-    : "UNRANKED PROSPECT";
+    : "OUTSIDE THE PUBLISHED BOARD";
 
   // def line: "Ranked: Round 1 · Pick 10" (rd = projected round, rank = consensus
   // overall projected rank, shown as the projected pick). "Ranked:" sets up Act 2's
@@ -460,6 +468,16 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
   // (an unranked prospect has no number to credit). NEVER the raw consensus_source
   // string: prefix-match and render the published short form. The Jack form is
   // deliberately trimmed vs. the About card so it holds one line at 250px.
+  // Fore/eval split (§4.2) — the consensus is two different questions averaged together:
+  // forecasters predict where a player WILL go, evaluators rank how good he IS. When the
+  // sheet carries both, show them; when either is missing the row is simply absent (no
+  // placeholder, no dash). Coverage is uneven by class — 2017/18/20/21 and 2024–26 have
+  // it, 2016/2019/2022/2023 do not, and that asymmetry is accepted.
+  const foreEvalLine =
+    player.forecaster_rank != null && player.evaluator_rank != null
+      ? `Forecasters #${player.forecaster_rank} · Evaluators #${player.evaluator_rank}`
+      : null;
+
   const src = ranked ? player.consensus_source : null;
   const creditLine =
     src?.startsWith("Wide Left") ? "Consensus: Wide Left (Arif Hasan)" :
@@ -479,6 +497,8 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
           <div style={{ fontSize: 9, letterSpacing: 0.6, color: "rgba(245,240,232,0.4)" }}>THE BOARD</div>
           <div style={{ fontWeight: 700, fontSize: 12, marginTop: 2, color: ivory }}>{hero}</div>
           {defLine && <div style={{ fontSize: 11, color: dim, marginTop: 1 }}>{defLine}</div>}
+          {/* Fore/eval row — same element + typography as the Ranked row above it. */}
+          {foreEvalLine && <div style={{ fontSize: 11, color: dim, marginTop: 1 }}>{foreEvalLine}</div>}
           {creditLine && (
             <div style={{ fontSize: 9.5, color: "rgba(245,240,232,0.45)", marginTop: 4 }}>{creditLine}</div>
           )}
@@ -533,10 +553,12 @@ function Act2HoverCard({ player, x, y, maxPick }: TooltipState & { maxPick: numb
     move === "STEAL"  ? "STEAL" :
                         "PICKED IN EXPECTED RANGE";
 
-  // Row values. "Unranked" is shown literally — the imputed rank only drove the hero.
+  // Row values. The no-rank case is shown literally — the imputed rank only drove the
+  // hero. §3.2: same correction as the Act 1 hero — he was outside the published board,
+  // not ranked-and-dismissed.
   const rankedVal = rankReal != null
     ? [player.rd != null ? `Round ${player.rd}` : null, `Pick ${rankReal}`].filter(Boolean).join(" · ")
-    : "Unranked";
+    : "Outside the published board";
 
   const selectedVal = isUDFA
     ? `Undrafted${player.team_drafted ? ` (signed by ${player.team_drafted})` : ""}`
@@ -2912,9 +2934,12 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
               </defs>
               {/* Brief-f parchment unification: BOTH the subtle tier-tint <TierBands> AND
                   the legacy gold <TierArrows> quality-arrow (tierPillGradient) are REMOVED —
-                  orphaned in Acts 1/2 (Y = rounds, not tiers). Rounds come from RoundZones,
-                  tier labels from TierAxisLabels; nothing load-bearing lost. No replacement
-                  spine this pass (separate decision). */}
+                  orphaned in Acts 1/2 (Y = rounds, not tiers). Day furniture comes from
+                  DayZones, tier labels from TierAxisLabels; nothing load-bearing lost. No
+                  replacement spine this pass (separate decision). */}
+              {/* DayZones is the FIRST child of the chart group (Act 1 Resolution §1.3): its
+                  three background tints must sit beneath the grid, the labels and every dot. */}
+              <DayZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} viewMode={viewMode} players={players} />
               <TierAxisLabels
                 key={`tier-labels-${selectedYear}`}
                 layout={layout}
@@ -2931,7 +2956,6 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 /* onHowToReadClick hidden 2026-06-22 — stale content, restore when help is rebuilt */
                 linkYear={selectedYear}
               />
-              <RoundZones layout={layout} mobileZoomedX={mobileZoomedX} mobileZoomedViewBoxW={mobileZoomedViewBoxW} chartMode={chartMode} />
               <UDFAZone
                 layout={layout}
                 viewMode={viewMode}
@@ -2980,7 +3004,7 @@ export default function DraftChart({ year = 2026, initialPosition, initialStepId
                 />
               )}
               {isZoomedMobile && (
-                <MobileRoundTicks
+                <MobileDayTicks
                   layout={layout}
                   viewBoxX={mobileVBX}
                   viewBoxW={mobileZoomedViewBoxW}

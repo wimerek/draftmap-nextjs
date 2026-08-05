@@ -143,6 +143,13 @@ function Act1Body() {
       <KeyRow sample={<span className="sb-key-swatch sb-key-swatch--dot" />}>
         <span className="sb-key-term">Color</span>: their college&rsquo;s team colors.
       </KeyRow>
+      {/* Zone reason (Act 1 Resolution §3.5) — the band below the field holds two
+          different kinds of "not on the board", and only the key can say which.
+          Reuses .sb-key-reachsteal verbatim (the existing single-line caption row);
+          no new CSS. Last entry in the act's block. */}
+      <p className="sb-key-reachsteal">
+        OUTSIDE &mdash; ranked past the draft, or outside the published board
+      </p>
     </>
   );
 }
@@ -191,6 +198,9 @@ function Act2Body({
         <span className="sb-key-term">Hint</span>: gaps between groups of picks mark where
         teams saw value drop off.
       </div>
+      {/* Zone reason (§3.5) — same row, act-aware copy. By Act 2 the band means exactly
+          one thing, and it is the plainest word available. */}
+      <p className="sb-key-reachsteal">OUTSIDE &mdash; undrafted</p>
     </>
   );
 }

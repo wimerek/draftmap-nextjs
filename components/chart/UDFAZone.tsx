@@ -2,10 +2,25 @@
 /**
  * components/chart/UDFAZone.tsx
  *
- * Session H: UDFA zone now always visible (not just in Drafted view).
+ * Session H: zone now always visible (not just in Drafted view).
  * - In Projected view: subtle/faded treatment so unranked players have a home.
  * - In Drafted view: full opacity — undrafted players land here.
  * Props: visible prop removed; always renders. Opacity driven by viewMode.
+ *
+ * Act 1 Resolution §2.1 (2026-08-04): the Act 1/2 eyebrow reads "OUTSIDE", not "UDFA",
+ * and it is STATIC across the act flip — the zone means one thing the whole way through
+ * ("not on the field"), and it holds three different populations to get there: the
+ * unranked, the deep board (ranked past the last pick), and the undrafted. "UDFA" was
+ * only ever true for the third, and only in Act 2. The 'Undrafted Free Agent' hover
+ * caption is DELETED in these modes with no replacement — the key carries the reason
+ * now, and a caption here would editorialize. Geometry, fill, border and dot treatment
+ * are all unchanged. Production/career modes ('WASHED OUT') are untouched.
+ *
+ * Amendment 2026-08-05 (§B): in Act 1/2 the OUTSIDE eyebrow moves OUT of the zone and
+ * into the left rail, matching the DayZones rail exactly (Oswald 700 · 14px · #5A6E7E ·
+ * 2.5 tracking · x = margin.left − 50 · y = zone top + 18). In-zone it sat under the
+ * zone's own dot cloud and was unreadable; in the rail it closes the wayfinding system
+ * DAY 1 · DAY 2 · DAY 3 · OUTSIDE. No caption. It stays inside the fading <g>.
  */
 import { useState } from "react";
 import type { ChartLayout } from "@/lib/chartMath";
@@ -27,7 +42,7 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
   const { margin, chartW, udfaZoneY, udfaZoneH } = layout;
 
   const isProductionMode = chartMode === 'player-production' || chartMode === 'career';
-  const zoneLabel = isProductionMode ? 'WASHED OUT' : 'UDFA';
+  const zoneLabel = isProductionMode ? 'WASHED OUT' : 'OUTSIDE';
 
   if (isZoomedMobile) {
     const cx = viewBoxX !== undefined && viewBoxW !== undefined
@@ -79,16 +94,32 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
         strokeWidth={isProductionMode ? 1.5 : 1}
         strokeDasharray={isProductionMode ? undefined : '6,5'}
       />
-      {/* Zone label */}
-      <text
-        x={labelX} y={labelY}
-        fontSize={isProductionMode ? 10 : 12.5} fontWeight={700}
-        fill={isProductionMode ? '#334155' : 'rgba(11,34,57,0.68)'}
-        letterSpacing={1.5}
-        textAnchor="start"
-      >
-        {zoneLabel}
-      </text>
+      {/* Zone label. Act 1/2: OUTSIDE joins the left rail (DAY 1 · DAY 2 · DAY 3 ·
+          OUTSIDE reads as one system) — in-zone it drowned under the dot cloud. It
+          stays inside this <g>, so it still rides the zone's viewMode fade.
+          Production/career ('WASHED OUT' + stat) keeps its in-zone placement. */}
+      {isProductionMode ? (
+        <text
+          x={labelX} y={labelY}
+          fontSize={10} fontWeight={700}
+          fill="#334155"
+          letterSpacing={1.5}
+          textAnchor="start"
+        >
+          {zoneLabel}
+        </text>
+      ) : (
+        <text
+          x={margin.left - 50} y={udfaZoneY + 18}
+          fontSize={14} fontWeight={700}
+          fontFamily="Oswald, sans-serif"
+          fill="#5A6E7E"
+          letterSpacing={2.5}
+          textAnchor="middle"
+        >
+          {zoneLabel}
+        </text>
+      )}
       {/* Zone stat (production mode only) */}
       {isProductionMode && washedOutStat && (
         <text
@@ -101,8 +132,9 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
           {washedOutStat.pct}% · {washedOutStat.count} players
         </text>
       )}
-      {/* Hover tooltip */}
-      {hover && (
+      {/* Hover tooltip — production/career modes ONLY. The Act 1/2 'Undrafted Free
+          Agent' caption was deleted in §2.1 (no replacement sentence). */}
+      {hover && isProductionMode && (
         <g>
           <rect
             x={labelX} y={udfaZoneY + 4}
@@ -115,7 +147,7 @@ export default function UDFAZone({ layout, viewMode, chartMode, isZoomedMobile =
             x={labelX + 8} y={udfaZoneY + 18}
             fontSize={10} fill="#F5F0E8"
           >
-            {isProductionMode ? 'No longer in the league' : 'Undrafted Free Agent'}
+            No longer in the league
           </text>
         </g>
       )}
