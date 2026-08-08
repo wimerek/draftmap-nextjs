@@ -471,8 +471,8 @@ function Act1HoverCard({ player, x, y, posRank }: TooltipState & { posRank: numb
   // Fore/eval split (§4.2) — the consensus is two different questions averaged together:
   // forecasters predict where a player WILL go, evaluators rank how good he IS. When the
   // sheet carries both, show them; when either is missing the row is simply absent (no
-  // placeholder, no dash). Coverage is uneven by class — 2017/18/20/21 and 2024–26 have
-  // it, 2016/2019/2022/2023 do not, and that asymmetry is accepted.
+  // placeholder, no dash). Coverage is uneven by class — 2017/18/20/21/22 and 2024–26 have
+  // it, 2016/2019/2023 do not, and that asymmetry is accepted.
   const foreEvalLine =
     player.forecaster_rank != null && player.evaluator_rank != null
       ? `Forecasters #${player.forecaster_rank} · Evaluators #${player.evaluator_rank}`

@@ -632,7 +632,7 @@ function ConsensusSourcesNote() {
           </a>
         </p>
         <p className="mt-1" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78" }}>
-          2016&ndash;18 &middot; 2020&ndash;21 &middot; 2024&ndash;26
+          2016&ndash;18 &middot; 2020&ndash;22 &middot; 2024&ndash;26
         </p>
       </div>
 
@@ -650,7 +650,7 @@ function ConsensusSourcesNote() {
           </a>
         </p>
         <p className="mt-1" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, color: "#5a6b78" }}>
-          2019 &middot; 2022 &middot; 2023
+          2019 &middot; 2023
         </p>
       </div>
 
