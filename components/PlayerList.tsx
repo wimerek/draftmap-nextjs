@@ -23,6 +23,8 @@ import { cardPositionalRangeData } from "@/lib/chartConstants";
 
 interface PlayerListProps {
   year?: number;
+  /** player_id → canonical all-years slug, from lib/playerSlugIndex (server-resolved). */
+  slugByPid: Record<string, string>;
 }
 
 type SortKey =
@@ -93,7 +95,7 @@ function tierColor(tier: Tier): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function PlayerList({ year = 2026 }: PlayerListProps) {
+export default function PlayerList({ year = 2026, slugByPid }: PlayerListProps) {
   const [players,    setPlayers]    = useState<Player[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
@@ -315,7 +317,7 @@ export default function PlayerList({ year = 2026 }: PlayerListProps) {
                   </td>
                   {/* Player name — sticky */}
                   <td style={{ ...tdBase, position: "sticky", left: 46, background: rowBg, fontWeight: 700, zIndex: 1 }}>
-                    <Link href={`/players/${generateBaseSlug(p.name)}`} style={{ color: "inherit", textDecoration: "none" }}>
+                    <Link href={`/players/${slugByPid[p.player_id] ?? generateBaseSlug(p.name)}`} style={{ color: "inherit", textDecoration: "none" }}>
                       {p.name}
                     </Link>
                   </td>

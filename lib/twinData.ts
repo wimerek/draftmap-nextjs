@@ -18,7 +18,6 @@
  */
 
 import type { Player } from './sheets';
-import { buildSlugMap } from './slugs';
 
 export interface PosPlayer {
   player: Player;
@@ -26,7 +25,7 @@ export interface PosPlayer {
   posRank: number | null;
   /** pick_drafted - rank. Null unless both pick and rank are present. */
   delta: number | null;
-  /** Resolved /players/[slug] slug for this player (collision-aware within the class). */
+  /** Canonical all-years slug, resolved from `lib/playerSlugIndex`. */
   slug: string;
 }
 
@@ -77,14 +76,18 @@ export function posRankMap(classPlayers: Player[]): Map<string, number> {
  * Enrich one position's slice of a draft class.
  *
  * @param classPlayers ALL players in the draft class (every position) — needed for
- *                     a collision-aware slug map and the class-wide totalPicks.
+ *                     the class-wide totalPicks and teamPicks.
  * @param position     canonical position token (e.g. "WR").
+ * @param slugByPid    canonical all-years slug map (lib/playerSlugIndex). A map built
+ *                     from this class alone emits base slugs for names that collide
+ *                     across classes, which the live route then 404s.
  */
-export function prepPositionClass(classPlayers: Player[], position: string): PreppedClass {
-  // Slug map over the whole class so within-class name collisions resolve the same
-  // way the live /players/[slug] route does for this cohort.
-  const slugMap = buildSlugMap(classPlayers);
-  const slugFor = (p: Player) => slugMap.get(p.player_id) ?? '';
+export function prepPositionClass(
+  classPlayers: Player[],
+  position: string,
+  slugByPid: Map<string, string>,
+): PreppedClass {
+  const slugFor = (p: Player) => slugByPid.get(p.player_id) ?? '';
 
   // Class-wide max pick (compensatory picks vary by year — always compute).
   const totalPicks = classPlayers.reduce(

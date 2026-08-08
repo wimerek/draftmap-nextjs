@@ -360,6 +360,19 @@ function mapRow(row: SheetsRawRow): Player {
 
 // ── Main fetch function ───────────────────────────────────────────────────────
 
+async function fetchPlayersCsv(url: string): Promise<{ csv: string; rows: SheetsRawRow[] }> {
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) {
+    throw new Error(`Google Sheets fetch failed: ${res.status} ${res.statusText}\nURL: ${url}`);
+  }
+  const csv = await res.text();
+  return { csv, rows: parseCSV(csv) };
+}
+
+function looksLikeThePlayersTab(rows: SheetsRawRow[]): boolean {
+  return rows.length > 0 && 'draft_year' in rows[0] && 'player_id' in rows[0];
+}
+
 /** Uncached compute: fetch the players CSV and parse to Player[] for one year. */
 async function computePlayers(year: number): Promise<Player[]> {
   const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
@@ -373,19 +386,26 @@ async function computePlayers(year: number): Promise<Player[]> {
   // Public CSV export URL — sheet must be shared "Anyone with the link → Viewer"
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=players`;
 
-  const res = await fetch(url, {
-    // ISR: cache for 5 minutes. Route Handlers override for Live Draft (60s).
-    next: { revalidate: 300 },
-  });
+  // ISR: cache for 5 minutes (inside fetchPlayersCsv). Route Handlers override
+  // for Live Draft (60s). One retry absorbs a transient gviz blip — a throttled
+  // response comes back HTTP 200 with a non-CSV body, which would otherwise parse
+  // to garbage headers, filter to zero rows, and get cached as an empty class.
+  let attempt = await fetchPlayersCsv(url).catch((e: unknown) => e as Error);
+  if (attempt instanceof Error || !looksLikeThePlayersTab(attempt.rows)) {
+    await new Promise(r => setTimeout(r, 600));
+    attempt = await fetchPlayersCsv(url).catch((e: unknown) => e as Error);
+  }
+  if (attempt instanceof Error) throw attempt;
 
-  if (!res.ok) {
+  const { csv, rows } = attempt;
+
+  if (!looksLikeThePlayersTab(rows)) {
     throw new Error(
-      `Google Sheets fetch failed: ${res.status} ${res.statusText}\nURL: ${url}`
+      `[computePlayers] ${year}: CSV did not parse as the players tab ` +
+      `(${rows.length} rows, ${csv.length} bytes, headers: ${Object.keys(rows[0] ?? {}).slice(0, 5).join('|')}) ` +
+      `— failed read, not an empty class`,
     );
   }
-
-  const csv = await res.text();
-  const rows = parseCSV(csv);
 
   // Filter to the requested year, map to Player objects, drop rows with no name
   return rows

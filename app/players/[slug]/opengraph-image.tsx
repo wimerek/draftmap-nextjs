@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
-import { fetchPlayers, VALID_DRAFT_YEARS, type Player } from '@/lib/sheets'
-import { buildSlugMap } from '@/lib/slugs'
+import { fetchPlayers, type Player } from '@/lib/sheets'
+import { getPlayerSlugIndex } from '@/lib/playerSlugIndex'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -41,17 +41,11 @@ const DOTS = [
 ]
 
 async function lookupPlayer(slug: string): Promise<Player | null> {
-  const all = await Promise.all(VALID_DRAFT_YEARS.map(y => fetchPlayers(y)))
-  const allPlayers = all.flat()
-  const slugMap = buildSlugMap(allPlayers)
-  const byId = new Map(allPlayers.map(p => [p.player_id, p]))
-  let found: Player | null = null
-  slugMap.forEach((s, pid) => {
-    if (s === slug && found === null) {
-      found = byId.get(pid) ?? null
-    }
-  })
-  return found
+  const { bySlug } = await getPlayerSlugIndex()
+  const hit = bySlug.get(slug)
+  if (!hit) return null
+  const yearPlayers = await fetchPlayers(hit.draft_year)
+  return yearPlayers.find(p => p.player_id === hit.player_id) ?? null
 }
 
 export default async function Image({ params }: { params: { slug: string } }) {

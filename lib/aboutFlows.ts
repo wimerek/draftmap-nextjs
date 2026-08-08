@@ -131,7 +131,8 @@ const getCachedAboutFlows = unstable_cache(
 export async function fetchAboutFlows(): Promise<AboutFlows> {
   try {
     return await getCachedAboutFlows();
-  } catch {
+  } catch (err) {
+    console.error('[aboutFlows] flow computation failed — Sankey rendering empty:', err);
     return {
       all: emptyMatrix(),
       y2018: emptyMatrix(),

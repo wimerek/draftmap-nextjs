@@ -19,6 +19,7 @@ import {
 } from '@/lib/twinConfig';
 import { getClassMaturity } from '@/lib/classMaturity';
 import { prepPositionClass } from '@/lib/twinData';
+import { getPlayerSlugIndex } from '@/lib/playerSlugIndex';
 import { computeCapsules, type SpendBaselineEntry } from '@/lib/capsules';
 import { buildClassTable, getTableColumns } from '@/lib/classTable';
 import { buildFaqJsonLd, buildDatasetJsonLd, buildBreadcrumbJsonLd } from '@/lib/twinJsonLd';
@@ -49,7 +50,8 @@ async function loadTwin(yearStr: string, positionSlug: string) {
   if (!position) return null;
 
   const players = await fetchPlayers(year);
-  const prep = prepPositionClass(players, position);
+  const { byPid } = await getPlayerSlugIndex();
+  const prep = prepPositionClass(players, position, byPid);
   // Clamp to draft-day unless the year has been activated for outcome content
   // (August). Prevents unbuilt Usage/Zone/Verdict columns + premature Dataset
   // citation on historical pages that ship now only for indexing age.
