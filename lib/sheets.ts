@@ -453,6 +453,8 @@ export interface SearchIndexEntry {
   name: string;
   pos: string;
   draft_year: number;
+  rd: number | null;
+  rd_drafted: number | null;
   school: string | null;
   pick_drafted: number | null;
   rank: number | null;
@@ -494,6 +496,8 @@ export async function computeSearchIndex(): Promise<SearchIndexEntry[]> {
         name,
         pos: pos === "DL" ? "DT" : pos,
         draft_year,
+        rd: toInt(row.rd),
+        rd_drafted,
         school: toStr(row.school),
         pick_drafted,
         rank: toInt(row.rank),
