@@ -199,7 +199,9 @@ export default async function Image({ params }: { params: { slug: string } }) {
           <div style={{ color: 'white', fontSize: '28px' }}>
             {player.drafted
               ? `${player.team_drafted} · Pick #${player.pick_drafted}`
-              : `Projected Rank #${player.rank}`}
+              : player.rank
+                ? `Projected Rank #${player.rank}`
+                : 'Unranked'}
           </div>
         </div>
 
