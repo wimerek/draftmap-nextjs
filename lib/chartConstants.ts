@@ -477,7 +477,7 @@ const _TEAMS: Array<[string[], string, string]> = [
   [['Denver Broncos',          'DEN', 'Denver'],                                        '#FB4F14', '#002244'],
   [['Kansas City Chiefs',      'KAN', 'KC', 'KCC', 'Kansas City'],                     '#E31837', '#FFB81C'],
   [['Las Vegas Raiders',       'LVR', 'LV', 'OAK', 'RAI', 'Las Vegas'],               '#A5ACAF', '#000000'],
-  [['Los Angeles Chargers',    'LAC', 'LA Chargers'],                                   '#0080C6', '#FFC20E'],
+  [['Los Angeles Chargers',    'LAC', 'SDG', 'SD', 'San Diego', 'LA Chargers'],         '#0080C6', '#FFC20E'],
   // NFC East
   [['Dallas Cowboys',          'DAL', 'Dallas'],                                        '#003594', '#869397'],
   [['New York Giants',         'NYG', 'NY Giants'],                                     '#0B2265', '#A71930'],

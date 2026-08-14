@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { fetchPlayers, fetchSearchIndex, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets'
 import { getPlayerSlugIndex } from '@/lib/playerSlugIndex'
+import { resolveTeamName } from '@/lib/chartConstants'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -207,7 +208,7 @@ export default async function Image({ params }: { params: { slug: string } }) {
           {/* Draft result or projected rank */}
           <div style={{ color: 'white', fontSize: '28px' }}>
             {player.drafted
-              ? `${player.team_drafted} · Pick #${player.pick_drafted}`
+              ? `${resolveTeamName(player.team_drafted)} · Pick #${player.pick_drafted}`
               : player.rank
                 ? `Projected Rank #${player.rank}`
                 : 'Unranked'}

@@ -101,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : `Consensus pre-draft rankings versus actual ${year} NFL Draft results for every ${position}.`;
 
   return {
-    title: `${year} NFL Draft ${position} Class | DraftMap`,
+    title: `${year} NFL Draft ${position} Class`,
     description,
     alternates: {
       canonical: `${APEX}/draft/${year}/${positionSlug}`,

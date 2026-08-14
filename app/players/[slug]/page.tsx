@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { fetchPlayers, fetchOutcomeScores, CURRENT_DRAFT_YEAR, type Player } from '@/lib/sheets';
 import { generateBaseSlug } from '@/lib/slugs';
 import { getPlayerSlugIndex } from '@/lib/playerSlugIndex';
+import { resolveTeamName } from '@/lib/chartConstants';
 import PlayerCardWrapper from '@/components/PlayerCardWrapper';
 
 // Player profile data changes rarely; live-draft freshness is handled by the
@@ -62,12 +63,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const slug = params.slug;
 
+  // Blank school/rd/rank are common in the historical classes (31% of rows carry at
+  // least one), and template literals print them as the string "null". Build the
+  // variable parts once so all three descriptions stay in sync.
+  const schoolPart = player.school ? `, ${player.school}` : '';
+  const status = player.drafted
+    ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${resolveTeamName(player.team_drafted)}.`
+    : player.rank
+      ? `Projected Round ${player.rd}, Rank #${player.rank}.`
+      : 'Unranked.';
+
   return {
-    title: `${player.name} NFL Draft Profile | DraftMap`,
-    description: `${player.name}: ${player.pos}, ${player.school}. Projected Round ${player.rd}, Rank #${player.rank}. View measurables and draft analysis on DraftMap.`,
+    title: `${player.name} NFL Draft Profile`,
+    description: `${player.name}: ${player.pos}${schoolPart}. ${status} View measurables and draft analysis on DraftMap.`,
     openGraph: {
       title: `${player.name} NFL Draft Profile | DraftMap`,
-      description: `${player.name}: ${player.pos}, ${player.school}. ${player.rd_drafted ? `Drafted Round ${player.rd_drafted}, Pick ${player.pick_drafted} by ${player.team_drafted}.` : `Projected Round ${player.rd}.`}`,
+      description: `${player.name}: ${player.pos}${schoolPart}. ${status}`,
       url: `https://draftmap.app/players/${slug}`,
       siteName: 'DraftMap',
       type: 'profile',
@@ -75,7 +86,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: 'summary',
       title: `${player.name} NFL Draft Profile | DraftMap`,
-      description: `${player.name}: ${player.pos}, ${player.school}.`,
+      description: `${player.name}: ${player.pos}${schoolPart}.`,
     },
     alternates: {
       canonical: `https://draftmap.app/players/${slug}`,

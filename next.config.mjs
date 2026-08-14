@@ -24,6 +24,15 @@ const nextConfig = {
         destination: '/draft/2022',
         permanent: false,
       },
+      // Collision slugs. buildSlugMap suffixes BOTH players when a base name collides,
+      // so the bare slug resolves to nobody and 404s. Rule: send it to whichever player
+      // was drafted higher (undrafted last) — data-driven, no editorial call. 308 because
+      // the assignment is structural and stable; unlike /draft above, these do not rotate.
+      // JS literal, can't import the slug map — re-check when a class is added.
+      { source: '/players/justin-jefferson', destination: '/players/justin-jefferson-wr', permanent: true },
+      { source: '/players/cam-smith',        destination: '/players/cam-smith-cb',        permanent: true },
+      { source: '/players/nick-martin',      destination: '/players/nick-martin-iol',     permanent: true },
+      { source: '/players/marcus-allen',     destination: '/players/marcus-allen-s',      permanent: true },
     ];
   },
 };
