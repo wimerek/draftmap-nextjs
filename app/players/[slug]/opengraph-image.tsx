@@ -115,7 +115,16 @@ export default async function Image({ params }: { params: { slug: string } }) {
 
   const displayRd = player.rd_drafted ?? player.rd
   const roundColor = getRoundColor(displayRd)
-  const roundLabel = displayRd ? `ROUND ${displayRd}` : 'UNDRAFTED'
+  // `rd` is the PROJECTED round derived from the consensus board; `rd_drafted` is what
+  // actually happened. Falling back from one to the other unlabelled put 1,006 undrafted
+  // players behind a bare `ROUND 7` pill in outcome colours — a projection rendered as a
+  // fact, on the one surface that travels with no surrounding context. Qualify it instead
+  // of erasing it: the pre-draft current class is legitimately unresolved, not undrafted.
+  const roundLabel = player.rd_drafted
+    ? `ROUND ${player.rd_drafted}`
+    : player.rd
+      ? `PROJ. ROUND ${player.rd}`
+      : 'UNDRAFTED'
   const nameFontSize = player.name.length > 20 ? 64 : 80
 
   return new ImageResponse(
