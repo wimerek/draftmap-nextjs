@@ -12,8 +12,15 @@
 import { POSITION_ORDER, type Position } from './chartConstants';
 
 /** Years for which twin position pages are generated and routable. Non-listed → 404.
- *  2018–2025 added 2026-07-12 (consensus-rank coverage audit cleared them 2026-06-26). */
-export const SUPPORTED_TWIN_YEARS: readonly number[] = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
+ *  2018–2025 added 2026-07-12 (consensus-rank coverage audit cleared them 2026-06-26).
+ *  2016–2017 added 2026-08-14: never audited, but their drafted-player consensus-rank
+ *  coverage (2016 = 85.4%, 2017 = 88.5%) sits at or above already-shipped years
+ *  (2018 = 84.4%, 2022 = 84.0%) — the 84–92% band is the Wide Left signature, where a
+ *  ~300-deep board against 259 picks legitimately leaves ~40 late picks unranked. They
+ *  were also the only classes with no discovery path at all (absent from the sitemap,
+ *  and nothing linked them). They ship clamped to draft-day like every other historical
+ *  year — see TWIN_MATURED_YEARS below. */
+export const SUPPORTED_TWIN_YEARS: readonly number[] = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016];
 
 export function isSupportedTwinYear(year: number): boolean {
   return SUPPORTED_TWIN_YEARS.includes(year);
