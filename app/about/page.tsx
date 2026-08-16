@@ -227,8 +227,21 @@ export default async function AboutPage() {
             </p>
           </NarrativeSection>
 
-          {/* Letting the League Answer — method notes in the margin. */}
-          <EditorialRow className="mb-12 last:mb-0" aside={<MethodNotes />}>
+          {/* Letting the League Answer — method notes + Act 3 source credits in the margin.
+              mt-14 (56px) between the two cards is deliberate and measured: the internal
+              my-3 hairlines carry 25px, so anything less than that reads as a sub-break
+              and the two cards merge into one column. Do not tighten. */}
+          <EditorialRow
+            className="mb-12 last:mb-0"
+            aside={
+              <>
+                <MethodNotes />
+                <div className="mt-14">
+                  <ContractSourcesNote />
+                </div>
+              </>
+            }
+          >
             <h2
               id="letting-the-league-answer"
               className="scroll-mt-24 mb-3 text-xl sm:text-2xl text-dm-text"
@@ -657,6 +670,54 @@ function ConsensusSourcesNote() {
       <p className="mt-3" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontStyle: "italic", fontSize: 11, color: "#5a6b78", lineHeight: 1.4 }}>
         A player with no projection fell outside the published board. Every row records its source.
       </p>
+    </div>
+  );
+}
+
+// §Letting-the-league-answer gutter: where Act 3's outcome data comes from. Third
+// member of the citation-card family — same eyebrow/name/descriptor grammar as
+// ConsensusSourcesNote, and named to rhyme with it (Consensus = the projection,
+// Outcome = the result). No footer and no scope lines: both were drafted, measured
+// and cut. The coverage fact (money data stops at 2022) moved to the fine-print pass.
+function ContractSourcesNote() {
+  const link =
+    "underline decoration-dm-accent decoration-2 underline-offset-2 transition-opacity hover:opacity-70";
+  return (
+    <div>
+      <p
+        className="border-b pb-1.5"
+        style={{ borderColor: "#e2dac9", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9a7611" }}
+      >
+        Outcome sources
+      </p>
+
+      <div className="mt-3">
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
+          Over The Cap
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, lineHeight: 1.4, color: "#5a6b78" }}>
+          Guarantees
+          <span style={{ color: "#a99a78" }}> &middot; </span>
+          <a href="https://overthecap.com" target="_blank" rel="noopener" className={link} style={{ color: "#9a7611" }}>
+            overthecap.com
+          </a>
+        </p>
+      </div>
+
+      <div className="my-3 border-t" style={{ borderColor: "#e2dac9" }} />
+
+      <div>
+        <p style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: 14, color: "#0B2239" }}>
+          nflverse
+        </p>
+        <p className="mt-0.5" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11.5, lineHeight: 1.4, color: "#5a6b78" }}>
+          Snap counts and contract feed
+          <span style={{ color: "#a99a78" }}> &middot; </span>
+          <a href="https://github.com/nflverse" target="_blank" rel="noopener" className={link} style={{ color: "#9a7611" }}>
+            github.com/nflverse
+          </a>
+        </p>
+      </div>
     </div>
   );
 }
