@@ -103,6 +103,13 @@ export default async function PlayerPage({ params }: Props) {
     fetchOutcomeScores(),
     fetchPlayers(player.draft_year),
   ])
+  // ISR-write reduction (2026-09-07). PlayerCard's three consumers of `players` all narrow to
+  // same-position rows before use (buildPeerArr L145, posRank L526, classPeers L559), so
+  // shipping the whole class serialised ~340-500 rows into every one of 4,795 RSC payloads for
+  // nothing — ~145 KB written to the ISR cache per page, never read back. Narrowing here is
+  // output-identical. Do NOT also filter by draft_year: classPeers is already single-year
+  // (fetchPlayers(player.draft_year)).
+  const positionPeers = classPeers.filter(p => p.pos === player.pos)
 
   // Merge outcome data into player object
   const outcome = outcomeMap.get(player.player_id)
@@ -138,7 +145,7 @@ export default async function PlayerPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
-      <PlayerCardWrapper player={enrichedPlayer} players={classPeers} />
+      <PlayerCardWrapper player={enrichedPlayer} players={positionPeers} />
     </main>
   );
 }
