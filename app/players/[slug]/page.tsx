@@ -6,6 +6,8 @@ import { generateBaseSlug } from '@/lib/slugs';
 import { getPlayerSlugIndex } from '@/lib/playerSlugIndex';
 import { resolveTeamName } from '@/lib/chartConstants';
 import PlayerCardWrapper from '@/components/PlayerCardWrapper';
+import { isSupportedTwinYear, positionToSlug, slugToPosition } from '@/lib/twinConfig';
+import { VALID_DRAFT_YEARS } from '@/lib/draftYears';
 
 // Player profile data changes rarely; live-draft freshness is handled by the
 // /api route handlers (60s), so daily revalidation is sufficient here.
@@ -13,6 +15,27 @@ export const revalidate = 86400;
 
 /** Smallest real class in the snapshot is 2024 at 339. A read under this is broken data. */
 const PLAYERS_YEAR_FLOOR = 250;
+
+/**
+ * Destination for the standalone page's CTA and meta-row links (2026-09-12).
+ *   1. Twin page — crawlable, position-filtered chart — when the class AND position have one.
+ *   2. The class chart alone when only the year has a page. Today that is exactly the 167
+ *      specialists: pos "ST" is not in POSITION_ORDER, so slugToPosition("st") is null and
+ *      /draft/{year}/st would 404. /draft/[year] pre-renders every VALID_DRAFT_YEARS entry
+ *      (app/draft/[year]/page.tsx:12), so this fallback always resolves.
+ *   3. /draft (307 → DEFAULT_LANDING_YEAR, 2022 today) if the year has no page. 0 rows
+ *      today — every draft_year in the search index is 2016–2026, which both lists cover.
+ */
+function journeyHrefFor(player: Player): string {
+  const year = player.draft_year;
+  const validYears: readonly number[] = VALID_DRAFT_YEARS;
+  const posSlug = positionToSlug(player.pos);
+  if (isSupportedTwinYear(year) && slugToPosition(posSlug) !== null) {
+    return `/draft/${year}/${posSlug}`;
+  }
+  if (validYears.includes(year)) return `/draft/${year}`;
+  return '/draft';
+}
 
 interface Props {
   params: { slug: string };
@@ -145,7 +168,12 @@ export default async function PlayerPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
-      <PlayerCardWrapper player={enrichedPlayer} players={positionPeers} />
+      <PlayerCardWrapper
+        player={enrichedPlayer}
+        players={positionPeers}
+        journeyHref={journeyHrefFor(player)}
+        slug={params.slug}
+      />
     </main>
   );
 }

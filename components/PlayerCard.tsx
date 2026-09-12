@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import type { Player } from "@/lib/sheets";
 import type { DisplaySeasonRow } from "@/lib/scoring";
 import { getTierForScore } from "@/lib/tierLabels";
@@ -34,6 +35,8 @@ interface PlayerCardProps {
   playerSlug?: string;
   currentStepId?: string;
   standalone?: boolean;
+  /** Standalone page only: destination for the Projected / Drafted meta-row links. */
+  journeyHref?: string;
 }
 
 // ── Card color resolution ─────────────────────────────────────────────────────
@@ -505,7 +508,7 @@ function weightedSnapPct(rows: DisplaySeasonRow[]): number | null {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug, currentStepId, standalone = false }: PlayerCardProps) {
+export default function PlayerCard({ player, players, onClose, isMobile = false, playerSlug, currentStepId, standalone = false, journeyHref }: PlayerCardProps) {
   if (!player) return null;
 
   const draftYear = player.draft_year;
@@ -677,7 +680,13 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
             {/* Row 2: Projected */}
             <div className="dm-meta-row">
               <span className="dm-meta-label">Projected</span>
-              <span className="dm-meta-value">{player.rd != null ? `Round ${player.rd}` : "UDFA"}</span>
+              {standalone && journeyHref ? (
+                <Link href={`${journeyHref}?step=projection`} className="dm-meta-value dm-meta-link">
+                  {player.rd != null ? `Round ${player.rd}` : "UDFA"}
+                </Link>
+              ) : (
+                <span className="dm-meta-value">{player.rd != null ? `Round ${player.rd}` : "UDFA"}</span>
+              )}
             </div>
 
             {/* Row 3: Drafted */}
@@ -685,12 +694,21 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
               <span className="dm-meta-label">Drafted</span>
               {player.drafted ? (
                 player.rd_drafted != null ? (
-                  <span className="dm-meta-value">
-                    {player.team_drafted ?? "—"}
-                    &ensp;Rd&nbsp;{player.rd_drafted}
-                    &ensp;Pick&nbsp;#{player.pick_drafted}
-                    &ensp;{draftYear}
-                  </span>
+                  standalone && journeyHref ? (
+                    <Link href={`${journeyHref}?step=draft`} className="dm-meta-value dm-meta-link">
+                      {player.team_drafted ?? "—"}
+                      &ensp;Rd&nbsp;{player.rd_drafted}
+                      &ensp;Pick&nbsp;#{player.pick_drafted}
+                      &ensp;{draftYear}
+                    </Link>
+                  ) : (
+                    <span className="dm-meta-value">
+                      {player.team_drafted ?? "—"}
+                      &ensp;Rd&nbsp;{player.rd_drafted}
+                      &ensp;Pick&nbsp;#{player.pick_drafted}
+                      &ensp;{draftYear}
+                    </span>
+                  )
                 ) : (
                   <span className="dm-meta-value">UDFA&ensp;{draftYear}</span>
                 )
@@ -855,7 +873,7 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
           ) : (
             <div className="pcm-section-block">
               <p className="pcm-production-pending">
-                No NFL production yet. Usage and stats will appear here once {player.name.split(" ")[0]} takes the field.
+                No NFL production on record yet. Usage and stats appear here once {player.name.split(" ")[0]}&rsquo;s snaps are in the data.
               </p>
             </div>
           )}

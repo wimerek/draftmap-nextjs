@@ -3540,6 +3540,118 @@ a { color: inherit; text-decoration: none; }
   max-height: none;
 }
 
+/* ── Standalone player page chrome (2026-09-12) — mast above the card, footer below.
+   Only /players/[slug] renders these; the chart modal never does. Widths equal #pcm-wrap.
+   Focus ring = the site's navy-surface convention (.sb-footer-home:focus-visible). ── */
+.pcm-standalone-mast,
+.pcm-standalone-foot {
+  width: min(1060px, 94vw);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pcm-standalone-mast { padding: 0 2px 14px; }
+.pcm-standalone-foot { padding: 18px 2px 0; justify-content: center; gap: 28px; }
+
+.pcm-standalone-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.pcm-standalone-mark {
+  border-radius: 5px;
+  flex-shrink: 0;
+  /* 1px ivory hairline: the mark's own bg (#1A2540) has no edge against the page navy.
+     Derek's pick 09-12 ("option 3"); a gold ring was rejected as pulling from the CTA. */
+  box-shadow: 0 0 0 1px rgba(245, 240, 232, 0.28);
+}
+.pcm-standalone-brand-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: #F5F0E8;
+}
+
+/* CTA = filled gold pill (Derek's pick from the 09-12 mockup, "Variant C"). Navy text on
+   gold; hover swaps the fill to parchment and keeps the text navy. */
+.pcm-standalone-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  text-decoration: none;
+  background: #D4A017;
+  border-radius: 3px;
+  padding: 8px 14px 7px;
+}
+.pcm-standalone-foot .pcm-standalone-cta {
+  align-items: center;
+  text-align: center;
+}
+.pcm-standalone-cta:hover { background: #F5F0E8; }
+.pcm-standalone-cta-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: #0B2239;
+}
+.pcm-standalone-cta-arrow {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  margin-left: 2px;
+}
+.pcm-standalone-cta-sub {
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  margin-top: 3px;
+  color: rgba(11, 34, 57, 0.75);
+}
+
+.pcm-standalone-all {
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  color: rgba(245, 240, 232, 0.72);
+}
+.pcm-standalone-all:hover { color: #D4A017; }
+
+.pcm-standalone-brand:focus-visible,
+.pcm-standalone-cta:focus-visible,
+.pcm-standalone-all:focus-visible {
+  outline: 2px solid rgba(212, 160, 23, 0.60);
+  outline-offset: 2px;
+}
+
+/* Meta-row links (Projected / Drafted). No `color` here on purpose: .dm-meta-value already
+   sets var(--ink) at equal specificity, and a `color: inherit` on this later rule would win
+   and pull in .dm-meta-block's var(--ink-2) grey instead. */
+.dm-meta-link {
+  text-decoration: underline;
+  text-decoration-color: rgba(212, 160, 23, 0.9);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+.dm-meta-link:hover { color: #7A5000; }
+.dm-meta-link:focus-visible {
+  outline: 2px solid rgba(212, 160, 23, 0.60);
+  outline-offset: 1px;
+}
+
 /* ── Crawlable-twin position pages (/draft/[year]/[position]) ──────────────── */
 /* Brand-locked: Navy #0B2239, Gold #D4A017, Parchment #F5F0E8, Oswald/Inter.   */
 
