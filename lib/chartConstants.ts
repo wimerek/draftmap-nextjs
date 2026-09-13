@@ -535,6 +535,22 @@ export function resolveTeamName(raw: string | null | undefined): string {
   return TEAM_FULL_NAME[raw] ?? TEAM_FULL_NAME[raw.toLowerCase()] ?? raw;
 }
 
+/**
+ * Display label for a raw `team_drafted` value (2026-09-13). Keeps the Sheet's label exactly
+ * as written, including its historical franchise (the 2016 class says "San Diego", and stays
+ * San Diego) and its abbreviation style ("NY Jets", "LA Rams"); corrects MISSPELLINGS only.
+ * Distinct from resolveTeamName(), which returns the CURRENT full franchise name and would
+ * rewrite history on the twin class tables. Returns null for null so `string | null` row
+ * models pass through unchanged.
+ */
+const TEAM_LABEL_FIX: Record<string, string> = {
+  'San Fransisco': 'San Francisco',
+};
+export function resolveTeamLabel(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  return TEAM_LABEL_FIX[raw] ?? raw;
+}
+
 /** Resolve NFL team colors from any team string format.
  *  Accepts: full name ("Kansas City Chiefs"), abbreviation ("KC"), city ("Kansas City").
  *  Falls back to DraftMap brand navy/gold if team is not found.

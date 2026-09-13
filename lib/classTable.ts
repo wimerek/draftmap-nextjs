@@ -12,6 +12,7 @@
 import type { PreppedClass, PosPlayer } from './twinData';
 import { posRankLabel } from './twinData';
 import type { ClassMaturity } from './classMaturity';
+import { resolveTeamLabel } from './chartConstants';
 
 export interface TableColumn {
   key: string;
@@ -60,7 +61,7 @@ function toRow(pp: PosPlayer, position: string): TableRow {
     consensus: pp.player.rank,
     delta: pp.delta,
     school: pp.player.school,
-    team: pp.player.team_drafted,
+    team: resolveTeamLabel(pp.player.team_drafted),
   };
 }
 

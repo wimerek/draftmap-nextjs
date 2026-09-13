@@ -8,6 +8,7 @@ import { getTierForScore } from "@/lib/tierLabels";
 import { cardPositionalRangeData, resolveTeamColors, resolveSchoolColors } from "@/lib/chartConstants";
 import { scoutToInches, inchesToHeightDisplay } from "@/lib/chartMath";
 import { getFunFact } from "@/lib/funFacts";
+import { buildPlayerLede } from "@/lib/playerLede";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -729,6 +730,9 @@ export default function PlayerCard({ player, players, onClose, isMobile = false,
 
         {/* ── Body (scrolling) ──────────────────────────────────────── */}
         <div className="dm-body">
+          {standalone && (
+            <p className="dm-lede">{buildPlayerLede(player)}</p>
+          )}
 
           {/* ── Player Production ───────────────────────────────────── */}
           <div className="dm-band">Player Production</div>
